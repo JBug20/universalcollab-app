@@ -1,6 +1,6 @@
 from pathlib import Path
 import shutil,json,os,zipfile,tarfile,hashlib
-r=Path(__file__).resolve().parents[1];parent=r.parent;v="1.0.0-rc.8";b=parent/'uc-rc3-ui-release';notes=(r/f'START-HERE-{v}.md').read_text();runtime=Path(os.environ.get('RUNTIME_ROOT',parent/'release-runtime'))
+r=Path(__file__).resolve().parents[1];parent=r.parent;v="1.0.0-rc.8";b=parent/'uc-rc3-ui-release';notes=(r/'docs'/f'START-HERE-{v}.md').read_text();runtime=Path(os.environ.get('RUNTIME_ROOT',parent/'release-runtime'))
 reference=json.loads((r/'build/runtime-rc3-reference.json').read_text())
 def copy_fresh(src,dst):
  # Avoid stale timestamps on extracted/copy-on-write runtime files.
@@ -24,12 +24,18 @@ for name in ['windows-app','UniversalCollab-Linux']:
  verify_runtime(b,name)
  if name=='UniversalCollab-Linux':shutil.copyfile(r/'DesktopSource/linux-install.sh',dest/'install.sh')
  (dest/'README.txt').write_text(notes)
- shutil.copy2(r/'API-Public-Release-Checklist.md',dest/'API-Public-Release-Checklist.md')
+ shutil.copy2(r/'docs/API-Public-Release-Checklist.md',dest/'API-Public-Release-Checklist.md')
 shutil.copy2(r/'DesktopSource/windows-installer.nsi',b/'installer.nsi')
-with zipfile.ZipFile(parent/f'UniversalCollab-ServerUpdate-{v}.zip','w',zipfile.ZIP_DEFLATED) as z:
- for p in (b/'relay').rglob('*'):
-  if p.is_file() and p.relative_to(b/'relay').parts[0] not in ['config.json','fallback.png','vendor','data']:z.write(p,str(p.relative_to(b/'relay')))
- z.writestr(f'UPDATE-{v}.md',notes)
+# The relay update zip is built from the relay source next to this repo (or RELAY_ROOT).
+# It never includes the host's config, data, recordings, vendor binaries or fallback image.
+relay=Path(os.environ.get('RELAY_ROOT',parent/'universalcollab-relay'))
+if (relay/'index.js').is_file():
+ with zipfile.ZipFile(parent/f'UniversalCollab-ServerUpdate-{v}.zip','w',zipfile.ZIP_DEFLATED) as z:
+  for p in relay.rglob('*'):
+   parts=p.relative_to(relay).parts
+   if p.is_file() and parts[0] not in ['config.json','fallback.png','vendor','data','recordings','tests','build','node_modules'] and not any(x.startswith('.') for x in parts):z.write(p,str(p.relative_to(relay)))
+  z.writestr(f'UPDATE-{v}.md',notes)
+else:print('Relay source not found at '+str(relay)+'; skipped the server update zip.')
 with zipfile.ZipFile(parent/f'UniversalCollab-Owner-Source-PRIVATE-{v}.zip','w',zipfile.ZIP_DEFLATED) as z:
  for p in r.rglob('*'):
   if p.is_file() and p.relative_to(r).parts[0] not in ['vendor','data','OWNER-PRIVATE-RELEASE-KEYS'] and p.name != 'OWNER-ONLY.txt' and '__pycache__' not in p.parts and not any(x.startswith('.') for x in p.relative_to(r).parts) and p.suffix not in ['.zip','.gz'] and p.stat().st_size<10000000:z.write(p,str(p.relative_to(r)))
@@ -39,6 +45,6 @@ def linux_permissions(info):
  if info.name.endswith(('/stream-relay','/chrome_crashpad_handler','/chrome-sandbox','/install.sh')):info.mode=0o755
  return info
 with tarfile.open(parent/f'UniversalCollab-Linux-{v}.tar.gz','w:gz',compresslevel=6) as t:t.add(b/'UniversalCollab-Linux',arcname='UniversalCollab-Linux',filter=linux_permissions)
-shutil.copy2(r/f'START-HERE-{v}.md',parent/f'UniversalCollab-{v}-Setup-Guide.md')
+shutil.copy2(r/'docs'/f'START-HERE-{v}.md',parent/f'UniversalCollab-{v}-Setup-Guide.md')
 print('PASS complete runtime files verified against rc.3 before and after copying.')
 print('Packaged relay, private source and Linux app. Run makensis on uc-rc3-ui-release/installer.nsi, then copy its installer to the output folder.')
