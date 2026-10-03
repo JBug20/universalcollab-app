@@ -154,7 +154,11 @@
   pass.placeholder = 'Backup password';
   pass.dataset.secret = 'true';
   pass.setAttribute('aria-label', 'Backup password');
+  // Keep in step with the allowlist in backup.cjs.
   const workspaceKeys = [
+    'uc-ui8-workspace',
+    'uc-ui8-dock-sizes',
+    'uc-ui8-panel-weights',
     'uc-ui7-workspace',
     'uc-ui7-dock-sizes',
     'uc-ui7-obs-retry',

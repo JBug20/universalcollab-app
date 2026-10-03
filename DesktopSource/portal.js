@@ -504,7 +504,6 @@ $('serverSelect').onchange = async () => {
   try {
     if (!(await verifyIdle())) return;
     if (target === '__add__') {
-      document.querySelector('[data-workspace-tab="relay"]')?.click();
       offline();
       $('welcome').hidden = false;
       $('serverNickname').value = '';

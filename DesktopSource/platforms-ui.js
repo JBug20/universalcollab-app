@@ -4,7 +4,7 @@
     bridge = window.relayDesktop;
   let state = null,
     broadcasts = [],
-    tab = 'combined',
+    tab = 'combined', // The compact studio has one combined chat view.
     pendingModeration = null,
     chatSignature = '',
     inFlight = false;
@@ -30,20 +30,6 @@
     }
   }
   const names = { twitch: 'Twitch', youtube: 'YouTube' };
-  for (const button of document.querySelectorAll('[data-workspace-tab]'))
-    button.onclick = () => {
-      tab = button.dataset.workspaceTab;
-      for (const b of document.querySelectorAll('[data-workspace-tab]'))
-        b.setAttribute('aria-selected', String(b === button));
-      $('relayWorkspace').hidden = tab !== 'relay';
-      $('socialWorkspace').hidden = tab !== 'social';
-      $('platformWorkspace').hidden = ['relay', 'social'].includes(tab);
-      $('workspaceTools').hidden = !['relay', 'social'].includes(tab);
-      window.dispatchEvent(new CustomEvent('workspace-tab', { detail: tab }));
-      $('tab-combined').hidden = tab !== 'combined';
-      renderChat();
-      window.dispatchEvent(new CustomEvent('platform-state', { detail: s }));
-    };
   for (const p of ['twitch', 'youtube']) {
     $(p + 'Setup').onsubmit = e => {
       e.preventDefault();
@@ -328,15 +314,6 @@
     act(async () => {
       paint(await call('clear-local'));
       notify('Local chat view cleared. Platform messages were not deleted.');
-    });
-  // One shared chat surface follows the selected platform tab without duplicate polling.
-  for (const b of document.querySelectorAll('[data-workspace-tab]'))
-    b.addEventListener('click', () => {
-      if (['twitch', 'youtube', 'combined'].includes(tab)) {
-        $('tab-' + tab).append($('chatSurface'));
-        if (tab !== 'combined') $('chatTarget').value = tab;
-        $('chatFilters').hidden = tab !== 'combined';
-      }
     });
   if (!bridge?.platform) {
     $('desktopOnly').hidden = false;

@@ -410,10 +410,11 @@
           ['description', 'productionDescription'],
           ['twitchTitle', 'productionTwitchTitle'],
           ['youtubeTitle', 'productionYoutubeTitle'],
-          ['youtubeDescription', 'productionYoutubeDescription'],
-          ['privacy', 'productionPrivacy']
+          ['youtubeDescription', 'productionYoutubeDescription']
         ])
           $(id).value = saved[k] || '';
+        // An empty value would leave the privacy menu with nothing selected.
+        if (saved.privacy) $('productionPrivacy').value = saved.privacy;
         $('productionSync').checked = saved.sync !== false;
         $('productionOverrides').hidden = saved.sync !== false;
         $('productionKids').value = saved.audienceSet ? (saved.madeForKids ? 'yes' : 'no') : '';

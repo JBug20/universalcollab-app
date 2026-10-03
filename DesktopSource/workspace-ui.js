@@ -292,11 +292,10 @@
       localStorage.setItem('uc-ui8-dock-sizes', JSON.stringify(sizes));
     };
     handle.onkeydown = e => {
-      const n = ['ArrowRight', 'ArrowUp'].includes(e.key)
-        ? 10
-        : ['ArrowLeft', 'ArrowDown'].includes(e.key)
-          ? -10
-          : 0;
+      // Arrow keys move the divider itself. The right section is measured from the right edge,
+      // so moving its divider right makes it narrower.
+      const step = { ArrowRight: 10, ArrowUp: 10, ArrowLeft: -10, ArrowDown: -10 }[e.key] || 0,
+        n = side === 'right' && ['ArrowLeft', 'ArrowRight'].includes(e.key) ? -step : step;
       if (n) {
         e.preventDefault();
         sizes[side] = Math.max(100, sizes[side] + n);

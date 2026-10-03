@@ -320,7 +320,12 @@ class StudioService {
         const meta = this.metadata(input, p);
         if (p === 'twitch') {
           const current = await this.p.twitchInfo();
-          await this.p.updateTwitch({ ...meta, gameId: meta.gameId || current.gameId });
+          // Keep the channel's language, as prepare() does; the form has no language field.
+          await this.p.updateTwitch({
+            ...meta,
+            gameId: meta.gameId || current.gameId,
+            language: current.language || 'en'
+          });
         } else {
           if (!d?.broadcastId) throw new PlatformError('Create a YouTube broadcast first.');
           await this.p.updateYoutube({ id: d.broadcastId, ...meta });

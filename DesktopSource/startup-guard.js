@@ -11,6 +11,7 @@ window.addEventListener('error', e => {
 document.getElementById('resetStudioUI').onclick = () => {
   if (!confirm('Reset only the new studio layout? Saved servers, platform logins and scenes are kept.'))
     return;
-  for (const key of ['uc-ui5-workspace']) localStorage.removeItem(key);
+  for (const key of ['uc-ui8-workspace', 'uc-ui8-dock-sizes', 'uc-ui8-panel-weights', 'uc-ui5-workspace'])
+    localStorage.removeItem(key);
   location.reload();
 };
