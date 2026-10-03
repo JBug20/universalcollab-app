@@ -16,10 +16,11 @@
     clamp = (v, a, b) => Math.max(a, Math.min(b, v)),
     defaultMain = () => ({ id: 'main', kind: 'main', x: 0, y: 0, width: 1, height: 1, z: -1 });
   const supported = () => true;
+  const mediaKinds = ['text', 'image', 'browser'];
   const editable = item =>
     !locked.has(item.id) &&
     (item.kind === 'main' ||
-      ['text', 'image', 'browser'].includes(item.kind) ||
+      mediaKinds.includes(item.kind) ||
       (online() && capability(item.kind === 'video' ? 'pictureInPicture' : 'chatOverlays')));
   const chosen = () => items.find(i => i.id === selection) || items[0];
   const title = i =>
@@ -37,9 +38,12 @@
   function changed() {
     layoutDirty = true;
     window.dispatchEvent(new Event('scene-change'));
-    $('canvasHint').textContent = 'Unsaved changes — Save stream layout & fallback to apply.';
+    $('canvasHint').textContent = online()
+      ? 'Unsaved changes — click ✓ to apply them to the relay.'
+      : 'Unsaved changes — click ✓ to save them on this device. They apply when you connect.';
   }
   function load(settings) {
+    const previous = new Map(items.map(i => [i.id, i]));
     resolution = settings.resolution || null;
     items = [{ ...defaultMain(), ...(settings.main || {}) }];
     for (const [n, p] of (settings.overlays || []).entries())
@@ -51,12 +55,17 @@
         corner: p.corner || 'top-right',
         x: p.x ?? (p.corner?.endsWith('left') ? 0.027 : 0.973),
         y: p.y ?? (p.corner?.startsWith('bottom') ? 0.973 : 0.027),
-        width: p.width ?? (view?.status.overlayWidthPercent || 25) / 100,
-        height: p.height ?? (view?.status.overlayWidthPercent || 25) / 100,
+        width: p.width ?? (view?.status?.overlayWidthPercent || 25) / 100,
+        height: p.height ?? (view?.status?.overlayWidthPercent || 25) / 100,
         z: p.z ?? n
       });
     for (const [n, p] of (settings.chatOverlays || []).entries())
       items.push({ id: 'chat:' + p.source, kind: 'chat', ...p, z: p.z ?? 100 + n });
+    // The relay stores text, picture and browser sources, but picture data stays on this device.
+    for (const [n, p] of (settings.mediaOverlays || []).entries()) {
+      const image = previous.get(p.id)?.image;
+      items.push({ ...p, z: p.z ?? 200 + n, ...(p.kind === 'image' && image ? { image } : {}) });
+    }
     selection = items.some(i => i.id === selection) ? selection : 'main';
     lastSent = '';
     paint();
@@ -94,8 +103,8 @@
       : !online()
         ? 'Offline layout — connect to an updated relay to apply broadcast sources.'
         : layoutDirty
-          ? 'Unsaved changes — Save to keep offline, then apply when connected.'
-          : 'Drag to move or resize. Sources snap to edges, centers, and other sources. Right-click for corners or a 2×2 split.';
+          ? 'Unsaved changes — click ✓ to apply them to the relay.'
+          : 'Drag to move or resize. Sources snap to edges, centers, and other sources (hold Alt to place freely). Right-click for corners or a 2×2 split.';
     inspect();
     presetPaint();
   }
@@ -246,7 +255,7 @@
         }
         item.x = clamp(item.x, 0, 1);
         item.y = clamp(item.y, 0, 1);
-        snap(item);
+        if (!e.altKey) snap(item); // Hold Alt to place freely.
         styleBox(tile, item);
         inspect();
         changed();
@@ -497,7 +506,7 @@
         .filter(i => i.kind === 'chat')
         .map(i => ({ source: i.source, ...box(i), z: i.z, visible: i.visible !== false })),
       mediaOverlays = items
-        .filter(i => ['text', 'image', 'browser'].includes(i.kind))
+        .filter(i => mediaKinds.includes(i.kind))
         .map(i => ({
           id: i.id,
           kind: i.kind,
@@ -738,7 +747,8 @@
         (item.kind === 'video' && capability('pictureInPicture') && allowed(item.publisher, 'video')) ||
         (item.kind === 'chat' &&
           capability('chatOverlays') &&
-          ['twitch', 'youtube', 'combined'].includes(item.source))
+          ['twitch', 'youtube', 'combined'].includes(item.source)) ||
+        mediaKinds.includes(item.kind)
       )
         clean.push({ ...item });
       else skipped++;
@@ -755,7 +765,7 @@
     paint();
     availability();
     note(
-      'Preset loaded for preview. Save stream layout & fallback to apply.' +
+      'Preset loaded for preview. Click ✓ to apply it.' +
         (skipped ? ' ' + skipped + ' unavailable or unapproved item(s) omitted.' : '')
     );
   });
@@ -775,16 +785,14 @@
     return {
       resolution,
       items: structuredClone(items),
-      locked: [...locked],
-      fallback: [1, 2].map(n => $('fallback' + n).value).filter(Boolean),
-      options: window.releaseFeatures?.settings() || {}
+      locked: [...locked]
     };
   }
   function restore(value) {
     resolution = value?.resolution || null;
     const valid = i =>
       i &&
-      ['main', 'video', 'chat'].includes(i.kind) &&
+      ['main', 'video', 'chat', ...mediaKinds].includes(i.kind) &&
       ['x', 'y', 'width', 'height'].every(k => Number.isFinite(i[k]) && i[k] >= 0 && i[k] <= 1) &&
       i.width >= 0.04 &&
       i.height >= 0.04;
@@ -811,9 +819,8 @@
     }
     locked = new Set(Array.isArray(value?.locked) ? value.locked.filter(id => used.has(id)) : []);
     selection = 'main';
-    for (const n of [1, 2]) $('fallback' + n).value = value?.fallback?.[n - 1] || '';
-    if ($('fallbackTimeout')) $('fallbackTimeout').value = value?.options?.fallbackTimeoutMinutes || 0;
-    if ($('povLabels')) $('povLabels').checked = value?.options?.povLabels !== false;
+    // Scenes change the layout only. Fallback, the auto-end timer and POV labels are stream-wide
+    // settings (End Relay ⚙ and Fallback & output), so switching scenes leaves them as they are.
     changed();
     paint();
     availability();

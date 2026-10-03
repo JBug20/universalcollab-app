@@ -91,9 +91,46 @@ try {
   );
   assert(!(await page.locator('#endRelayWindow').evaluate(d => d.open)));
   assert.equal(await page.locator('#streamMore').count(), 1);
+
+  // Text sources survive saving, relay scene switches and presets.
+  page.once('dialog', d => d.accept('Hello chat'));
+  await page.evaluate(() => {
+    document.getElementById('canvasSource').value = 'text:new';
+    document.getElementById('canvasAdd').click();
+  });
+  const textItems = () => page.locator('#layoutPreview .canvas-item.text').count();
+  assert.equal(await textItems(), 1);
+  assert(await page.evaluate(() => window.streamCanvas.save()));
+  assert.equal(await textItems(), 1, 'a saved text source disappeared from the editor');
+  assert(
+    await page.evaluate(() =>
+      calls.some(c => c.route?.endsWith('/settings') && c.body.mediaOverlays?.[0]?.text === 'Hello chat')
+    )
+  );
+  await page.evaluate(() => window.streamCanvas.restore(window.streamCanvas.snapshot()));
+  assert.equal(await textItems(), 1, 'switching relay scenes dropped the text source');
+  await page.evaluate(() => {
+    const withText = window.streamCanvas.snapshot();
+    window.streamCanvas.restore({ items: [{ id: 'main', kind: 'main', x: 0, y: 0, width: 1, height: 1 }] });
+    window.sceneWithText = withText;
+  });
+  assert.equal(
+    await page.locator('#fallbackTimeout').inputValue(),
+    '5',
+    'a scene switch reset the auto-end timer'
+  );
+  assert.equal(await page.locator('#fallback1').inputValue(), 'bob', 'a scene switch cleared the fallback');
+  await page.evaluate(() => window.streamCanvas.restore(window.sceneWithText));
+  await page.evaluate(() => {
+    document.getElementById('streamPresetName').value = 'With text';
+    document.getElementById('saveStreamPreset').click();
+    document.getElementById('streamPresetSelect').value = 'With text';
+    document.getElementById('loadStreamPreset').click();
+  });
+  assert.equal(await textItems(), 1, 'loading a preset dropped the text source');
   assert.deepEqual(errors, []);
   console.log(
-    'PASS mixer meters on a dB scale and after reconnect, End Relay placement and confirmation, auto-end timer and fallback saved from its settings.'
+    'PASS mixer meters on a dB scale and after reconnect, End Relay placement and confirmation, auto-end timer and fallback saved from its settings, text sources kept through save, scene switch and preset.'
   );
 } finally {
   await browser.close();

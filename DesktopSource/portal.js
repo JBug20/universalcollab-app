@@ -401,7 +401,6 @@ for (const card of document.querySelectorAll(
   const field = document.createElement('fieldset');
   field.className = 'server-controls';
   field.disabled = true;
-  if (['connectionsPanel', 'streamsPanel'].includes(card.id)) continue;
   for (const node of [...card.childNodes])
     if (!(node.nodeType === 1 && node.matches('h2,h3,.sectionhead,.panel-tools'))) field.append(node);
   card.append(field);

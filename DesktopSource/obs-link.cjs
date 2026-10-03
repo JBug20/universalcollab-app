@@ -11,8 +11,10 @@ class OBSLink {
     this.pending = new Map();
   }
   close() {
+    // Only report a disconnect if OBS was actually connected; failed retries stay quiet.
+    const wasReady = this.ready;
     this.ready = false;
-    this.notify({ type: 'connection', connected: false });
+    if (wasReady) this.notify({ type: 'connection', connected: false });
     this.socket?.close();
     this.socket = null;
     for (const p of this.pending.values()) {
@@ -51,8 +53,9 @@ class OBSLink {
       ws.on('error', fail);
       ws.on('close', () => {
         if (this.socket === ws) {
+          const wasReady = this.ready;
           this.ready = false;
-          this.notify({ type: 'connection', connected: false });
+          if (wasReady) this.notify({ type: 'connection', connected: false });
           for (const p of this.pending.values()) {
             clearTimeout(p.timer);
             p.reject(Error('OBS disconnected.'));
@@ -92,12 +95,10 @@ class OBSLink {
                 this.meterTime = Date.now();
                 this.notify({
                   type: 'meters',
-                  inputs: (m.d.eventData?.inputs || [])
-                    .slice(0, 64)
-                    .map(i => ({
-                      name: i.inputName,
-                      level: Math.max(0, ...(i.inputLevelsMul || []).map(c => Number(c[1]) || 0))
-                    }))
+                  inputs: (m.d.eventData?.inputs || []).slice(0, 64).map(i => ({
+                    name: i.inputName,
+                    level: Math.max(0, ...(i.inputLevelsMul || []).map(c => Number(c[1]) || 0))
+                  }))
                 });
               }
             } else if (

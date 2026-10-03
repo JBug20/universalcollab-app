@@ -316,8 +316,7 @@
       name: sceneName(),
       layout: {
         items: [{ id: 'main', kind: 'main', x: 0, y: 0, width: 1, height: 1, z: -1 }],
-        locked: [],
-        fallback: []
+        locked: []
       }
     });
     saveScene();

@@ -16,4 +16,14 @@ link.subscribe(false);
 assert.deepEqual(sent.at(-1), { op: 3, d: { eventSubscriptions: 1023 } });
 link.subscribe(true);
 assert.deepEqual(sent.at(-1), { op: 3, d: { eventSubscriptions: 1023 | 65536 } });
-console.log('PASS OBS meter subscription is remembered for the next connection and updated live.');
+const events = [];
+const quiet = new OBSLink(e => events.push(e));
+quiet.close();
+assert.deepEqual(events, [], 'closing a link that never connected must not report a disconnect');
+quiet.ready = true;
+quiet.socket = { close() {} };
+quiet.close();
+assert.deepEqual(events, [{ type: 'connection', connected: false }]);
+console.log(
+  'PASS OBS meter subscription is remembered for the next connection and updated live; failed retries stay quiet.'
+);
