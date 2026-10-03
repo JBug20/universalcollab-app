@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';import path from 'node:path';import {createRequire} from 'node:module';
-const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULE);
+const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
 try{const page=await browser.newPage({viewport:{width:1300,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
 await page.addInitScript(()=>{
@@ -7,7 +7,7 @@ await page.addInitScript(()=>{
  const state={accounts:{twitch:{id:'123',name:'Streamer'},youtube:{id:'UC1',name:'YT Streamer'}},configured:{twitch:true,youtube:true},auth:{},chats:{twitch:{running:true,status:'Connected'},youtube:{running:true,status:'Connected'}},messages:[{key:'tw-key',platform:'twitch',channel:'123',id:'m1',authorId:'viewer',author:'Viewer',text:'<img src=x onerror=alert(1)>',time:new Date().toISOString()},{key:'yt-key',platform:'youtube',channel:'chat1',id:'m2',authorId:'UCviewer',author:'YT Viewer',text:'Hello from YouTube',time:new Date().toISOString()}]};
  window.relayDesktop={loadServers:async()=>({schemaVersion:1,servers:[],selectedKey:''}),saveServers:async()=>{},loadLocalProfile:async()=>({displayName:'Local profile'}),saveLocalProfile:async()=>{},copy:async()=>{},onPlatforms:fn=>{window.platformPaint=fn;},platform:async(op,input)=>{window.platformCalls.push({op,input});if(op==='twitch-info')return {title:'Current title',gameId:'42',gameName:'Game',language:'en'};if(op==='categories')return [{id:'7',name:'Other game'}];if(op==='broadcasts')return [{id:'vid',title:'My stream',description:'Description',state:'live'}];if(op==='moderate'){state.messages=state.messages.filter(m=>m.key!==input.key);window.platformPaint(state);return {done:true};}if(op==='youtube-save')return input;if(op==='send')return {sent:true};return state;}};
 });
-await page.goto('file://'+path.resolve('universalcollab-063/DesktopSource/portal.html'));await page.waitForFunction(()=>document.querySelector('#state').textContent==='Offline');
+await page.goto('file://'+new URL('../../DesktopSource/portal.html',import.meta.url).pathname);await page.waitForFunction(()=>document.querySelector('#state').textContent==='Offline');
 await page.getByRole('tab',{name:'Twitch',exact:true}).click();assert(await page.locator('#relayWorkspace').isHidden());assert(await page.locator('#twitchTitle').isEnabled());
 await page.locator('#twitchReload').click();await page.waitForFunction(()=>document.querySelector('#twitchTitle').value==='Current title');
 await page.locator('#twitchTitle').fill('Edited stream title');await page.locator('#twitchInfoForm button').click();await page.waitForFunction(()=>platformCalls.some(x=>x.op==='twitch-save'));

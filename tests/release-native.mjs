@@ -1,5 +1,5 @@
 import vm from 'node:vm';import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import assert from 'node:assert/strict';import {pathToFileURL} from 'node:url';import {createRequire} from 'node:module';
-import {PortalStore} from '../src/portal-store.mjs';import {createPortalServer} from '../src/portal-server.mjs';
+import {PortalStore} from '../../universalcollab-relay/src/portal-store.mjs';import {createPortalServer} from '../../universalcollab-relay/src/portal-server.mjs';
 const require=createRequire(import.meta.url),dir=fs.mkdtempSync(path.join(os.tmpdir(),'relay-bridge-'));let server,ready,window,encrypted=true;const handlers=new Map();
 try{
  const store=new PortalStore({directory:dir+'/server'}),user=store.register('Alice',store.joinPassword);

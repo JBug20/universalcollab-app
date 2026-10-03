@@ -90,7 +90,7 @@
   for(let y=0;y<h;y+=2)for(let x=0;x<w;x+=2){let rr=0,gg=0,bb=0;for(let yy=0;yy<2;yy++)for(let xx=0;xx<2;xx++){const p=(y+yy)*w+x+xx,q=p*4,r=rgba[q],g=rgba[q+1],b=rgba[q+2];yuv[p]=clamp(Math.round(16+.257*r+.504*g+.098*b),16,235);rr+=r;gg+=g;bb+=b;}const at=(y/2)*(w/2)+x/2;yuv[u+at]=clamp(Math.round(128-.148*rr/4-.291*gg/4+.439*bb/4),16,240);yuv[v+at]=clamp(Math.round(128+.439*rr/4-.368*gg/4-.071*bb/4),16,240);}
   let binary='';for(let i=0;i<yuv.length;i+=16384)binary+=String.fromCharCode(...yuv.subarray(i,i+16384));return {source:tile.source,width:w,height:h,data:btoa(binary)};
  }
- async function upload(){if(uploading||!supported()||!capability('chatOverlays')||!view.status.broadcast)return;
+ async function upload(){if(uploading||!supported()||!capability('chatOverlays')||!view?.status?.broadcast)return;
   const tiles=view.me.settings.chatOverlays||[];if(!tiles.length)return;
   const available=tiles.filter(t=>t.source==='combined'?chatStatus.twitch?.running||chatStatus.youtube?.running:chatStatus[t.source]?.running);
   const signature=JSON.stringify([available,messages,view.status.width,view.status.height]);if(signature===lastSent&&Date.now()-lastAt<6000)return;

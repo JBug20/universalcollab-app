@@ -1,5 +1,5 @@
 import path from 'node:path';import assert from 'node:assert/strict';import {createRequire} from 'node:module';
-const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULE);
+const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
 try{
  const page=await browser.newPage({viewport:{width:1300,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -21,7 +21,7 @@ try{
    }
   };
  });
- await page.goto('file://'+path.resolve('universalcollab-062/DesktopSource/portal.html'));
+ await page.goto('file://'+new URL('../../DesktopSource/portal.html',import.meta.url).pathname);
  await page.waitForFunction(()=>document.querySelector('#serverSelect').options.length===4);
  assert(await page.locator('#dashboard').isVisible());assert(await page.locator('#welcome').isHidden());
  assert(await page.locator('#saveDestination').isDisabled());assert(await page.locator('#pip').isDisabled());

@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict');const {StudioService}=require('../DesktopSource/platforms/studio.cjs');
+const assert=require('node:assert/strict');const {StudioService}=require('../../DesktopSource/platforms/studio.cjs');
 (async()=>{
  const calls=[];let failBind=true,ids=0,saves=0;
  const platform={db:{clients:{},accounts:{twitch:{id:'tw'},youtube:{id:'yt'}}},save(){saves++;},now:()=>Date.now(),account(p){if(!this.db.accounts[p])throw Error();return this.db.accounts[p];},raw:async()=>({ingests:[{default:true,url_template:'rtmp://ingest.example/app/{stream_key}'}]}),twitchInfo:async()=>({gameId:'42',language:'en'}),updateTwitch:async x=>calls.push(['tw-meta',x]),updateYoutube:async x=>calls.push(['yt-meta',x]),api:async(p,route,opts={})=>{

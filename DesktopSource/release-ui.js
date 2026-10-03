@@ -3,7 +3,7 @@
  const available=key=>view?.capabilities?.[key]===true;
  const make=(tag,text)=>{const n=document.createElement(tag);if(text)n.textContent=text;return n;};
  const layout=$('canvasSave').parentElement,options=make('div');options.className='row';const timeout=make('input');timeout.id='fallbackTimeout';timeout.type='number';timeout.min='0';timeout.max='1440';timeout.step='0.5';timeout.value='0';const timeoutLabel=make('label','Stop after primary disconnects (minutes; 0 = manual)');timeoutLabel.append(timeout);const labels=make('input');labels.id='povLabels';labels.type='checkbox';labels.checked=true;const label=make('label',' Show POV names');label.prepend(labels);options.append(timeoutLabel,label);layout.append(options);
- timeout.onchange=labels.onchange=()=>{layoutDirty=true;};
+ timeout.oninput=labels.onchange=()=>{layoutDirty=true;};
  const force=button('Show fallback now',()=>change('/api/'+(view?.status?.forcedFallback?'restore-primary':'force-fallback')));force.id='forceFallback';$('collab').after(force);
  const health=make('div');health.id='healthDashboard';health.setAttribute('role','status');$('destinationHealth').after(health);
  const check=button('Check stream readiness',async()=>{if(!connected)return;await refresh();const lines=[];lines.push(view?.me?.destinationConfigured?'Destination plan saved':'Prepare a stream first');lines.push(view?.status?.mode==='test'?'Server is in TEST mode: nothing goes to platforms':'Server is in LIVE mode');if(view?.status?.held)lines.push('Stop OBS reconnecting and wait for rearm');lines.push('OBS must use H.264 video, AAC audio and the permanent key shown in OBS connection.');note(lines.join(' · '));});check.id='readinessCheck';$('newStream').after(check);
