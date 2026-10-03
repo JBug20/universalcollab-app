@@ -1,27 +1,177 @@
-import assert from 'node:assert/strict';import path from'node:path';import{createRequire}from'node:module';const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
-const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
-try{const page=await browser.newPage({viewport:{width:1400,height:1100}}),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(()=>{
- window.calls=[];window.live=false;window.settings={overlays:[],fallback:[]};window.features={streamCanvas:1,pictureInPicture:true,chatOverlays:true,collaboratorFallback:true,registration:true};window.platformPush=null;
- const server={key:'one',nickname:'Home',id:'alice',token:'x'.repeat(32),address:'http://127.0.0.1:25560'};
- window.relayDesktop={loadServers:async()=>({schemaVersion:1,selectedKey:'one',servers:[server,{...server,key:'two',nickname:'Other'}]}),saveServers:async()=>{},loadLocalProfile:async()=>({schemaVersion:1,displayName:'Bug',createdAt:'2026'}),saveLocalProfile:async()=>{},copy:async()=>{},onPlatforms:cb=>window.platformPush=cb,
- platform:async()=>({accounts:{twitch:null,youtube:null},configured:{twitch:true,youtube:true},auth:{twitch:{},youtube:{}},chats:{twitch:{running:true,status:'Connected'},youtube:{running:true,status:'Connected'}},messages:[{key:'1',platform:'twitch',author:'viewer',text:'Hello <script>test</script>',time:Date.now()}]}),
- request:async q=>{calls.push(q);if(q.route.endsWith('/secrets'))return {obsServer:'rtmp://secret/live',obsKey:'SECRET',loginToken:'x'.repeat(32),destinationBaseUrl:'rtmp://dest/live',destinationStreamKey:'KEY'};if(q.route.endsWith('/settings'))settings=q.body;if(q.route.endsWith('/chat-frame'))return {ok:true};if(q.route==='/api/end')window.live=false;
- return {capabilities:window.features,me:{id:'alice',destinationConfigured:true,settings:window.settings},status:{broadcast:window.live,state:window.live?'live':'ready',width:1920,height:1080,fps:60,pictureInPicture:true,collabFallback:true},peers:[1,2,3,4].map(n=>({id:'peer'+n,state:'live'})),requests:[1,2,3,4].map(n=>({id:'r'+n,owner:'alice',peer:'peer'+n,kind:'video',status:'approved'}))};}};
- });await page.goto('file://'+new URL('../../DesktopSource/portal.html',import.meta.url).pathname);await page.waitForFunction(()=>document.querySelector('#serverConnect').disabled===false);
- assert(await page.locator('#canvasSave').isDisabled());await page.locator('[data-workspace-tab="social"]').click();assert(await page.locator('#people').isVisible());assert(await page.locator('#requests').isVisible());assert(await page.locator('#layoutPreview').isHidden());assert(await page.locator('#serverSelect').isVisible());
- await page.locator('#editPanels').click();await page.getByRole('button',{name:'Hide People on this server panel',exact:true}).click();await page.locator('#addPanel').click();await page.locator('[data-add-panel="people"]').click();assert(await page.locator('#people').isVisible());await page.locator('#editPanels').click();
- await page.locator('[data-workspace-tab="relay"]').click();assert(await page.locator('#people').isHidden());await page.locator('#serverConnect').click();await page.waitForFunction(()=>!document.querySelector('#canvasSave').disabled);
- for(let n=1;n<=4;n++){await page.locator('#canvasSource').selectOption('video:peer'+n);await page.locator('#canvasAdd').click();}
- assert.equal(await page.locator('.canvas-item.video').count(),4);await page.locator('#canvasSource').selectOption('chat:combined');await page.locator('#canvasAdd').click();assert.equal(await page.locator('.canvas-item.chat').count(),1);
- await page.locator('#canvasWidth').fill('40');await page.locator('#canvasWidth').press('Tab');await page.locator('#canvasHeight').fill('50');await page.locator('#canvasHeight').press('Tab');
- const tile=page.locator('[data-item="chat:combined"]');await tile.scrollIntoViewIfNeeded();let rect=await tile.boundingBox();await page.mouse.move(rect.x+rect.width/2,rect.y+15);await page.mouse.down();await page.mouse.move(rect.x+rect.width/2-60,rect.y+50,{steps:5});await page.mouse.up();
- const handle=page.getByRole('button',{name:'Resize Combined chat',exact:true});rect=await handle.boundingBox();await page.mouse.move(rect.x+10,rect.y+10);await page.mouse.down();await page.mouse.move(rect.x+35,rect.y+25,{steps:5});await page.mouse.up();
- await page.locator('#canvasSave').click();assert.equal(await page.evaluate(()=>settings.overlays.length),4);assert(await page.evaluate(()=>settings.chatOverlays[0].width>.4));
- await page.locator('[data-layer="main"]').click();await page.locator('#canvasWidth').fill('80');await page.locator('#canvasWidth').press('Tab');await page.locator('#canvasSave').click();assert.equal(await page.evaluate(()=>settings.main.width),.8);
- await page.evaluate(()=>window.live=true);await page.locator('#refresh').click();assert(await page.locator('#serverSelect').isDisabled());await page.waitForFunction(()=>calls.some(q=>q.route.endsWith('/chat-frame')),{timeout:12000});
- const frames=await page.evaluate(()=>calls.filter(q=>q.route.endsWith('/chat-frame')).at(-1).body.frames);assert.equal(frames.length,1);assert.equal(frames[0].source,'combined');assert(!JSON.stringify(frames).includes('SECRET'));
- await page.locator('[data-workspace-tab="combined"]').click();assert(await page.locator('#chatSurface').isVisible());assert(await page.locator('#workspaceTools').isHidden());
- await page.locator('[data-workspace-tab="relay"]').click();await page.locator('#layoutPreview').screenshot({path:'canvas-preview-063.png'});
- await page.evaluate(()=>features.chatOverlays=false);await page.locator('#refresh').click();assert.equal(await page.locator('#canvasSource option[value="chat:twitch"]').count(),0);
- await page.setViewportSize({width:500,height:900});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));assert.deepEqual(errors,[]);console.log('PASS Social/offline panels, four PiPs, chat add/drag/resize/save, main resize, broadcaster lock, public chat-frame upload, platform tabs and narrow viewport.');
-}finally{await browser.close();}
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url),
+  { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH,
+  headless: true,
+  args: ['--no-sandbox', '--disable-dev-shm-usage']
+});
+try {
+  const page = await browser.newPage({ viewport: { width: 1400, height: 1100 } }),
+    errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.addInitScript(() => {
+    window.calls = [];
+    window.live = false;
+    window.settings = { overlays: [], fallback: [] };
+    window.features = {
+      streamCanvas: 1,
+      pictureInPicture: true,
+      chatOverlays: true,
+      collaboratorFallback: true,
+      registration: true
+    };
+    window.platformPush = null;
+    const server = {
+      key: 'one',
+      nickname: 'Home',
+      id: 'alice',
+      token: 'x'.repeat(32),
+      address: 'http://127.0.0.1:25560'
+    };
+    window.relayDesktop = {
+      loadServers: async () => ({
+        schemaVersion: 1,
+        selectedKey: 'one',
+        servers: [server, { ...server, key: 'two', nickname: 'Other' }]
+      }),
+      saveServers: async () => {},
+      loadLocalProfile: async () => ({ schemaVersion: 1, displayName: 'Bug', createdAt: '2026' }),
+      saveLocalProfile: async () => {},
+      copy: async () => {},
+      onPlatforms: cb => (window.platformPush = cb),
+      platform: async () => ({
+        accounts: { twitch: null, youtube: null },
+        configured: { twitch: true, youtube: true },
+        auth: { twitch: {}, youtube: {} },
+        chats: {
+          twitch: { running: true, status: 'Connected' },
+          youtube: { running: true, status: 'Connected' }
+        },
+        messages: [
+          {
+            key: '1',
+            platform: 'twitch',
+            author: 'viewer',
+            text: 'Hello <script>test</script>',
+            time: Date.now()
+          }
+        ]
+      }),
+      request: async q => {
+        calls.push(q);
+        if (q.route.endsWith('/secrets'))
+          return {
+            obsServer: 'rtmp://secret/live',
+            obsKey: 'SECRET',
+            loginToken: 'x'.repeat(32),
+            destinationBaseUrl: 'rtmp://dest/live',
+            destinationStreamKey: 'KEY'
+          };
+        if (q.route.endsWith('/settings')) settings = q.body;
+        if (q.route.endsWith('/chat-frame')) return { ok: true };
+        if (q.route === '/api/end') window.live = false;
+        return {
+          capabilities: window.features,
+          me: { id: 'alice', destinationConfigured: true, settings: window.settings },
+          status: {
+            broadcast: window.live,
+            state: window.live ? 'live' : 'ready',
+            width: 1920,
+            height: 1080,
+            fps: 60,
+            pictureInPicture: true,
+            collabFallback: true
+          },
+          peers: [1, 2, 3, 4].map(n => ({ id: 'peer' + n, state: 'live' })),
+          requests: [1, 2, 3, 4].map(n => ({
+            id: 'r' + n,
+            owner: 'alice',
+            peer: 'peer' + n,
+            kind: 'video',
+            status: 'approved'
+          }))
+        };
+      }
+    };
+  });
+  await page.goto('file://' + new URL('../../DesktopSource/portal.html', import.meta.url).pathname);
+  await page.waitForFunction(() => document.querySelector('#serverConnect').disabled === false);
+  assert(await page.locator('#canvasSave').isDisabled());
+  await page.locator('[data-workspace-tab="social"]').click();
+  assert(await page.locator('#people').isVisible());
+  assert(await page.locator('#requests').isVisible());
+  assert(await page.locator('#layoutPreview').isHidden());
+  assert(await page.locator('#serverSelect').isVisible());
+  await page.locator('#editPanels').click();
+  await page.getByRole('button', { name: 'Hide People on this server panel', exact: true }).click();
+  await page.locator('#addPanel').click();
+  await page.locator('[data-add-panel="people"]').click();
+  assert(await page.locator('#people').isVisible());
+  await page.locator('#editPanels').click();
+  await page.locator('[data-workspace-tab="relay"]').click();
+  assert(await page.locator('#people').isHidden());
+  await page.locator('#serverConnect').click();
+  await page.waitForFunction(() => !document.querySelector('#canvasSave').disabled);
+  for (let n = 1; n <= 4; n++) {
+    await page.locator('#canvasSource').selectOption('video:peer' + n);
+    await page.locator('#canvasAdd').click();
+  }
+  assert.equal(await page.locator('.canvas-item.video').count(), 4);
+  await page.locator('#canvasSource').selectOption('chat:combined');
+  await page.locator('#canvasAdd').click();
+  assert.equal(await page.locator('.canvas-item.chat').count(), 1);
+  await page.locator('#canvasWidth').fill('40');
+  await page.locator('#canvasWidth').press('Tab');
+  await page.locator('#canvasHeight').fill('50');
+  await page.locator('#canvasHeight').press('Tab');
+  const tile = page.locator('[data-item="chat:combined"]');
+  await tile.scrollIntoViewIfNeeded();
+  let rect = await tile.boundingBox();
+  await page.mouse.move(rect.x + rect.width / 2, rect.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(rect.x + rect.width / 2 - 60, rect.y + 50, { steps: 5 });
+  await page.mouse.up();
+  const handle = page.getByRole('button', { name: 'Resize Combined chat', exact: true });
+  rect = await handle.boundingBox();
+  await page.mouse.move(rect.x + 10, rect.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(rect.x + 35, rect.y + 25, { steps: 5 });
+  await page.mouse.up();
+  await page.locator('#canvasSave').click();
+  assert.equal(await page.evaluate(() => settings.overlays.length), 4);
+  assert(await page.evaluate(() => settings.chatOverlays[0].width > 0.4));
+  await page.locator('[data-layer="main"]').click();
+  await page.locator('#canvasWidth').fill('80');
+  await page.locator('#canvasWidth').press('Tab');
+  await page.locator('#canvasSave').click();
+  assert.equal(await page.evaluate(() => settings.main.width), 0.8);
+  await page.evaluate(() => (window.live = true));
+  await page.locator('#refresh').click();
+  assert(await page.locator('#serverSelect').isDisabled());
+  await page.waitForFunction(() => calls.some(q => q.route.endsWith('/chat-frame')), { timeout: 12000 });
+  const frames = await page.evaluate(
+    () => calls.filter(q => q.route.endsWith('/chat-frame')).at(-1).body.frames
+  );
+  assert.equal(frames.length, 1);
+  assert.equal(frames[0].source, 'combined');
+  assert(!JSON.stringify(frames).includes('SECRET'));
+  await page.locator('[data-workspace-tab="combined"]').click();
+  assert(await page.locator('#chatSurface').isVisible());
+  assert(await page.locator('#workspaceTools').isHidden());
+  await page.locator('[data-workspace-tab="relay"]').click();
+  await page.locator('#layoutPreview').screenshot({ path: 'canvas-preview-063.png' });
+  await page.evaluate(() => (features.chatOverlays = false));
+  await page.locator('#refresh').click();
+  assert.equal(await page.locator('#canvasSource option[value="chat:twitch"]').count(), 0);
+  await page.setViewportSize({ width: 500, height: 900 });
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2));
+  assert.deepEqual(errors, []);
+  console.log(
+    'PASS Social/offline panels, four PiPs, chat add/drag/resize/save, main resize, broadcaster lock, public chat-frame upload, platform tabs and narrow viewport.'
+  );
+} finally {
+  await browser.close();
+}

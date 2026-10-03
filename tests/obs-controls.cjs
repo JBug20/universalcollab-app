@@ -1,8 +1,97 @@
-const assert=require('node:assert/strict'),{OBSControls}=require('../DesktopSource/obs-controls.cjs');
-(async()=>{let active=false,locked=false;const calls=[];const available=['GetVersion','GetSceneList','GetSceneItemList','GetInputList','GetInputVolume','GetInputMute','GetStreamStatus','GetRecordStatus','GetVirtualCamStatus','GetReplayBufferStatus','GetVideoSettings','SetVideoSettings','GetCurrentProgramScene','GetSourceScreenshot','GetSceneItemLocked','SetSceneItemTransform','SetInputVolume','SetInputMute','SetSceneItemEnabled','SetSceneItemLocked','SetSceneItemIndex','CreateSceneItem','RemoveSceneItem','CreateScene','SetSceneName','RemoveScene','SetCurrentProgramScene'];
- const link={ready:true,subscribe:v=>calls.push(['subscription',v]),request:async(t,d)=>{calls.push([t,d]);if(t==='GetVersion')return {availableRequests:available};if(t.endsWith('Status'))return {outputActive:active&&t==='GetRecordStatus'};if(t==='GetSceneItemLocked')return {sceneItemLocked:locked};if(t==='GetSceneList')return {scenes:[{sceneName:'One'}],currentProgramSceneName:'One'};if(t==='GetCurrentProgramScene')return {currentProgramSceneName:'One'};if(t==='GetSourceScreenshot')return {imageData:'data:image/jpeg;base64,AAAA'};return {};}};
- const c=new OBSControls(link);await c.init();await assert.rejects(c.handle('raw',{request:'DeleteAnything'}),/Unknown/);await assert.rejects(c.handle('volume',{inputName:'Mic',db:Infinity}),/range/);await assert.rejects(c.handle('mute',{inputName:'Mic',muted:'yes'}),/checkbox/);await assert.rejects(c.handle('preview',{width:20000}),/range/);await assert.rejects(c.handle('scene-delete',{sceneName:'One'}),/at least one/);
- const settings={baseWidth:1920,baseHeight:1080,outputWidth:1280,outputHeight:720,fpsNumerator:30,fpsDenominator:1};active=true;await assert.rejects(c.handle('video',settings),/Stop streaming/);assert(!calls.some(([t])=>t==='SetVideoSettings'));active=false;await c.handle('video',settings);assert(calls.some(([t])=>t==='SetVideoSettings'));
- locked=true;const transform={sceneName:'One',id:1,x:10,y:20,scaleX:1,scaleY:1,rotation:0};await assert.rejects(c.handle('source-transform',transform),/Unlock/);locked=false;await c.handle('source-transform',transform);await c.handle('volume',{inputName:'Mic',db:-20});await c.handle('mute',{inputName:'Mic',muted:true});await c.handle('meters',{enabled:true});await c.handle('meters',{enabled:false});const image=await c.handle('preview',{width:640});assert(image.image.startsWith('data:image/jpeg'));assert.deepEqual(calls.find(([t])=>t==='GetSourceScreenshot')[1],{sourceName:'One',imageFormat:'jpeg',imageWidth:640,imageCompressionQuality:65});await assert.rejects(c.handle('record-directory',{directory:'/tmp'}),/does not support/);link.ready=false;await assert.rejects(c.handle('preview',{width:640}),/Connect OBS/);
- console.log('PASS OBS command allowlist, parameter limits, active-output video guard, locked source guard, capability detection, mixer subscription and bounded screenshot request.');
-})().catch(e=>{console.error(e);process.exitCode=1});
+const assert = require('node:assert/strict'),
+  { OBSControls } = require('../DesktopSource/obs-controls.cjs');
+(async () => {
+  let active = false,
+    locked = false;
+  const calls = [];
+  const available = [
+    'GetVersion',
+    'GetSceneList',
+    'GetSceneItemList',
+    'GetInputList',
+    'GetInputVolume',
+    'GetInputMute',
+    'GetStreamStatus',
+    'GetRecordStatus',
+    'GetVirtualCamStatus',
+    'GetReplayBufferStatus',
+    'GetVideoSettings',
+    'SetVideoSettings',
+    'GetCurrentProgramScene',
+    'GetSourceScreenshot',
+    'GetSceneItemLocked',
+    'SetSceneItemTransform',
+    'SetInputVolume',
+    'SetInputMute',
+    'SetSceneItemEnabled',
+    'SetSceneItemLocked',
+    'SetSceneItemIndex',
+    'CreateSceneItem',
+    'RemoveSceneItem',
+    'CreateScene',
+    'SetSceneName',
+    'RemoveScene',
+    'SetCurrentProgramScene'
+  ];
+  const link = {
+    ready: true,
+    subscribe: v => calls.push(['subscription', v]),
+    request: async (t, d) => {
+      calls.push([t, d]);
+      if (t === 'GetVersion') return { availableRequests: available };
+      if (t.endsWith('Status')) return { outputActive: active && t === 'GetRecordStatus' };
+      if (t === 'GetSceneItemLocked') return { sceneItemLocked: locked };
+      if (t === 'GetSceneList') return { scenes: [{ sceneName: 'One' }], currentProgramSceneName: 'One' };
+      if (t === 'GetCurrentProgramScene') return { currentProgramSceneName: 'One' };
+      if (t === 'GetSourceScreenshot') return { imageData: 'data:image/jpeg;base64,AAAA' };
+      return {};
+    }
+  };
+  const c = new OBSControls(link);
+  await c.init();
+  await assert.rejects(c.handle('raw', { request: 'DeleteAnything' }), /Unknown/);
+  await assert.rejects(c.handle('volume', { inputName: 'Mic', db: Infinity }), /range/);
+  await assert.rejects(c.handle('mute', { inputName: 'Mic', muted: 'yes' }), /checkbox/);
+  await assert.rejects(c.handle('preview', { width: 20000 }), /range/);
+  await assert.rejects(c.handle('scene-delete', { sceneName: 'One' }), /at least one/);
+  const settings = {
+    baseWidth: 1920,
+    baseHeight: 1080,
+    outputWidth: 1280,
+    outputHeight: 720,
+    fpsNumerator: 30,
+    fpsDenominator: 1
+  };
+  active = true;
+  await assert.rejects(c.handle('video', settings), /Stop streaming/);
+  assert(!calls.some(([t]) => t === 'SetVideoSettings'));
+  active = false;
+  await c.handle('video', settings);
+  assert(calls.some(([t]) => t === 'SetVideoSettings'));
+  locked = true;
+  const transform = { sceneName: 'One', id: 1, x: 10, y: 20, scaleX: 1, scaleY: 1, rotation: 0 };
+  await assert.rejects(c.handle('source-transform', transform), /Unlock/);
+  locked = false;
+  await c.handle('source-transform', transform);
+  await c.handle('volume', { inputName: 'Mic', db: -20 });
+  await c.handle('mute', { inputName: 'Mic', muted: true });
+  await c.handle('meters', { enabled: true });
+  await c.handle('meters', { enabled: false });
+  const image = await c.handle('preview', { width: 640 });
+  assert(image.image.startsWith('data:image/jpeg'));
+  assert.deepEqual(calls.find(([t]) => t === 'GetSourceScreenshot')[1], {
+    sourceName: 'One',
+    imageFormat: 'jpeg',
+    imageWidth: 640,
+    imageCompressionQuality: 65
+  });
+  await assert.rejects(c.handle('record-directory', { directory: '/tmp' }), /does not support/);
+  link.ready = false;
+  await assert.rejects(c.handle('preview', { width: 640 }), /Connect OBS/);
+  console.log(
+    'PASS OBS command allowlist, parameter limits, active-output video guard, locked source guard, capability detection, mixer subscription and bounded screenshot request.'
+  );
+})().catch(e => {
+  console.error(e);
+  process.exitCode = 1;
+});

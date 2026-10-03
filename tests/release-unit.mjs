@@ -1,10 +1,66 @@
-import assert from 'node:assert/strict';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import{createRequire}from'node:module';import{PortalStore}from'../../universalcollab-relay/src/portal-store.mjs';import{hostFeatures}from'../../universalcollab-relay/src/host-features.mjs';import{povLabel}from'../../universalcollab-relay/src/pov-label.mjs';import{composite}from'../../universalcollab-relay/src/pip.mjs';
-const require=createRequire(import.meta.url),backup=require('../DesktopSource/backup.cjs');
-const value={version:1,secret:'PRIVATE_TOKEN',workspace:{}};const encrypted=backup.seal(value,'correct long password');assert(!encrypted.includes('PRIVATE_TOKEN'));assert.deepEqual(backup.open(encrypted,'correct long password'),value);assert.throws(()=>backup.open(encrypted,'wrong long password'));const corrupt=JSON.parse(encrypted);corrupt.tag=Buffer.alloc(16).toString('base64');assert.throws(()=>backup.open(JSON.stringify(corrupt),'correct long password'));assert.throws(()=>backup.seal(value,'short'));assert.deepEqual(backup.workspace({unknown:'secret'}),{});
-const label=povLabel('streamer_2',200,2);assert.equal(label.frame.length,label.width*label.height*1.5);assert(label.frame.includes(235));const base=Buffer.alloc(320*180*1.5,128);assert.doesNotThrow(()=>composite(base,320,180,[{...label,x:0,y:0}]));assert(base.every(x=>x===128));
-const dir=fs.mkdtempSync(path.join(os.tmpdir(),'release-unit-'));try{
- const features=()=>hostFeatures({hostFeatures:{guestInvites:true}});let s=new PortalStore({directory:dir,features});const a=s.register('Alice',s.joinPassword),b=s.register('Bob',s.joinPassword);let req=s.request('Alice','Bob','video');s.respond('Bob',req.id,'approve-session');assert(s.allowed('Alice','Bob','video'));s.endSession('Alice');assert(!s.allowed('Alice','Bob','video'));s.respond('Bob',req.id,'approve');s.endSession('Alice');assert(s.allowed('Alice','Bob','video'));s.respond('Bob',req.id,'approve-session');s=new PortalStore({directory:dir,features});assert(!s.allowed('Alice','Bob','video'));
- const invite=s.invite('Alice',60);assert(!JSON.stringify(s.invites('Alice')).includes(invite.secret));const guest=s.register('Guest',invite.secret);assert(guest.guestExpiresAt>Date.now());assert(s.authenticate('Guest:'+guest.controlToken));assert.throws(()=>s.register('Another',invite.secret));assert.throws(()=>s.invite('Guest',60));assert.throws(()=>s.revokeInvite('Bob',invite.id));s.revokeInvite('Alice',invite.id);assert(!s.authenticate('Guest:'+guest.controlToken));
- const off=new PortalStore({directory:dir+'/off',features:()=>hostFeatures()});off.register('owner',off.joinPassword);assert.throws(()=>off.invite('owner',60));s.settings('Alice',{overlays:[],fallback:[],fallbackTimeoutMinutes:2,povLabels:false});assert.equal(s.get('Alice').settings.fallbackTimeoutMinutes,2);assert.throws(()=>s.settings('Alice',{overlays:[],fallback:[],fallbackTimeoutMinutes:-1}));
- console.log('PASS authenticated encrypted backup/tamper rejection; immutable YUV labels; session expiry/restart; scoped one-use invitations/revocation/host switch; timeout validation.');
-}finally{fs.rmSync(dir,{recursive:true,force:true});}
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { PortalStore } from '../../universalcollab-relay/src/portal-store.mjs';
+import { hostFeatures } from '../../universalcollab-relay/src/host-features.mjs';
+import { povLabel } from '../../universalcollab-relay/src/pov-label.mjs';
+import { composite } from '../../universalcollab-relay/src/pip.mjs';
+const require = createRequire(import.meta.url),
+  backup = require('../DesktopSource/backup.cjs');
+const value = { version: 1, secret: 'PRIVATE_TOKEN', workspace: {} };
+const encrypted = backup.seal(value, 'correct long password');
+assert(!encrypted.includes('PRIVATE_TOKEN'));
+assert.deepEqual(backup.open(encrypted, 'correct long password'), value);
+assert.throws(() => backup.open(encrypted, 'wrong long password'));
+const corrupt = JSON.parse(encrypted);
+corrupt.tag = Buffer.alloc(16).toString('base64');
+assert.throws(() => backup.open(JSON.stringify(corrupt), 'correct long password'));
+assert.throws(() => backup.seal(value, 'short'));
+assert.deepEqual(backup.workspace({ unknown: 'secret' }), {});
+const label = povLabel('streamer_2', 200, 2);
+assert.equal(label.frame.length, label.width * label.height * 1.5);
+assert(label.frame.includes(235));
+const base = Buffer.alloc(320 * 180 * 1.5, 128);
+assert.doesNotThrow(() => composite(base, 320, 180, [{ ...label, x: 0, y: 0 }]));
+assert(base.every(x => x === 128));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'release-unit-'));
+try {
+  const features = () => hostFeatures({ hostFeatures: { guestInvites: true } });
+  let s = new PortalStore({ directory: dir, features });
+  const a = s.register('Alice', s.joinPassword),
+    b = s.register('Bob', s.joinPassword);
+  let req = s.request('Alice', 'Bob', 'video');
+  s.respond('Bob', req.id, 'approve-session');
+  assert(s.allowed('Alice', 'Bob', 'video'));
+  s.endSession('Alice');
+  assert(!s.allowed('Alice', 'Bob', 'video'));
+  s.respond('Bob', req.id, 'approve');
+  s.endSession('Alice');
+  assert(s.allowed('Alice', 'Bob', 'video'));
+  s.respond('Bob', req.id, 'approve-session');
+  s = new PortalStore({ directory: dir, features });
+  assert(!s.allowed('Alice', 'Bob', 'video'));
+  const invite = s.invite('Alice', 60);
+  assert(!JSON.stringify(s.invites('Alice')).includes(invite.secret));
+  const guest = s.register('Guest', invite.secret);
+  assert(guest.guestExpiresAt > Date.now());
+  assert(s.authenticate('Guest:' + guest.controlToken));
+  assert.throws(() => s.register('Another', invite.secret));
+  assert.throws(() => s.invite('Guest', 60));
+  assert.throws(() => s.revokeInvite('Bob', invite.id));
+  s.revokeInvite('Alice', invite.id);
+  assert(!s.authenticate('Guest:' + guest.controlToken));
+  const off = new PortalStore({ directory: dir + '/off', features: () => hostFeatures() });
+  off.register('owner', off.joinPassword);
+  assert.throws(() => off.invite('owner', 60));
+  s.settings('Alice', { overlays: [], fallback: [], fallbackTimeoutMinutes: 2, povLabels: false });
+  assert.equal(s.get('Alice').settings.fallbackTimeoutMinutes, 2);
+  assert.throws(() => s.settings('Alice', { overlays: [], fallback: [], fallbackTimeoutMinutes: -1 }));
+  console.log(
+    'PASS authenticated encrypted backup/tamper rejection; immutable YUV labels; session expiry/restart; scoped one-use invitations/revocation/host switch; timeout validation.'
+  );
+} finally {
+  fs.rmSync(dir, { recursive: true, force: true });
+}
