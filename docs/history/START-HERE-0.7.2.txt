@@ -1,0 +1,127 @@
+UniversalCollab 0.7.2 — Reliable preparation and layout presets
+Includes the 0.7.1 reliability patch. This is not the 1.0.0 release.
+
+UPDATE BOTH APP AND SERVER
+End your broadcasts, stop OBS, then stop the Bloom/Pterodactyl relay.
+Back up config.json and data. Extract UniversalCollab-ServerUpdate-0.7.2.zip
+into the server root, replacing index.js and src. Keep config.json, data,
+vendor and fallback.png. Main file remains index.js. Restart the server.
+The startup line should say UNIVERSALCOLLAB 0.7.2.
+No manual key editing or account reset is needed.
+
+Close the app before updating. Do not uninstall or delete app settings.
+Linux/Garuda: extract UniversalCollab-Linux-0.7.2.tar.gz, open a terminal inside
+UniversalCollab-Linux and run bash install.sh. Launch UniversalCollab normally.
+Windows: run UniversalCollab-Setup-0.7.2.exe for installation or in-place update.
+Existing local platform logins, server accounts, OBS keys and panel layout remain.
+New server features require both sides updated. No new ports/dependencies.
+
+0.7.1 — STREAM SETUP FIXES
+- Checks access for all selected native platforms before changing metadata or
+  creating events. Twitch validates the actual granted stream-key scope.
+  YouTube checks live API access; this does not guarantee every create will
+  succeed (quota, write permissions and channel restrictions still apply).
+- Inline status beside Create & prepare AND above the form, with progress for
+  access checks, platform preparation, server save and read-back verification.
+- Missing Twitch permissions display a Reconnect Twitch button. Finish consent
+  in the browser and retry the same draft; there is no need to edit server keys.
+- Failed platform setup offers Prepare without Twitch/YouTube. This explicitly
+  deselects that platform and retries the remaining selections. It never silently
+  sends to only a subset. Removed events are not automatically deleted on YouTube.
+- Title, description, game/category, selected destinations and recording edits
+  no longer invalidate an entire draft. Known YouTube resources are reused on
+  retry, and current platform stream keys are fetched again.
+- A YouTube event's visibility/audience must stay unchanged after it is created;
+  the app explains how to use New stream for those changes. A completed/deleted
+  event also requires New stream. Unknown create outcomes remain blocked to avoid
+  duplicate events: inspect YouTube Studio before creating another draft.
+- Preparation clears the old server destination before platform work starts.
+  If it fails, the relay has no destination and rejects OBS. It will not fall
+  back to an old Restream or other previously saved destination.
+- Ready appears only after the server confirms the draft and exact selected
+  destination IDs. The panel also shows the current server destination names.
+- Newly created/empty accounts no longer default to Restream. Existing explicit
+  destinations are preserved on upgrade until replaced/cleared by preparation.
+  Restream remains available as an optional custom RTMP destination.
+- Legacy OBS paths embedding a platform key no longer publish. Use Server URL
+  and Stream key from OBS connection: permanent UniversalCollab key in OBS.
+  Server console explains authenticated attempts with no prepared destination.
+- Platform account changes are blocked while preparation is running.
+
+NORMAL STREAM FLOW
+Select/connect your server > New stream > select platforms and fill metadata >
+Create & prepare > wait for Ready / server confirmed > start OBS.
+On a failed preparation, keep OBS stopped and use the shown recovery action.
+Retry after login/connection fixes. Do not use New stream for a simple retry.
+A new stream draft does not by itself change the server; Create & prepare does.
+Existing streams/fallback still need End stream in the app to end the broadcast.
+
+0.7.2 — LAYOUT PRESETS
+App panels: Edit app layout > enter preset name > Save preset.
+Choose a saved preset > Load preset to restore both Stream and Social panel
+positions, hidden panels and compact spacing. Works while disconnected.
+20 app presets per device; overwrite/delete requires confirmation.
+This stays inside Edit app layout, without a separate workspace-settings menu.
+
+Stream canvas: expand Stream layout presets underneath Save stream layout &
+fallback. Enter a name and Save preset. Presets include main-feed geometry,
+PiP/chat tiles, layer order and the fallback selections.
+Choose a preset > Load preset to preview it. Then Save stream layout & fallback
+applies it to your current broadcast. Loading alone never changes the server.
+Presets are scoped to your saved server/account. They do not cross servers.
+Missing peers, revoked approvals or host-disabled sources are removed on load,
+with a message counting omitted items. Normal server-side validation still runs.
+100 stream presets total per device. Presets contain layout data, not passwords
+or stream keys. They are stored locally; deleting app data deletes them.
+Preset export/encrypted backups are not implemented in this release.
+
+UNCHANGED FEATURES
+Native Twitch/YouTube connections, custom RTMP targets, platform metadata,
+combined chat, approved PiP/fallback, multiple destinations and server recording
+remain available. Server recording is off unless the host enables
+hostFeatures.recording=true. Select Save a recording per prepared stream.
+YouTube category is editable; its separate game-title field still needs Studio.
+The app retains your developer application settings; this update does not bundle
+registered OAuth clients or remove platform project requirements.
+
+TESTED
+- Simulated platform permission failure BEFORE resource creation; corrected
+  scope; edited retry without duplicate YouTube events; explicit target subset;
+  fresh keys; account binding and ambiguous-create protection.
+- Real local HTTP server/native bridge: old destination cleared on failure;
+  server failing to store a plan cannot report Ready; successful retry/read-back.
+- Chromium UI: inline recovery, verified status, panel/stream preset save/load,
+  missing approval removal, masked secrets, server switching lock, mobile width.
+- Real local FFmpeg/MediaMTX: two healthy outputs with a third failed target,
+  PiP/chat compositing, fallback and revocation, continuous outputs, finalized
+  recording with both tracks and owner-only download.
+- Existing platform/vault/host-policy regressions.
+Platform APIs are simulated in automated tests. User reported 0.7.0 live
+Twitch/YouTube streaming working after reconnecting. New live OAuth/API paths,
+Windows installer execution and OS keyring behavior have not been exercised here.
+Installers remain unsigned. High-resolution/large-collab load is not represented
+by the small local media tests.
+
+REMAINING TOWARD 1.0.0
+Recovered original roadmap slots (some capabilities were brought forward):
+- Custom tool/browser panels (original 0.7.0): not implemented.
+- Layout presets (original 0.7.1): now delivered in 0.7.2.
+- POV labels and force-fallback control (original 0.7.2): remaining.
+- Encrypted backup/import/export (0.7.3): remaining.
+- Full stream-health dashboard (0.8.0): output status exists; full dashboard remains.
+- Pre-stream checks (0.8.1): platform/relay preparation checks delivered; broader
+  encoder/resource/media readiness checks remain.
+- Fallback timeout (0.8.2): remaining.
+- Session-scoped permissions (0.9.0): remaining; current approvals are persistent.
+- Expiring guest invitations (0.9.1): remaining.
+- Multiple destinations (original 0.10.0): base support delivered in 0.7.0.
+- Server recording (original 0.11.0): base support delivered in 0.7.0.
+- Recording management (0.11.1): download/history exists; full management remains.
+- 1.0.0: complete remaining work, upgrade/rollback review, native Windows/Linux
+  installation and real platform end-to-end validation. Not claimed complete.
+POV-only contributors stay a separate side feature, outside this roadmap.
+
+SOURCES FOR AUTHORIZATION BEHAVIOR
+https://dev.twitch.tv/docs/authentication/validate-tokens/
+https://dev.twitch.tv/docs/api/reference/#get-stream-key
+https://developers.google.com/youtube/v3/live/docs/liveBroadcasts/list

@@ -1,0 +1,77 @@
+UniversalCollab 0.6.3 — Social + stream canvas
+
+UPDATE BOTH THE SERVER AND THE APP
+Server (Bloom Host/Pterodactyl):
+1. End any live broadcasts, stop OBS, then stop the server.
+2. Back up your config.json and data folder.
+3. Extract UniversalCollab-ServerUpdate-0.6.3.zip into the server root, replacing
+   index.js and src. Do not put these inside an extra nested folder.
+4. Keep your config.json, data, vendor and fallback.png. The update archive does
+   not contain or replace these. Main file remains index.js.
+5. Start the server. The console should say UNIVERSALCOLLAB 0.6.3.
+Existing accounts, publisher keys, destinations and approvals are retained.
+A new optional hostFeatures.chatOverlays boolean defaults to true. Set false
+in config.json and restart to disable chat overlays. Existing PiP/fallback host
+switches continue to apply. No new ports or dependencies are required.
+
+Desktop:
+Close the app first. Do not uninstall or remove your settings.
+Linux: extract UniversalCollab-Linux-0.6.3.tar.gz, open a terminal inside
+UniversalCollab-Linux, and run: bash install.sh
+Windows: run UniversalCollab-Setup-0.6.3.exe for a full install/in-place update.
+Stored Twitch/YouTube login settings and saved relay servers are preserved.
+Existing install paths intentionally retain StreamRelay/stream-relay internally.
+
+SOCIAL TAB
+People on this server and Requests & permissions now live in Social.
+The server selector stays available above the tabs. Broadcast switching locks
+remain in place. Edit app layout works separately in Stream and Social;
+existing panel positions/hidden state migrate. Add panel restores hidden panels.
+
+STREAM CANVAS
+Stream > Your stream layout > choose an approved person or chat source > Add item.
+Select an item in the canvas or its button below. Drag it to move it; drag the
+bottom-right handle to resize it. Width/height and left/top percent controls
+provide precise positioning. Arrow keys move; Shift + arrows resize.
+Move back/Move forward changes overlapping layers. Main feed is the background.
+Remove item removes an overlay. Fill canvas with main feed restores the main size.
+Save stream layout & fallback applies the layout to the server.
+Preview represents placement; it does not play live video inside the app.
+PiP feeds preserve source aspect ratio using letterboxing inside the tile.
+
+The previous two-PiP limit is removed. Add each approved server streamer once,
+up to the registered/available streamers. Actual simultaneous streams remain
+subject to the server's maxSessions and available resources. More tiles and
+larger output resolutions use more CPU and RAM. Main-feed audio remains the
+only audio source. Revoked approvals remove that feed from the output.
+Output resolution and FPS still come from the existing relay settings/detection;
+resizing the main tile does not change the broadcast resolution or frame rate.
+Changing main-feed size may briefly show fallback while its decoder restarts;
+the outgoing broadcast encoder/RTMP connection remains running.
+
+CHAT OVERLAYS
+Add Twitch chat, YouTube chat, or Combined chat (one tile of each type).
+Start the relevant chats in their platform tabs first. Chat uses public messages
+from your linked accounts and selected YouTube broadcast, as in 0.6.2.
+The desktop renders opaque chat panels and sends image frames to your selected
+relay only while your broadcast is active. Keep the app open and connected.
+This does not send Google/Twitch OAuth credentials to the relay.
+The server host can see the public chat pixels used in the broadcast.
+Updates are throttled to about every three seconds, with periodic refresh.
+Without updates for 15 seconds, chat tiles disappear; streaming continues.
+Stopping all applicable chats clears the corresponding chat overlay.
+Moderation deletions/clear events remove messages on subsequent overlay updates.
+Chat overlay rendering is desktop-only; browser clients can still edit relay
+layouts and see saved tiles, but cannot supply platform chat connections.
+Chat panels use built-in dark styling. Rich emotes and custom browser URLs are
+not part of this update. No changes to existing platform API scopes.
+
+VALIDATION
+Automated Chromium tests: offline state, Social/app panels, four PiP tiles,
+chat add/drag/resize/save, main resize, server-switch lock, platform editing and
+moderation routes, chat-frame delivery and narrow layout.
+Server tests: five approved tiles, persistent keys/settings, frame validation,
+host policy, revocation, stale frames, actual FFmpeg resize/composition.
+Real local RTMP tests cover outgoing pixels and continuity (see HANDOFF).
+Native Windows installation and real platform-provider activity were not tested
+in this environment. Installers remain unsigned. No OAuth credentials bundled.

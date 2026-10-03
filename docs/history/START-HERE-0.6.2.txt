@@ -1,0 +1,98 @@
+UniversalCollab 0.6.2 — Twitch and YouTube integration build
+
+STATUS
+The requested 0.5.0–0.6.2 features are combined into this desktop release.
+Automated tests use simulated platform responses. Real Twitch/Google OAuth,
+live chat and native Windows installation have not been verified here.
+This package contains no pre-registered OAuth application credentials.
+Register applications below before connecting. Do not send tokens to support.
+
+UPDATING
+Close UniversalCollab. Do not uninstall.
+Garuda/Linux: extract, open a terminal in UniversalCollab-Linux, run bash install.sh.
+Windows: run UniversalCollab-Setup-0.6.2.exe (full install or in-place update).
+No relay-server update needed. Relay code remains at 0.4.2 in the source archive.
+Existing server accounts, keys, nickname list and panel layout are preserved.
+
+TWITCH (0.5.0–0.5.3)
+1. Visit https://dev.twitch.tv/console/apps and register an application.
+2. Choose Public client type for device authorization (not a confidential client).
+   If a redirect URI is required by registration, use http://localhost:3000;
+   this build uses the device flow and does not use that callback.
+3. In the app: Twitch > Application setup. Enter the Client ID and save.
+   Public device clients require no Twitch client secret.
+4. Click Connect Twitch, then complete consent in your normal browser.
+5. Load current info, edit title/category/language, then Save Twitch info.
+6. Start chat to receive messages from the linked account's own channel.
+   Send, delete, timeout for 10 minutes or ban, subject to Twitch permissions.
+Scopes: channel:manage:broadcast, user:read:chat, user:write:chat,
+moderator:manage:chat_messages, moderator:manage:banned_users.
+Token validation runs at startup, before chat connection, and periodically.
+Refresh-token rotation is saved encrypted. EventSub handles reconnects and
+message deletion/clear events. Lost authorization requires reconnecting.
+
+YOUTUBE (0.6.0–0.6.1)
+1. Visit https://console.cloud.google.com/ and create/select a project.
+2. Enable YouTube Data API v3. Configure the OAuth consent screen.
+3. While testing, add your Google account as a test user.
+4. Create an OAuth client of type Desktop app.
+5. In YouTube > Application setup, paste the Client ID and the Desktop client
+   secret if Google supplied one. Save, then Connect YouTube.
+6. Complete consent in your normal browser. The app uses a short-lived local
+   127.0.0.1 callback on a random port with PKCE and state validation.
+7. Load broadcasts and select an existing broadcast. Change its title and
+   description, then Save YouTube info. Existing tags/category are retained.
+8. Start chat for the selected active broadcast. An active liveChatId is required.
+   Changing the broadcast selector alone does not switch a running chat;
+   click Start chat after selecting the new broadcast.
+Scope: https://www.googleapis.com/auth/youtube.force-ssl
+Google testing/verification rules and project quotas still apply. Testing refresh
+credentials may expire, requiring sign-in again. Wider public distribution needs
+an appropriately configured/verified project; this build makes no approval claim.
+Chat polling follows pollingIntervalMillis with a minimum 5-second interval.
+Quota/permission errors stop polling; retry manually after resolving the cause.
+
+COMBINED CHAT (0.6.2)
+Start each source in its platform tab, then open Combined chat.
+Choose visible platforms, filter by text/name, set text size and timestamps,
+and pause auto-scroll. These preferences save on this device.
+Select Send to explicitly: one platform per message. Messages aren't cross-posted.
+Delete/timeout/ban always targets the cached message's original platform/channel
+and requires a confirmation. YouTube moderation is also included where allowed.
+Clear local view only clears the app display, not messages on the platforms.
+One Twitch account and one YouTube channel are linked per local app profile.
+Only your linked Twitch channel and selected owned YouTube broadcast are included.
+Up to 500 messages are kept in memory, not written to disk. No chat history export.
+Emotes are displayed as their text names in this release. No rich emote renderer.
+Broadcast list shows up to 50 results. Create/schedule broadcasts in YouTube Studio.
+
+LOCAL STORAGE / PRIVACY
+Platform tokens and app credentials are stored separately from relay settings,
+in platform-accounts-v1.bin encrypted by Electron safeStorage. Linux requires an
+unlocked KWallet/Secret Service backend; plaintext fallback is refused.
+Access/refresh tokens never enter the renderer or relay server. Setup fields are
+masked. Device activation is shown in the external browser, not the app.
+Sign-in pages in your browser may show personal information: choose what to capture.
+Disconnect removes local platform credentials and attempts remote revocation.
+Closing the app stops its chat sessions only. It does not stop a relay broadcast.
+Changing tabs doesn't switch servers. Existing live/fallback server locks remain.
+Browser-only relay clients do not have platform integrations in this release.
+
+VALIDATION
+Tests: service API contracts with mock Twitch/Google; OAuth state/PKCE/DCF;
+refresh coalescing and rotation; secret-free renderer snapshots; encrypted vault
+failure handling; EventSub deduplication/reconnect; platform-scoped moderation;
+quota stop; real Chromium UI; relay/desktop IPC regressions. No live provider
+credentials were used. Installers are unsigned. Native OS keyring was mocked.
+
+DOCUMENTATION SOURCES
+https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/
+https://dev.twitch.tv/docs/authentication/validate-tokens/
+https://dev.twitch.tv/docs/eventsub/handling-websocket-events/
+https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types/#channelchatmessage
+https://dev.twitch.tv/docs/api/reference/
+https://developers.google.com/identity/protocols/oauth2/native-app
+https://developers.google.com/youtube/v3/docs/videos/update
+https://developers.google.com/youtube/v3/live/docs/liveBroadcasts/list
+https://developers.google.com/youtube/v3/live/docs/liveChatMessages/list
+https://developers.google.com/youtube/v3/live/docs/liveChatBans/insert

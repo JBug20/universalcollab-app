@@ -1,0 +1,128 @@
+UniversalCollab 0.7.0 — Connections and Stream studio
+
+UPDATE THE SERVER AND APP
+End your streams, stop OBS, then stop the relay server.
+Back up config.json and data. Extract UniversalCollab-ServerUpdate-0.7.0.zip
+into the server root, replacing index.js and src. Keep config.json, data,
+fallback.png and vendor. Main file stays index.js. Start the server.
+The startup line should report UNIVERSALCOLLAB 0.7.0.
+
+Close the desktop app before updating. Do not uninstall or delete settings.
+Linux: extract UniversalCollab-Linux-0.7.0.tar.gz; inside UniversalCollab-Linux
+run bash install.sh. Open UniversalCollab from your app menu.
+Windows: run UniversalCollab-Setup-0.7.0.exe (full install or in-place update).
+Existing server accounts, permanent OBS keys, saved platform OAuth settings,
+collaboration layouts and permissions are preserved. No new ports needed.
+
+CONNECTIONS PANEL — INSIDE STREAM
+Twitch and YouTube tabs are folded into Connections. Click their compact button
+to expand account settings/chat tools, or launch sign-in when configured.
+Existing logins remain local and do not need a relay connection.
+Twitch needs one reconnect (Disconnect account, then Connect Twitch) to grant
+the new channel:read:stream_key permission. The Google scope is unchanged.
+No registered app IDs are bundled; your already saved app setup is retained.
+Kick, Restream, Rumble and Custom buttons open masked RTMP URL/key setup.
+Those are custom RTMP connections, not native OAuth login integrations.
+Custom connections are saved encrypted on this computer. Platform tokens stay
+on this device. Your relay necessarily receives the ingest keys to transmit.
+The old single destination form is under Existing relay destination / advanced.
+Saving it replaces the multi-destination plan with that one destination.
+
+NEW STREAM
+1. Connect to your selected relay server. OBS must be stopped and any old relay
+   broadcast ended. Wait for its normal rearm/hold period if necessary.
+2. Click New stream in the Stream panel.
+3. Enter title and description. Leave Sync supported metadata checked for a
+   common title. Uncheck it to use individual Twitch and YouTube titles and
+   a separate YouTube description. Twitch has no equivalent stream description.
+4. Check the destinations you want to enable (up to eight, host permitting).
+5. Choose Twitch game, YouTube category, visibility and audience as applicable.
+6. Optionally check Save a recording if the host enabled server recording.
+7. Click Create & prepare stream. Wait for Ready, then start OBS using its
+   permanent relay server URL/key. You do not paste platform keys into OBS.
+
+YouTube: creates a broadcast and stream, binds them, applies metadata and fetches
+its ingest details. Auto-start/auto-stop are enabled. YouTube must have live
+streaming enabled on that channel. Platform API quotas still apply.
+Twitch: updates the channel metadata and retrieves the existing stream key;
+Twitch goes live when video arrives, rather than creating a YouTube-style event.
+The relay forwards to every selected target. Each output has a separate
+stream-copy worker; the stream is encoded only once per broadcaster.
+Custom RTMP platforms need their event/metadata set up on their own website.
+Use Update platform info to apply edited titles/categories to linked platforms.
+A custom RTMP target cannot have its website metadata changed automatically.
+Titles and description updates sync when you apply them in this app; changes
+made directly on platform websites are not continuously mirrored.
+
+YOUTUBE CATEGORY AND GAME
+YouTube category (Gaming, Music, etc.) is editable in the New stream form.
+Existing broadcast edits in YouTube connection details also include category ID.
+The separate YouTube Studio game-title field is not exposed by the public API.
+Use Open YouTube Studio for that field. Twitch game selection works in-app.
+Source: https://developers.google.com/youtube/v3/docs/videos/update
+
+FAILURES / RETRIES
+Retry an unchanged draft after a temporary failure; known YouTube resources
+are reused instead of creating another event. If a create request timed out
+with an unknown result, the app stops automatic retries: inspect YouTube Studio
+before using New stream to avoid an extra event. Platform creation and relay
+assignment are separate operations: an event may exist even if relay setup fails.
+No existing broadcast is silently deleted during recovery.
+Selecting destinations is done before streaming. Stop/end the current broadcast
+before replacing its destination set. A failed output retries independently;
+other destinations and recording continue. Additional destinations use extra
+server bandwidth even though they share the encoder.
+
+PAST STREAMS AND RECORDING
+The Stream panel lists the latest 100 of your sessions on the selected server.
+Names, dates, status, recording size and Download buttons are shown. Sessions
+without a file say No recording. Recordings from before this update cannot be
+created retroactively. Downloads are enabled after the relay broadcast ends.
+Downloads are user-scoped, authenticated and saved via the normal file picker.
+Files are MPEG-TS (.ts), containing the encoded video and audio. VLC/FFmpeg can
+read them; remux to MP4/MKV when an editor needs another container.
+Recordings include the relay's PiP/chat layout and fallback periods. They are
+stored at data/recordings on the host. History metadata is index.json there.
+The desktop app may be closed after preparing a stream. Server forwarding and
+recording continue; desktop-generated chat overlays still require the app open.
+
+HOST RECORDING SETTINGS
+Recording is OFF by default. In the existing config.json, set the following
+inside hostFeatures (keep the other existing hostFeatures values):
+  "recording": true
+Multiple destinations are enabled by default. Hosts can disable them with:
+  "multipleDestinations": false
+The root-level recording storage defaults are added automatically:
+  "recordings": { "maxStorageMB": 1024, "minFreeMB": 256 }
+Raise maxStorageMB only to fit the disk allocation available to your server.
+Stop/start the server after changing host settings. The streamer then enables
+Save a recording on each new stream. The limit is shared across users.
+At the storage/free-space limit or on a disk-write problem, recording stops;
+the broadcast continues. The history entry reports the recording issue.
+Limits are checked periodically, so a small amount of in-flight data can exceed
+maxStorageMB. Files are not automatically deleted. Hosts can remove downloaded
+.ts files through their file manager to recover space. Keep index.json intact.
+Recording copies do not include platform OAuth tokens or destination keys.
+
+VALIDATION / LIMITS
+Passed automated Chromium UI tests for connections, masked custom setup,
+platform selection, category and per-platform metadata, downloads, panels,
+Social/combined chat, narrow layout and broadcast locks.
+Platform API tests use simulated Twitch/Google responses, including resume
+without duplicate YouTube resources, token refresh and metadata preservation.
+Real local MediaMTX/FFmpeg tests: two working targets and one failed target;
+PiP/main/chat pixels; continuous output across fallback and revocation;
+recording finalization, download with video/audio tracks, cross-user denial.
+Native Windows installation and live Twitch/YouTube creation were not exercised
+here. Treat this as the first 0.7.0 integration build and test with a private or
+unlisted stream first. Existing live OAuth login was reported working by user.
+High-resolution/many-target stress testing is not represented by local tests.
+Installers remain unsigned. Native OS keyring behavior is unchanged.
+
+API REFERENCES
+https://dev.twitch.tv/docs/api/reference/#get-stream-key
+https://dev.twitch.tv/docs/video-broadcast/
+https://developers.google.com/youtube/v3/live/docs/liveBroadcasts/insert
+https://developers.google.com/youtube/v3/live/docs/liveStreams/insert
+https://developers.google.com/youtube/v3/live/docs/liveBroadcasts/bind
+https://developers.google.com/youtube/v3/docs/videos/update

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+out/
+*.exe
+*.tar.gz
+*.pem
+*.key
+private-build-keys/
+# Owner-only OAuth config overrides; the committed release-oauth.json must keep blank IDs
+release-oauth.local.json
