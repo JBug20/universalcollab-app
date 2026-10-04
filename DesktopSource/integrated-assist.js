@@ -196,24 +196,23 @@
   card(pages.Integrations, 'Stream Deck', 'Pair your existing Stream Deck controls.', [
     ['Configure Stream Deck', 'streamDeck']
   ]);
-  // The Collaboration centre lives in the Collab popup (bottom-left Collab button), next to the requests it covers.
+  // The Collaboration centre is a section of the Collab popup (bottom-left Collab button); collaboration-window.js
+  // fills in teammate status, requests and reminders. Whichever script runs first creates the section.
   const collabMenu = document.getElementById('collabMenu');
   if (collabMenu) {
-    const centre = el('section');
-    centre.id = 'collabCentre';
-    centre.className = 'assist-card';
-    centre.append(
-      el('h3', 'Collaboration centre'),
-      el('p', 'Use teammate status, requests and reminders in UniversalCollab.')
-    );
+    let centre = document.getElementById('collabCentre');
+    if (!centre) {
+      centre = el('section');
+      centre.id = 'collabCentre';
+      centre.className = 'assist-card';
+      centre.append(
+        el('h3', 'Collaboration centre'),
+        el('p', 'Use teammate status, requests and reminders in UniversalCollab.')
+      );
+      collabMenu.insertBefore(centre, collabMenu.querySelector('[data-close="collabMenu"]'));
+    }
     const row = el('div');
     row.className = 'assist-actions';
-    const openCentre = el('button', 'Open Collaboration centre');
-    openCentre.type = 'button';
-    openCentre.onclick = () => {
-      collabMenu.close();
-      window.openAssistCollaboration?.();
-    };
     const relayLink = el('button', 'Relay notification connection');
     relayLink.type = 'button';
     relayLink.onclick = async () => {
@@ -228,9 +227,9 @@
         relayLink.disabled = false;
       }
     };
-    row.append(openCentre, relayLink);
-    centre.append(row);
-    collabMenu.insertBefore(centre, collabMenu.querySelector('[data-close="collabMenu"]'));
+    row.append(relayLink);
+    // Keep the Assist setting under the centre's heading and description, above its live status.
+    centre.insertBefore(row, centre.children[2] || null);
   }
   card(
     pages['Chat & OBS'],
