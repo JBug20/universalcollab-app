@@ -196,12 +196,42 @@
   card(pages.Integrations, 'Stream Deck', 'Pair your existing Stream Deck controls.', [
     ['Configure Stream Deck', 'streamDeck']
   ]);
-  card(
-    pages.Integrations,
-    'Collaboration centre',
-    'Use teammate status, requests and reminders in UniversalCollab.',
-    [['Relay notification connection', 'collaboration']]
-  );
+  // The Collaboration centre lives in the Collab popup (bottom-left Collab button), next to the requests it covers.
+  const collabMenu = document.getElementById('collabMenu');
+  if (collabMenu) {
+    const centre = el('section');
+    centre.id = 'collabCentre';
+    centre.className = 'assist-card';
+    centre.append(
+      el('h3', 'Collaboration centre'),
+      el('p', 'Use teammate status, requests and reminders in UniversalCollab.')
+    );
+    const row = el('div');
+    row.className = 'assist-actions';
+    const openCentre = el('button', 'Open Collaboration centre');
+    openCentre.type = 'button';
+    openCentre.onclick = () => {
+      collabMenu.close();
+      window.openAssistCollaboration?.();
+    };
+    const relayLink = el('button', 'Relay notification connection');
+    relayLink.type = 'button';
+    relayLink.onclick = async () => {
+      const feedback = document.getElementById('collabFeedback');
+      relayLink.disabled = true;
+      try {
+        const r = await api({ op: 'action', action: 'collaboration' });
+        if (!r.ok && feedback) feedback.textContent = r.error;
+      } catch {
+        if (feedback) feedback.textContent = 'Assist is unavailable.';
+      } finally {
+        relayLink.disabled = false;
+      }
+    };
+    row.append(openCentre, relayLink);
+    centre.append(row);
+    collabMenu.insertBefore(centre, collabMenu.querySelector('[data-close="collabMenu"]'));
+  }
   card(
     pages['Chat & OBS'],
     'Combined chat',
