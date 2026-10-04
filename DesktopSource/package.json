@@ -1,8 +1,8 @@
 {
   "name": "stream-relay",
   "productName": "UniversalCollab",
-  "version": "1.0.0-rc.8",
+  "version": "1.2.0-preview.1",
   "description": "Personal stream controls and approved collaborations",
-  "main": "main.cjs",
+  "main": "start.cjs",
   "license": "MIT"
 }

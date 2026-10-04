@@ -1,0 +1,41 @@
+# Combined chat in OBS
+
+Install the updated app, connect Twitch, YouTube and Kick, and keep the app open on the same computer as OBS. It can be minimised. Closing the app stops the chat connection. No Cloudflare deployment is needed for this update.
+
+## Windows: public beta and private app
+
+1. Open **Combined chat** from the app sidebar.
+2. Choose **Appearance** to change the font, text size, emote size, sender colour, message colour and background. Click **Apply** to save.
+3. Choose **OBS setup**. This enables the local connection and shows two links.
+4. Choose **Copy dock link**. In OBS, open **Docks → Custom Browser Docks**, give the dock a name, paste the link and apply. Move or resize the dock as you prefer.
+5. Choose **Copy overlay link** in the app. In OBS, choose **Sources → + → Browser**, create a source, and paste the link into **URL**. Leave **Local file** off. Start with width 600 and height 800, then resize the source on your canvas.
+
+The dock has a pause control and a scrolling feed. The overlay contains chat only, without buttons or account controls. Both show all three platforms together. They are read-only.
+
+## Appearance
+
+Appearance settings update the desktop chat, dock and overlay together. You can also hide timestamps or platform labels. Fonts must be installed on the computer; browsers fall back to a system font if the chosen font is unavailable.
+
+The transparent-background setting applies to the overlay only. The dock and desktop retain the selected background colour.
+
+**Overlay message limit** controls how many messages appear on-stream. **Hide after seconds** removes old messages from the overlay; 0 keeps them until the message limit replaces them. The dock keeps recent messages regardless of this timer. Chat pauses in the dock do not pause the on-stream overlay.
+
+Settings and links are remembered. **Stop OBS connection** disables the local service. **Reset links** invalidates the old links; copy the replacements into OBS afterwards.
+
+## Linux public beta / Garuda
+
+Open **Combined chat → Chat appearance & OBS**, apply the appearance settings, then choose **Enable OBS**. Copy the appropriate link using **Copy dock link** or **Copy overlay link** and follow the OBS steps above. Unlock KWallet or your Secret Service keyring first so the link can be remembered securely.
+
+OBS must include its browser component. OBS currently documents browser docks as unsupported under Wayland; if Custom Browser Docks is unavailable, an X11 session with a compatible OBS build is needed for the dock. See [OBS browser component](https://github.com/obsproject/obs-browser) and [Browser Source setup](https://obsproject.com/kb/browser-source). Browser-source availability depends on the installed OBS package.
+
+## Troubleshooting
+
+- **Blank overlay:** send a fresh message, check that the platform is connected, check the hide-after setting, and make sure the app is still open. Clear/sample chat controls in the app can help test the link.
+- **Wrong or expired link:** copy it again, including everything after the `#` character. Links work only on the same computer. Do not publish them.
+- **Port is busy:** close any other instance of the same app, then enable OBS again. The private Windows app uses port 18741; public Windows uses 18742; Linux beta uses 18743.
+- **Old messages disappeared after a connection failure:** the browser deliberately clears stale chat and reconnects automatically. The app retains a bounded recent-message buffer only while running.
+- **Emote remains text:** the original platform or emote provider may not supply a supported image. YouTube custom emoji have the existing API limitation.
+
+## Verification
+
+Local browser previews confirmed combined messages, an emote image, the dock controls and the clean overlay view. Automated checks cover authenticated local access, origin/host rejection, unchanged-message caching, bounded exports and appearance validation. Windows chat tests cover font/colour changes and settings serialization as well as the existing combined feed controls. Actual OBS Studio and Garuda runtime still need testing on the streaming machine.

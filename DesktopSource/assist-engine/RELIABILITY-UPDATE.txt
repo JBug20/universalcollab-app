@@ -1,0 +1,52 @@
+UniversalCollab 1.0.0-rc.9 / private Notify 1.2.0
+
+AUTOMATIC TOKEN RENEWAL
+Private Notify now renews Twitch and YouTube access before sending when it is near
+expiry. Its event readers and chat sender share renewal locks and keep rotated
+refresh tokens. Revoked access or missing permissions still require sign-in.
+The private Kick receiver already renews tokens before sending. UniversalCollab's
+own platform connections also renew access. Messages are not retried automatically.
+
+STREAM PROFILES
+Choose New Stream. Use Stream profiles to save, load or delete named presets.
+Profiles include selected destinations, individual resolutions, metadata, category,
+YouTube audience/privacy and recording choice. Profiles belong to the selected relay.
+Loading requires a connected, idle relay. Review and Create & prepare after loading;
+loading a profile does not start a broadcast or reuse an old YouTube broadcast ID.
+Workspace layouts remain separate and are covered by backup.
+
+DESTINATION HEALTH
+The Stream controls panel shows destination state, reported output bitrate/FPS and
+automatic reconnect count during a broadcast. An updated relay enables Restart,
+Pause and Resume per output, leaving other outputs running. Pause affects only that
+destination; it does not stop OBS, the relay session or recording. End relay broadcast
+still stops the whole broadcast. Metrics are FFmpeg reports, not viewer-delivery proof.
+No dropped-frame count is claimed. A progress timeout is shown as stalled.
+
+RELAY UPDATE REQUIRED FOR OUTPUT CONTROLS
+Stop the video relay and back up its installation. Apply the separate source relay
+update ZIP and restart using your existing start command. Keep configuration, data,
+vendor files, recordings and fallback assets. This is a development source update,
+not a signed automatic update. No Cloudflare deployment is needed for these controls.
+Older relays continue to show available status, with a message to update for controls.
+
+BACKUP AND RESTORE
+File > Backup / restore settings > Encrypted settings backup.
+Use a private password of at least 12 characters. Backups include saved relay and
+platform credentials, stream profiles, workspace/dock layout, chat preferences and
+collaboration reminders. Restore replaces local settings; it does not back up the
+remote relay's files or private Notify settings. Re-pair the local Notify chat link
+when moving to another computer. Store the backup password separately.
+
+VERSIONS
+UniversalCollab: title bar and Help > About show 1.0.0-rc.9.
+Private Notify: title bar and EXE file properties show 1.2.0.
+Close apps before extracting their updated folders. Existing user settings are kept.
+Public beta, Linux and APK packages were not changed.
+
+VALIDATION
+Private build and JavaScript syntax checks passed. Simulated tests cover concurrent
+renewal, refresh-token retention, revoked access, per-output controls, metrics parsing,
+encrypted backups, reminder restore, path rejection, existing relay authentication,
+destination isolation and quality persistence. Live UI, renewal against real services,
+and real FFmpeg broadcasts need local validation before wider distribution.

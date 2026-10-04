@@ -1,0 +1,50 @@
+# Pulsoid heart-rate actions
+
+Available in the private Windows app, public Windows beta, and public Linux beta.
+
+## Update
+Close the app, then install or extract the new build. No Cloudflare deployment is needed.
+Open Integrations in the left panel, then Open Pulsoid.
+
+## Connect Pulsoid
+Create a personal API token with `data:heart_rate:read`, following [Pulsoid's instructions](https://docs.pulsoid.net/access-token-management/manual-token-issuing). Paste it into the app, not into chat. Start your monitor and confirm Pulsoid is receiving readings.
+
+This beta uses each user's own token; public Pulsoid sign-in is not implemented yet. The token and OBS password are saved with Windows user encryption or the Linux desktop keyring. Replace expired or revoked tokens. Heart-rate readings are processed locally and are not sent to the shared backend or saved in alert history.
+
+## Connect OBS scene changes
+1. In OBS, open Tools → WebSocket Server Settings.
+2. Enable the server and keep authentication enabled.
+3. Enter its port (normally 4455) and password in the app's Pulsoid panel.
+4. Click Test OBS connection. This checks the connection without changing a scene.
+5. Enter an exact existing scene name in a rule. Blank means no scene change.
+
+OBS must run on the same computer. Scene actions change the live program scene. They do not restore the previous scene automatically; add a separate Below rule for a return scene. Failures appear in the panel and are not queued for later. If multiple rules fire on one reading, the first scene rule wins.
+
+## Add the animated overlay
+1. Click Copy effects overlay in the Pulsoid panel.
+2. Add a Browser source in OBS and paste the link. Leave Local file unchecked.
+3. Match the source size to your canvas, for example 1920 × 1080.
+4. Click Preview sound + animation. Preview never changes a scene.
+
+The transparent overlay shows a purple card, pulsing heart, rule name and BPM for eight seconds. It is separate from the chat overlay. A newer effect replaces the previous one. Keep the app open; minimising is fine. Keep the local access link private. Resetting OBS links invalidates this link too.
+
+## Configure rules
+Example: Above, Trigger 120, Reset 110, Hold 5, Cooldown 60.
+
+- A fresh reading must reach 110 BPM or lower to arm the rule.
+- It then needs to remain at or above 120 for five seconds to fire.
+- It fires once and needs to return to 110 or lower before re-arming.
+- It cannot fire again within 60 seconds.
+
+For Below rules, Reset must be higher than Trigger. These numbers are example stream-effect settings.
+
+Each rule supports a WAV sound under 20 MB, an animated card, and an optional scene. Windows: edit cells in the table and use Choose WAV for the selected row. Clear SoundFile to return to the chime. Linux: edit the labelled fields; choose Default sound to return to the chime.
+
+Rule sounds are separate from normal stream-alert sounds. Click Save & start rules when ready. Rules start stopped after every app launch. Closing the panel leaves them running; use Stop rules to stop automation.
+
+A gap over 15 seconds breaks a pending trigger. Reconnection requires a fresh reset-side reading. Duplicate, out-of-order, invalid and old readings cannot trigger actions. Keep the monitor device's clock correct. The socket reconnects automatically; check the token and monitor if it repeatedly reports unavailable.
+
+## Verification
+Automated checks cover hold times, reset thresholds, cooldowns, stale data, and Windows/Linux OBS authentication and scene requests against a local mock server. The Linux settings panel and effects overlay were checked in a browser preview. Live Pulsoid and actual OBS scene changes still need testing with your monitor and OBS installation. The Linux runtime has not been tested on Garuda here.
+
+References: [Pulsoid readings](https://docs.pulsoid.net/read-heart-rate/read-heart-rate-via-websocket), [OBS protocol](https://github.com/obsproject/obs-websocket/blob/master/docs/generated/protocol.md).

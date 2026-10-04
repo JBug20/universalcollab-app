@@ -1,0 +1,21 @@
+ACCOUNT CONTROLS AND REMEMBERED DEVICES
+
+Windows public beta and private Notify, Garuda Linux public beta, and Android 0.1.4 now show account identity separately from connection status. Open Connections to see it. Twitch shows its login; YouTube shows the channel title and ID (Android also shows the selected Google email); public Kick shows the linked name. Streamlabs Socket API tokens do not expose an account name. Private Kick learns the broadcaster name from an incoming event. UniversalCollab desktop sign-in currently exposes its account ID; Android shows the verified email used to sign in.
+
+Pause connection stops listening without forgetting credentials. Sign out removes the saved platform login. Connect YouTube prompts for account selection; its identity remains visible even if live streaming is disabled. On Android, choose the Google account that owns your streaming channel. These controls do not sign you out of Google/Twitch in your browser or remove accounts from your phone.
+
+Public Kick sign-out unlinks Kick on the shared beta account for every device; a confirmation explains this. Private Kick sign-out removes this PC's receiver configuration; changing the broadcaster on a personal receiver still requires receiver setup.
+
+REMEMBER THIS DEVICE
+Public apps offer Remember this device, using Windows DPAPI, the Linux secure keyring, or Android Keystore. Sessions are checked with the backend when reopened. Sign out removes the saved session and stops connections. Private Notify already keeps its platform credentials securely. Browser authorization may still be required if a provider revokes access or a token expires. This is saved sign-in, not guaranteed background monitoring or automatic reconnection of every platform.
+
+DEPLOY THE BACKEND ONCE TO ENABLE 30-DAY SESSIONS
+The backend source has been updated and its 17 tests pass. Deployment from the assistant environment was blocked by a Windows directory-access error; the live backend has NOT been updated.
+In your normal Command Prompt run:
+cd /d "<your-projects-folder>\UniversalStream-Assist-Backend"
+npx wrangler deploy
+
+Until deployment, the new apps remain compatible with the existing short session lifetime. Afterwards, reopen the app or sign in once with Remember this device selected. A remembered session lasts 30 days; reopening the app validates and extends it. Sign out revokes that session immediately when online. Existing expiry/revocation still requires a new sign-in. No new Google OAuth client or certificate is needed.
+
+VALIDATION
+Windows public/private builds and account-screen checks pass. Linux has 29 passing tests, including remembered-session restoration and late response cancellation. Backend has 17 passing tests. Android account logic has 14 passing regression checks; packaging, lint and signature verification pass. The Android build uses the documented local compiler workaround after checking freshly generated classes and no Java errors. Native Google account selection still needs testing on a phone; Garuda runtime testing is also still required.

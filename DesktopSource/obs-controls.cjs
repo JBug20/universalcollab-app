@@ -16,6 +16,7 @@ class OBSControls {
   constructor(link) {
     this.link = link;
     this.available = null;
+    this.ownVirtualCam = false;
   }
   async call(type, data = {}) {
     if (this.available && !this.available.has(type))
@@ -28,11 +29,48 @@ class OBSControls {
     return { connected: true, version: v.obsVersion, available: [...this.available] };
   }
   async quiet() {
-    for (const t of ['GetStreamStatus', 'GetRecordStatus', 'GetReplayBufferStatus', 'GetVirtualCamStatus'])
-      if (this.available?.has(t) && (await this.call(t)).outputActive)
-        throw Error(
-          'Stop streaming, recording, replay buffer and virtual camera before changing video settings.'
-        );
+    let resume = false;
+    if (this.ownVirtualCam && this.available?.has('StopVirtualCam')) {
+      try {
+        if ((await this.call('GetVirtualCamStatus')).outputActive) {
+          await this.call('StopVirtualCam');
+          resume = true;
+        }
+      } catch {}
+      this.ownVirtualCam = false;
+    }
+    try {
+      for (const t of ['GetStreamStatus', 'GetRecordStatus', 'GetReplayBufferStatus', 'GetVirtualCamStatus'])
+        if (this.available?.has(t) && (await this.call(t)).outputActive)
+          throw Error(
+            'Stop streaming, recording, replay buffer and virtual camera before changing video settings.'
+          );
+    } catch (e) {
+      if (resume) await this.virtualCam(true).catch(() => {});
+      throw e;
+    }
+    return resume;
+  }
+  async virtualCam(enabled) {
+    if (!this.available?.has('GetVirtualCamStatus') || !this.available.has('StartVirtualCam'))
+      throw Error('This OBS version has no virtual camera (OBS 28 or newer needed).');
+    const active = !!(await this.call('GetVirtualCamStatus')).outputActive;
+    if (enabled) {
+      if (!active) {
+        try {
+          await this.call('StartVirtualCam');
+        } catch {
+          throw Error(
+            'OBS could not start its virtual camera. In OBS, check Tools → Virtual Camera / Start Virtual Camera works.'
+          );
+        }
+        this.ownVirtualCam = true;
+      }
+      return { active: true, startedByApp: this.ownVirtualCam };
+    }
+    if (this.ownVirtualCam && active) await this.call('StopVirtualCam').catch(() => {});
+    this.ownVirtualCam = false;
+    return { active: false };
   }
   async handle(op, i = {}) {
     if (!this.link.ready) throw Error('Connect OBS first.');
@@ -44,7 +82,14 @@ class OBSControls {
         this.call('GetRecordStatus'),
         this.call('GetInputList')
       ]);
-      const sceneName = i.sceneName ? name(i.sceneName) : scenes.currentProgramSceneName;
+      let studioMode = false;
+      if (this.available.has('GetStudioModeEnabled')) {
+        try {
+          studioMode = !!(await this.call('GetStudioModeEnabled')).studioModeEnabled;
+        } catch {}
+      }
+      const preview = studioMode ? scenes.currentPreviewSceneName || null : null;
+      const sceneName = i.sceneName ? name(i.sceneName) : preview || scenes.currentProgramSceneName;
       const items = sceneName ? (await this.call('GetSceneItemList', { sceneName })).sceneItems : [];
       const mixer = [];
       for (const input of (inputs.inputs || []).slice(0, 64)) {
@@ -56,24 +101,39 @@ class OBSControls {
           mixer.push({ inputName: input.inputName, ...volume, ...mute });
         } catch {}
       }
+      let virtualCam = null;
+      if (this.available.has('GetVirtualCamStatus')) {
+        try {
+          virtualCam = !!(await this.call('GetVirtualCamStatus')).outputActive;
+        } catch {}
+      }
       return {
         connected: true,
         scenes: scenes.scenes,
         current: scenes.currentProgramSceneName,
+        preview,
+        studioMode,
         sceneName,
         items,
         inputs: inputs.inputs,
         mixer,
         stream,
         record,
+        virtualCam,
         available: [...this.available]
       };
     }
     if (op === 'preview') {
-      const width = num(i.width, 160, 1280);
-      const { currentProgramSceneName } = await this.call('GetCurrentProgramScene');
+      const width = num(i.width, 160, 2560);
+      // Studio mode: the editor shows the preview scene; otherwise the program scene.
+      let sourceName = (await this.call('GetCurrentProgramScene')).currentProgramSceneName;
+      if (i.scene === 'preview') {
+        try {
+          sourceName = (await this.call('GetCurrentPreviewScene')).currentPreviewSceneName || sourceName;
+        } catch {}
+      }
       const r = await this.call('GetSourceScreenshot', {
-        sourceName: currentProgramSceneName,
+        sourceName,
         imageFormat: 'jpeg',
         imageWidth: width,
         imageCompressionQuality: 65
@@ -86,6 +146,7 @@ class OBSControls {
         throw Error('OBS preview image is unavailable.');
       return { image: r.imageData };
     }
+    if (op === 'virtualcam') return this.virtualCam(bool(i.enabled));
     if (op === 'meters') {
       this.link.subscribe(bool(i.enabled));
       return {};
@@ -96,7 +157,6 @@ class OBSControls {
         record: this.available.has('GetRecordDirectory') ? await this.call('GetRecordDirectory') : null
       };
     if (op === 'video') {
-      await this.quiet();
       const data = {};
       for (const k of ['baseWidth', 'baseHeight', 'outputWidth', 'outputHeight'])
         data[k] = num(i[k], 16, 8192);
@@ -105,7 +165,12 @@ class OBSControls {
       if (data.fpsNumerator / data.fpsDenominator > 240) throw Error('Maximum 240 frames per second.');
       for (const v of Object.values(data))
         if (!Number.isInteger(v)) throw Error('Video settings must be whole numbers.');
-      return this.call('SetVideoSettings', data);
+      const resume = await this.quiet();
+      try {
+        return await this.call('SetVideoSettings', data);
+      } finally {
+        if (resume) await this.virtualCam(true).catch(() => {});
+      }
     }
     if (op === 'record-directory') {
       if ((await this.call('GetRecordStatus')).outputActive)
@@ -115,6 +180,12 @@ class OBSControls {
     if (op === 'record-start') return this.call('StartRecord');
     if (op === 'record-stop') return this.call('StopRecord');
     if (op === 'stream-stop') return this.call('StopStream');
+    if (op === 'studio-mode') {
+      await this.call('SetStudioModeEnabled', { studioModeEnabled: bool(i.enabled) });
+      return { studioMode: bool(i.enabled) };
+    }
+    if (op === 'preview-scene') return this.call('SetCurrentPreviewScene', { sceneName: name(i.sceneName) });
+    if (op === 'transition') return this.call('TriggerStudioModeTransition');
     if (op === 'scene-switch') return this.call('SetCurrentProgramScene', { sceneName: name(i.sceneName) });
     if (op === 'scene-create') return this.call('CreateScene', { sceneName: name(i.sceneName) });
     if (op === 'scene-rename')

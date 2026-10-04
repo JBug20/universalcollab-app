@@ -442,7 +442,7 @@ class PlatformService {
           code_challenge: crypto.createHash('sha256').update(verifier).digest('base64url'),
           code_challenge_method: 'S256',
           access_type: 'offline',
-          prompt: 'consent'
+          prompt: 'select_account consent'
         })
     );
   }

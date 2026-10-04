@@ -1,0 +1,128 @@
+:root {
+  color-scheme: dark;
+  --font: Arial;
+  --size: 20px;
+  --text: #f7f0ff;
+  --name: #c8a3ff;
+  --background: #251937;
+  --emote: 30px;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+}
+body {
+  font-family: var(--font), sans-serif;
+  font-size: var(--size);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+}
+#tools {
+  padding: 10px;
+  background: #160f25;
+  font:
+    13px Arial,
+    sans-serif;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+button {
+  font: inherit;
+  color: #fff;
+  background: #3d2956;
+  border: 1px solid #75598f;
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+#status {
+  opacity: 0.8;
+}
+#messages {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--background);
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+.message {
+  padding: 8px 0;
+  line-height: 1.45;
+}
+.name {
+  color: var(--name);
+  font-weight: bold;
+}
+.meta {
+  font-size: 0.7em;
+  opacity: 0.75;
+  margin-left: 9px;
+}
+.text {
+  white-space: pre-wrap;
+}
+.emote {
+  height: var(--emote);
+  max-width: 160px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+.overlay #tools {
+  display: none;
+}
+.overlay #messages {
+  overflow: hidden;
+}
+.overlay.transparent #messages {
+  background: transparent;
+}
+.overlay .message {
+  text-shadow: 0 1px 3px #000;
+}
+.no-time .timestamp,
+.no-platform .platform {
+  display: none;
+}
+
+.pulse-effect {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 28px 48px;
+  border-radius: 28px;
+  background: linear-gradient(135deg, #422361, #251937);
+  border: 2px solid #c8a3ff;
+  color: #fff;
+  text-align: center;
+  font: 28px Arial;
+  box-shadow: 0 0 48px #a96df080;
+  max-width: 85%;
+  overflow-wrap: anywhere;
+}
+.pulse-effect[hidden] {
+  display: none;
+}
+.pulse-effect strong,
+.pulse-effect span {
+  display: block;
+  margin: 12px;
+}
+.pulse-heart {
+  color: #ed8bcb;
+  font-size: 72px;
+  animation: pulsebeat 0.8s ease-in-out infinite;
+}
+@keyframes pulsebeat {
+  50% {
+    transform: scale(1.18);
+  }
+}

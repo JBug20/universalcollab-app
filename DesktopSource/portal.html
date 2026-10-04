@@ -4,12 +4,13 @@
     <meta charset="utf-8" />
     <meta content="width=device-width,initial-scale=1" name="viewport" />
     <meta
-      content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-src https: http:; base-uri 'none'; form-action 'none'"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; media-src http://127.0.0.1:*; frame-src https: http:; base-uri 'none'; form-action 'none'"
       http-equiv="Content-Security-Policy"
     />
-    <title>UniversalCollab</title>
+    <title>UniversalCollab · 1.2.0-preview.1</title>
     <link href="portal.css" rel="stylesheet" />
     <link href="studio-ui-v2.css" rel="stylesheet" />
+    <link href="integrated-assist.css" rel="stylesheet" />
   </head>
   <body data-studio="v2">
     <header>
@@ -218,6 +219,8 @@
               feed</label
             ><label
               >Refresh rate<select id="obsPreviewRate">
+                <option value="16.666666666666668">Up to 60 FPS · highest load</option>
+                <option value="33.333333333333336">Up to 30 FPS · high load</option>
                 <option value="2000">Every 2 seconds · lowest load</option>
                 <option selected="" value="1000">1 frame per second</option>
                 <option value="500">2 frames per second</option>
@@ -228,12 +231,18 @@
               >Preview width<select id="obsPreviewWidth">
                 <option value="320">320 pixels</option>
                 <option selected="" value="640">640 pixels</option>
-                <option value="1280">1280 pixels</option>
+                <option value="1280">1280 pixels · 720p</option>
+                <option value="1920">1920 pixels · 1080p</option>
+                <option value="2560">2560 pixels · 1440p</option>
               </select></label
             >
             <p class="hint">
-              A periodically refreshed image of the OBS program output, without audio. It does not show the
-              relay’s final outgoing feed. Turning it off stops image requests.
+              Live video shows the OBS program output in real time at OBS’s output resolution and frame rate,
+              before and during streaming, without audio. It starts the OBS Virtual Camera (OBS 28 or newer)
+              and stops it again when the preview is turned off or the app closes, unless it was already
+              running. If the virtual camera is unavailable, snapshots are used. Snapshots are periodically
+              refreshed images; their rate and width are set below. While a relay broadcast is running, the
+              preview shows the relay’s final outgoing feed instead.
             </p>
           </section>
           <section class="card" id="appearanceSettings">
@@ -497,7 +506,7 @@
       </dialog>
       <div aria-live="polite" id="notice" role="status"></div>
       <footer>
-        UNIVERSALCOLLAB 1.0.0-rc.8
+        UNIVERSALCOLLAB 1.2.0-preview.1
         <span>Credentials hidden by default · Copying puts real values on your clipboard</span>
       </footer>
       <div hidden="" id="platformWorkspace">
@@ -725,7 +734,7 @@
       </div>
       <section class="welcome server-dialog" hidden="" id="welcome">
         <div class="intro">
-          <span class="eyebrow">CONTROL ROOM / 1.0.0-rc.8</span>
+          <span class="eyebrow">CONTROL ROOM / 1.2.0-preview.1</span>
           <h1>Keep your stream<br /><em>in good company.</em></h1>
           <p>
             Your own destination. Shared moments.<br />Collaborate on your terms, even when a connection
@@ -914,8 +923,16 @@
     <script src="studio-ui.js"></script>
     <script src="release-ui.js"></script>
     <script src="host-ui.js"></script>
+    <script src="relay-owner-ui.js"></script>
     <script src="studio-ui-v2.js"></script>
     <script src="obs-ui.js"></script>
     <script src="workspace-ui.js"></script>
+    <script src="collaboration-window.js"></script>
+    <script src="integrated-chat.js"></script>
+    <script src="integrated-assist.js"></script>
+    <script src="server-health.js"></script>
+    <script src="destination-health.js"></script>
+    <script src="studio-mode.js"></script>
+    <script src="relay-video.js"></script>
   </body>
 </html>

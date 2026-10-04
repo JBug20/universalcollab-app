@@ -1,5 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('relayDesktop', {
+  relayVideo: input => ipcRenderer.invoke('relay-video', input),
+  layoutMedia: input => ipcRenderer.invoke('layout-media', input),
+  browserSource: input => ipcRenderer.invoke('browser-source', input),
+  assist: input => ipcRenderer.invoke('integrated-assist', input),
+  collaboration: input => ipcRenderer.invoke('notify-collaboration', input),
   maintenance: async op => {
     const r = await ipcRenderer.invoke('app-maintenance', op);
     if (!r.ok) throw Error(r.error);
@@ -46,6 +51,11 @@ contextBridge.exposeInMainWorld('relayDesktop', {
   saveServers: v => ipcRenderer.invoke('servers-save', v),
   request: async input => {
     const r = await ipcRenderer.invoke('relay-request', input);
+    if (!r.ok) throw Error(r.error);
+    return r.data;
+  },
+  relayUpdate: async input => {
+    const r = await ipcRenderer.invoke('relay-update', input);
     if (!r.ok) throw Error(r.error);
     return r.data;
   },

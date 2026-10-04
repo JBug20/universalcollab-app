@@ -93,11 +93,12 @@ try {
   assert.equal(await page.locator('#streamMore').count(), 1);
 
   // Text sources survive saving, relay scene switches and presets.
-  page.once('dialog', d => d.accept('Hello chat'));
   await page.evaluate(() => {
     document.getElementById('canvasSource').value = 'text:new';
     document.getElementById('canvasAdd').click();
   });
+  await page.locator('#sourcePropertiesWindow textarea').fill('Hello chat');
+  await page.locator('#sourcePropertiesWindow input[type=submit]').click();
   const textItems = () => page.locator('#layoutPreview .canvas-item.text').count();
   assert.equal(await textItems(), 1);
   assert(await page.evaluate(() => window.streamCanvas.save()));

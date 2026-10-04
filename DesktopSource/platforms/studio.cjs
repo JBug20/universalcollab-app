@@ -60,6 +60,24 @@ class StudioService {
     return this.snapshot();
   }
   validate(input) {
+    for (const value of Object.values(input.resolutions || {}))
+      if (!['', '2560x1440', '1920x1080', '1600x900', '1280x720', '854x480', '640x360'].includes(value))
+        throw new PlatformError('Choose a supported output resolution.');
+    if (
+      input.qualities !== undefined &&
+      (typeof input.qualities !== 'object' || input.qualities === null || Array.isArray(input.qualities))
+    )
+      throw new PlatformError('Invalid destination quality.');
+    for (const q of Object.values(input.qualities || {})) {
+      if (!q || typeof q !== 'object') throw new PlatformError('Invalid destination quality.');
+      if (
+        q.bitrateKbps != null &&
+        (!Number.isInteger(q.bitrateKbps) || q.bitrateKbps < 500 || q.bitrateKbps > 20000)
+      )
+        throw new PlatformError('Destination bitrate must be 500–20000 kbps.');
+      if (q.fps != null && ![24, 25, 30, 48, 50, 60].includes(q.fps))
+        throw new PlatformError('Choose a supported destination frame rate.');
+    }
     safeText(input.title, 100);
     if (typeof input.description !== 'string' || input.description.length > 5000)
       throw new PlatformError('Description is too long.');
@@ -308,7 +326,12 @@ class StudioService {
       id: input.id,
       title: input.title,
       record: !!input.record,
-      destinations: input.selected.map(id => d.targets.find(t => t.id === id))
+      destinations: input.selected.map(id => ({
+        ...d.targets.find(t => t.id === id),
+        resolution: input.resolutions?.[id] || null,
+        bitrateKbps: input.qualities?.[id]?.bitrateKbps ?? null,
+        fps: input.qualities?.[id]?.fps ?? null
+      }))
     };
   }
   async update(input) {

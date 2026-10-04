@@ -395,15 +395,23 @@ const offlineFields = [
   'destinationKey'
 ];
 // Disabled fieldsets keep server controls visible, while panel handles remain usable.
-for (const card of document.querySelectorAll(
-  '#manualOBS,#canvasPanel,#fallbackPanel,#legacyPermissions > .card'
-)) {
+// The stream layout stays editable offline (1.2.0); only relay-bound controls are locked.
+for (const card of document.querySelectorAll('#manualOBS,#fallbackPanel,#legacyPermissions > .card')) {
   const field = document.createElement('fieldset');
   field.className = 'server-controls';
   field.disabled = true;
   for (const node of [...card.childNodes])
     if (!(node.nodeType === 1 && node.matches('h2,h3,.sectionhead,.panel-tools'))) field.append(node);
   card.append(field);
+}
+// Saving the layout works offline too (it saves on this device), so keep that button outside the locked fieldset.
+{
+  const save = $('canvasSave'),
+    form = $('layoutForm');
+  if (save && form) {
+    save.setAttribute('form', 'layoutForm');
+    form.closest('fieldset').after(save);
+  }
 }
 function setControls(on) {
   for (const f of document.querySelectorAll('.server-controls')) f.disabled = !on;
@@ -712,3 +720,44 @@ window.portalReady = (async () => {
   offline();
   setInterval(refresh, 3000);
 })();
+
+const stopEverything = $('end');
+stopEverything.textContent = 'End relay broadcast';
+// Ends the relay broadcast (including fallback) and stops OBS streaming. The End Relay button asks
+// first and passes confirmed=true, so the question only appears once.
+async function endEverything(confirmed = false) {
+  if (busy || !connected) return;
+  if (
+    !confirmed &&
+    !confirm('Stop OBS streaming and end the relay broadcast, including fallback, for all your destinations?')
+  )
+    return;
+  busy = true;
+  stopEverything.disabled = true;
+  const errors = [];
+  try {
+    try {
+      const result = await api('/api/end', {});
+      render(result);
+    } catch {
+      errors.push('Relay stop could not be confirmed. It may still be broadcasting; reconnect and retry.');
+    }
+    try {
+      if (!desktop?.obs) throw Error();
+      await desktop.obs('stream-stop', { serverKey: selected()?.key });
+    } catch {
+      errors.push('OBS stop could not be confirmed. Stop streaming in OBS manually.');
+    }
+    note(
+      errors.length
+        ? errors.join(' ')
+        : 'Stop requests accepted for OBS and the relay, including fallback. Check the stream status as shutdown completes.'
+    );
+  } finally {
+    busy = false;
+    stopEverything.disabled = false;
+    serverMenu();
+  }
+}
+stopEverything.onclick = () => endEverything(false);
+window.endRelayBroadcast = () => endEverything(true);

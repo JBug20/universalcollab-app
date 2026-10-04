@@ -80,8 +80,17 @@
   $('connectionDetails').append($('platformNotice')); // login/API notices stay next to connections
   const storage = 'universalcollab-production-draft-v1';
   let wanted = new Set();
+  let resolutions = {},
+    qualities = {};
+  try {
+    const saved = JSON.parse(localStorage.getItem(storage) || '{}');
+    resolutions = saved.resolutions || {};
+    qualities = saved.qualities || {};
+  } catch {}
   function formData() {
     return {
+      resolutions,
+      qualities,
       id: draftId,
       title: $('productionTitle').value.trim(),
       description: $('productionDescription').value,
@@ -98,6 +107,121 @@
       record: $('productionRecord').checked
     };
   }
+
+  const profileKey = 'universalcollab-stream-profiles-v2';
+  let streamProfiles = [];
+  try {
+    const v = JSON.parse(localStorage.getItem(profileKey) || '[]');
+    if (Array.isArray(v)) streamProfiles = v.slice(0, 50);
+  } catch {}
+  const profiles = document.createElement('fieldset'),
+    legend = document.createElement('legend'),
+    profileSelect = document.createElement('select'),
+    profileName = document.createElement('input');
+  legend.textContent = 'Stream profiles';
+  profileSelect.setAttribute('aria-label', 'Saved stream profile');
+  profileName.placeholder = 'Profile name';
+  profileName.maxLength = 60;
+  profileName.setAttribute('aria-label', 'Profile name');
+  profiles.append(legend, profileSelect, profileName);
+  $('productionForm').prepend(profiles);
+  function profileList() {
+    profileSelect.replaceChildren(new Option('Choose a saved profile', ''));
+    for (const p of streamProfiles)
+      if (p.server === selected()?.key) profileSelect.append(new Option(p.name, p.key));
+  }
+  const saveProfileButton = button('Save profile', () => {
+    const name = profileName.value.trim();
+    if (!name || !selected()) {
+      say('Enter a profile name and select a relay.');
+      return;
+    }
+    const existing = streamProfiles.find(p => p.server === selected().key && p.name === name);
+    if (existing && !confirm('Replace this saved stream profile?')) return;
+    if (!existing && streamProfiles.length >= 50) {
+      say('Remove a profile before adding another.');
+      return;
+    }
+    const item = {
+      key: existing?.key || crypto.randomUUID(),
+      server: selected().key,
+      name,
+      draft: {
+        ...formData(),
+        gameName: $('productionGame').selectedOptions[0]?.textContent || '',
+        categoryName: $('productionCategory').selectedOptions[0]?.textContent || '',
+        id: '',
+        readyId: ''
+      }
+    };
+    streamProfiles = streamProfiles.filter(p => p.key !== item.key);
+    streamProfiles.push(item);
+    localStorage.setItem(profileKey, JSON.stringify(streamProfiles));
+    profileList();
+    profileSelect.value = item.key;
+    say('Stream profile saved.');
+  });
+  const loadProfileButton = button('Load profile', () => {
+    if (!connected || uncertain || view?.status?.broadcast || busy) {
+      say('Connect to the relay and end the broadcast before loading a profile.');
+      return;
+    }
+    const p = streamProfiles.find(p => p.key === profileSelect.value && p.server === selected()?.key);
+    if (!p) return;
+    const d = p.draft;
+    draftId = crypto.randomUUID();
+    readyId = '';
+    resolutions = d.resolutions || {};
+    qualities = d.qualities || {};
+    wanted = new Set(d.selected || []);
+    $('productionDestinations').replaceChildren();
+    for (const [k, id] of [
+      ['title', 'productionTitle'],
+      ['description', 'productionDescription'],
+      ['twitchTitle', 'productionTwitchTitle'],
+      ['youtubeTitle', 'productionYoutubeTitle'],
+      ['youtubeDescription', 'productionYoutubeDescription'],
+      ['privacy', 'productionPrivacy']
+    ])
+      $(id).value = d[k] || '';
+    $('productionSync').checked = d.sync !== false;
+    $('productionOverrides').hidden = d.sync !== false;
+    $('productionKids').value = d.audienceSet ? (d.madeForKids ? 'yes' : 'no') : '';
+    $('productionRecord').checked = !!d.record;
+    for (const [id, key, label] of [
+      ['productionGame', 'gameId', 'gameName'],
+      ['productionCategory', 'categoryId', 'categoryName']
+    ]) {
+      const select = $(id);
+      if (d[key] && ![...select.options].some(o => o.value === d[key]))
+        select.append(new Option(d[label] || d[key], d[key]));
+      select.value = d[key] || '';
+    }
+    choices();
+    saveDraft();
+    profileName.value = p.name;
+    say('Profile loaded. Review destinations and category, then Create & prepare.');
+  });
+  const deleteProfileButton = button('Delete profile', () => {
+    if (!profileSelect.value || !confirm('Delete this saved profile?')) return;
+    streamProfiles = streamProfiles.filter(p => p.key !== profileSelect.value);
+    localStorage.setItem(profileKey, JSON.stringify(streamProfiles));
+    profileList();
+  });
+  for (const b of [saveProfileButton, loadProfileButton, deleteProfileButton]) {
+    b.type = 'button';
+    profiles.append(b);
+  }
+  profileSelect.onchange = () => {
+    profileName.value = streamProfiles.find(p => p.key === profileSelect.value)?.name || '';
+  };
+  setInterval(() => {
+    const key = selected()?.key || '';
+    if (profiles.dataset.server !== key) {
+      profiles.dataset.server = key;
+      profileList();
+    }
+  }, 1000);
   function saveDraft() {
     try {
       localStorage.setItem(storage, JSON.stringify({ ...formData(), readyId }));
@@ -131,6 +255,92 @@
         saveDraft();
       };
       label.append(input, document.createTextNode(c.name + (c.available ? '' : ' · Connect first')));
+      const pick = (name, list, value, onchange) => {
+        const sel = document.createElement('select');
+        sel.setAttribute('aria-label', c.name + ' ' + name);
+        for (const [v, text] of list) {
+          const option = document.createElement('option');
+          option.value = v;
+          option.textContent = text;
+          sel.append(option);
+        }
+        sel.value = value;
+        if (sel.value !== value) sel.value = list[0][0];
+        sel.onchange = onchange;
+        return sel;
+      };
+      const q = qualities[c.id] || {};
+      const row = document.createElement('div');
+      row.className = 'destination-quality';
+      const note = document.createElement('small');
+      note.className = 'destination-quality-note';
+      const size = pick(
+        'output resolution',
+        [
+          ['', 'Source size'],
+          ['2560x1440', '1440p'],
+          ['1920x1080', '1080p'],
+          ['1600x900', '900p'],
+          ['1280x720', '720p'],
+          ['854x480', '480p'],
+          ['640x360', '360p']
+        ],
+        resolutions[c.id] || '',
+        () => {
+          resolutions[c.id] = size.value;
+          update();
+        }
+      );
+      const rate = pick(
+        'video bitrate',
+        [
+          ['', 'Auto bitrate'],
+          ...[1500, 2500, 3500, 4500, 6000, 8000, 10000, 12000, 15000, 20000].map(k => [
+            String(k),
+            (k / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 }) + ' Mbps'
+          ])
+        ],
+        q.bitrateKbps ? String(q.bitrateKbps) : '',
+        () => {
+          qualities[c.id] = {
+            ...(qualities[c.id] || {}),
+            bitrateKbps: rate.value ? Number(rate.value) : null
+          };
+          update();
+        }
+      );
+      const fps = pick(
+        'frame rate',
+        [
+          ['', 'Source fps'],
+          ['60', '60 fps'],
+          ['50', '50 fps'],
+          ['30', '30 fps'],
+          ['25', '25 fps']
+        ],
+        q.fps ? String(q.fps) : '',
+        () => {
+          qualities[c.id] = { ...(qualities[c.id] || {}), fps: fps.value ? Number(fps.value) : null };
+          update();
+        }
+      );
+      function update() {
+        const custom = !!(size.value || rate.value || fps.value);
+        const warn = [];
+        if (c.id === 'twitch' && (['2560x1440'].includes(size.value) || Number(rate.value) > 8000))
+          warn.push(
+            'Twitch guidelines recommend up to 1080p60 at about 6 Mbps; higher settings may be rejected or buffer for viewers.'
+          );
+        note.textContent =
+          (custom
+            ? 'Re-encoded on the relay for this destination (uses extra server CPU).'
+            : 'Exact copy of the relay output (no extra server CPU).') +
+          (warn.length ? ' ' + warn.join(' ') : '');
+        saveDraft();
+      }
+      row.append(size, rate, fps, note);
+      label.append(row);
+      update();
       $('productionDestinations').append(label);
     }
   }
@@ -158,6 +368,17 @@
   }
   for (const b of document.querySelectorAll('[data-custom-preset]'))
     b.onclick = () => {
+      if (b.dataset.customPreset === 'Kick') {
+        act(async () => {
+          say('Approve Kick in your browser. This may take a few minutes.');
+          const result = await call('kick-connect');
+          custom = result.custom;
+          customPaint();
+          choices();
+          say('Kick connected successfully. Select it when preparing your stream.');
+        });
+        return;
+      }
       $('customConnectionForm').hidden = false;
       $('customName').value = b.dataset.customPreset === 'Custom' ? '' : b.dataset.customPreset;
       $('customUrl').value = '';

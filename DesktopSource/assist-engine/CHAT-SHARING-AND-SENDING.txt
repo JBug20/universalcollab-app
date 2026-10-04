@@ -1,0 +1,40 @@
+UniversalCollab + private Notify: combined chat and sending
+
+1. Close both applications, extract the updated ZIPs, then reopen them.
+2. In private Notify, open Combined chat > OBS setup.
+3. Choose Copy UniversalCollab chat + send link.
+4. In UniversalCollab's Chat panel, expand Chat source - Private Notify.
+   Paste the link and choose Use Notify chat. The link is saved encrypted.
+5. Keep Notify running with its platform connections active.
+6. Use the menu below chat to choose All platforms, Twitch, YouTube or Kick.
+   Enter up to 200 characters and select Send. All platforms attempts each
+   of your configured channels and reports each result separately.
+
+Twitch and YouTube:
+Sign out and reconnect in private Notify to approve the new message-sending
+permission. YouTube requires an active live broadcast. If several broadcasts
+are active, sending is blocked rather than choosing the wrong chat.
+Messages are sent as the accounts connected in Notify, to their own channels.
+Expired credentials require reconnecting. Messages are never automatically retried.
+
+Kick:
+The updated private Cloudflare receiver must be deployed first. In Command Prompt:
+cd /d "<your-projects-folder>\Notify-Kick-Receiver"
+npx wrangler deploy
+Then disconnect and reconnect Kick in Notify and approve chat sending.
+No redirect URL change is needed. This is the PRIVATE receiver, not the beta backend.
+The receiver now retains OAuth tokens server-side to send messages and refresh access.
+These tokens are not returned to the desktop. It has not been deployed by this build.
+
+Existing OBS dock/overlay links remain read-only. The separate chat + send link
+allows sending; keep it private. Reset links in Notify invalidates both links.
+
+If only some destinations succeed, select an individual failed destination before
+trying again. For timeouts, check live chat first to avoid duplicate messages.
+Use UniversalCollab chat switches back to its original chat panel.
+
+Validation: private Windows build, JavaScript syntax, local send-token separation,
+invalid-target rejection, Kick authentication, scope requirement, input validation
+and throttle tests passed using test data. No live chat messages were posted.
+Embedded chat rendering and real platform delivery still need your local test.
+Public beta, Linux and APK versions were not changed.

@@ -1,0 +1,52 @@
+UniversalStream Assist 1.1 — Integration setup
+
+Applies to private Windows (Notify), public Windows beta and public Linux beta.
+No backend deployment is needed for this desktop update.
+
+STREAMER.BOT
+1. Open Streamer.bot on the same computer. Enable its WebSocket server (default port 8080). Use its configured password if authentication is enabled.
+2. In Assist, choose Integrations > Streamer.bot & Lumia.
+3. Enter the port/password and choose Refresh action list.
+4. Choose an event or saved Pulsoid rule, select an enabled Streamer.bot action and save.
+5. Enable Streamer.bot actions. Keep both apps running.
+Actions receive source, platform, eventType, viewer and message; Pulsoid mappings receive source, heartRate and rule.
+Sample alerts and replay never execute mapped actions. Real triggers have a five-second cooldown and a maximum of two concurrent automation runs. Failed actions are not retried, to avoid duplicate effects.
+On Linux this requires a compatible local Streamer.bot runtime; Assist does not bundle Streamer.bot.
+
+LUMIA STREAM
+1. Enable Lumia's local API and copy its API token from Lumia settings.
+2. Enter the token in Assist > Integrations > Streamer.bot & Lumia.
+3. Choose an event and type the exact name of an existing Lumia chat command, then save and enable Lumia commands.
+4. Keep Lumia on the same computer. Assist uses its local API on port 39231.
+Use a harmless lighting command for your first real-event test. This was tested with a simulated API; your actual lights still need testing. Older Lumia versions may report success for an unknown command.
+Lumia availability on your operating system is separate from Assist support.
+
+UNIVERSALCOLLAB
+1. Open Integrations > UniversalCollab.
+2. Enter the address of your UniversalCollab rc.8 server (HTTPS; HTTP is allowed only for localhost).
+3. Enter your personal login in username:token format. This is your personal server identity, not a stream key or the shared invitation password.
+4. Save & connect. Assist reads the existing /api/v3/view endpoint every 10 seconds.
+Current requests and teammate stream status appear in the panel. Subsequent changes produce alerts. Existing requests do not all replay as new alerts at connection time. This integration cannot accept invitations, change stream routing or expose streaming keys.
+The supplied UniversalCollab version uses its own server identity; shared Supabase sign-in is not yet wired into that server.
+You can save one local session reminder. Assist must be open at the due time. Saving a blank title disables it. These reminders are not shared with teammates or scheduled on the server.
+Connections start stopped after restarting Assist.
+
+STREAM DECK
+1. Install stream.universalcollab.assist.streamDeckPlugin by opening it with Stream Deck 7.1 or later on Windows.
+2. In Assist > Integrations > Stream Deck, choose Enable controls & copy pairing token.
+3. Add an Assist control key in Stream Deck. Choose your app and paste the token.
+4. Choose Toggle sound, Pause Pulsoid rules, Resume Pulsoid rules, Replay latest alert or Show combined chat.
+Ports: private Windows 18744; public Windows 18745; Linux local control endpoint 18746.
+The token is separate from your OBS overlay token. Controls listen only on this computer. Stop controls disables them; Reset token invalidates existing pairings. Controls start stopped after an app restart.
+The supplied Elgato plugin targets Windows. Linux includes the compatible local endpoint, but the official Elgato app is not supplied for Linux.
+No Stream Deck hardware was available for a physical-device test. Plugin registration, key events and authenticated command delivery passed a simulated-host test.
+
+EMOTES
+Twitch chat now adds BetterTTV and FrankerFaceZ global/channel emotes alongside Twitch and 7TV. Twitch native metadata and 7TV take precedence when names overlap. No API key is required. Third-party emotes are looked up using the connected Twitch channel; reconnect Twitch to refresh the catalogue. Unsupported modifiers remain text.
+Existing animated chat nodes are retained when new messages arrive to avoid restarting animations.
+
+INSTALLING THIS UPDATE
+Close the old app before replacing its folder or running the Windows installer. Keep your existing account settings. For the public beta, extract the full ZIP before opening the EXE. For Garuda, extract the tar.gz and run start.sh; your desktop keyring must be unlocked.
+
+VERIFICATION
+Windows builds compiled. Local control security, Streamer.bot authentication/actions, emote parsing, Stream Deck protocol and existing chat/OBS/Pulsoid tests passed. Real UniversalCollab/Lumia/Streamer.bot configurations and native Garuda runtime still need an end-to-end test with your setup.

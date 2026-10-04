@@ -109,6 +109,7 @@
       ['Lock / unlock source', () => window.streamCanvas.toggleLock()]
     ],
     View: [
+      ['Studio mode (Preview / Program)', () => window.studioMode?.toggle()],
       ['Preview settings', settings('preview')],
       [
         'Fullscreen',
@@ -120,6 +121,7 @@
     ],
     Panels: [],
     Tools: [
+      ['Collaboration centre', () => window.openAssistCollaboration?.()],
       ['OBS Connection', settings('obs')],
       ['Platform connections', settings('connections')],
       ['Relay connection', settings('relay')],
@@ -182,7 +184,7 @@
   );
   info(
     'aboutApp',
-    'UniversalCollab · rc.8',
+    'UniversalCollab · 1.2.0-preview.1',
     'Self-hosted collaboration and streaming workspace. OBS preview is local, without audio, and does not show the final relay composite.'
   );
   const prop = make('dialog');
@@ -247,7 +249,8 @@
     }
     const before = window.streamCanvas.snapshot().resolution;
     window.streamCanvas.resolution(choice === 'auto' ? null : { width: w, height: h });
-    if (!(await window.streamCanvas.save())) window.streamCanvas.resolution(before);
+    // Nothing is live while the resolution changes, so in studio mode this also sends Preview.
+    if (!(await window.streamCanvas.save({ transition: true }))) window.streamCanvas.resolution(before);
     resolutionPaint();
   };
   window.addEventListener('relay-state', resolutionPaint);
@@ -320,19 +323,24 @@
       for (const n of parent.children)
         if (n !== canvas && !n.hidden) {
           const st = getComputedStyle(n);
-          if (st.display !== 'none')
+          if (st.display !== 'none' && st.position !== 'absolute')
             extra +=
               n.getBoundingClientRect().height +
               (parseFloat(st.marginTop) || 0) +
               (parseFloat(st.marginBottom) || 0);
         }
-      const room = Math.max(70, parent.clientHeight - extra - 20);
+      // Studio mode panes are already padded by the stage.
+      const room = Math.max(
+        70,
+        parent.clientHeight - extra - (parent.classList.contains('studio-pane') ? 0 : 20)
+      );
       const width = Math.max(80, Math.min(parent.clientWidth, room * aspect));
       canvas.style.width = width + 'px';
       canvas.style.height = width / aspect + 'px';
       fitting = false;
     });
   }
+  window.fitStreamCanvas = fitCanvas;
   new ResizeObserver(fitCanvas).observe(panel);
   new ResizeObserver(fitCanvas).observe($('resolutionBar'));
   window.addEventListener('scene-change', fitCanvas);
@@ -595,20 +603,35 @@
       ['Delete', () => sceneAction('Delete', true)]
     ]);
   };
-  const sourceActions = () => [
-    ['Add source', () => $('addItem').click()],
-    ['Properties', () => open('sourceProperties')],
-    ['Lock / unlock', () => window.streamCanvas.toggleLock()],
-    ['Move forward', () => $('canvasFront').click()],
-    ['Move backward', () => $('canvasBack').click()],
-    ['Remove', () => $('canvasRemove').click()]
-  ];
+  const sourceActions = () => {
+    const sel = window.streamCanvas.selected(),
+      fixed = sel.locked;
+    return [
+      ['Add source', () => $('addItem').click()],
+      ...(sel.media ? [['Source settings…', () => window.streamCanvas.openProperties(), fixed]] : []),
+      ['Position & size…', () => open('sourceProperties')],
+      ['Lock / unlock', () => window.streamCanvas.toggleLock()],
+      ['Move forward', () => $('canvasFront').click()],
+      ['Move backward', () => $('canvasBack').click()],
+      ...[
+        ['top-left', 'Top left quarter'],
+        ['top-right', 'Top right quarter'],
+        ['bottom-left', 'Bottom left quarter'],
+        ['bottom-right', 'Bottom right quarter'],
+        ['center', 'Centre']
+      ].map(([c, label]) => [label, () => window.streamCanvas.placeCorner(c), fixed]),
+      ['Make 2×2 split', () => window.streamCanvas.split()],
+      ['Remove', () => $('canvasRemove').click(), fixed || sel.kind === 'main']
+    ];
+  };
   const sourceBar = bar($('sourcesPanel'));
   sourceBar.append(
     btn('+', 'Add relay source', () => $('addItem').click()),
     btn('−', 'Remove selected source', () => $('canvasRemove').click()),
     btn('⚙', 'Source properties', () => open('sourceProperties')),
-    btn('✓', 'Apply relay layout', () => window.streamCanvas.save())
+    btn('✓', 'Apply relay layout', () =>
+      window.studioMode?.enabled ? window.studioMode.transition() : window.streamCanvas.save()
+    )
   );
   $('canvasLayers').oncontextmenu = e => {
     e.target.closest('[data-layer]')?.querySelector('.source-name')?.click();
@@ -677,7 +700,12 @@
   $('streamsPanel').append(more);
   // End Relay sits under Start/Stop Stream. Its gear holds the auto-end timer and the fallback choices.
   const endRelay = btn('End Relay', 'End the relay broadcast', () => {
-    if (confirm('End the relay broadcast now? Every destination will see the stream end.')) $('end').click();
+    if (
+      confirm(
+        'End the relay broadcast and stop OBS streaming now? Every destination will see the stream end.'
+      )
+    )
+      window.endRelayBroadcast ? window.endRelayBroadcast() : $('end').click();
   });
   endRelay.id = 'endRelay';
   endRelay.className = 'danger';
@@ -805,10 +833,12 @@
     for (const id of ['dockLeft', 'dockCenter', 'dockRight', 'dockBottom']) {
       const column = $(id);
       column.querySelectorAll(':scope>.panel-separator').forEach(n => n.remove());
-      const visible = [...column.children].filter(n => n.dataset.dock && !n.hidden);
+      const visible = [...column.children].filter(
+        n => n.dataset.dock && !n.hidden && (n.tagName !== 'DIALOG' || n.open)
+      );
       visible.forEach(p => {
         p.style.height = '';
-        p.style.flex = (weights[p.dataset.dock] || 1) + ' 1 0px';
+        p.style.flex = (weights[p.dataset.dock] || (p.dataset.dock === 'assist' ? 2 : 1)) + ' 1 0px';
       });
       for (let i = 0; i < visible.length - 1; i++) {
         const a = visible[i],

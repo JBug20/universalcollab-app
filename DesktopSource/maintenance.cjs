@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('node:fs'),
   path = require('node:path');
-exports.uninstallTarget = ({ platform, execPath, home, dataHome }) => {
+exports.uninstallTarget = ({ platform, execPath, home, dataHome, appImage = process.env.APPIMAGE }) => {
   const directory = path.dirname(execPath);
   if (platform === 'win32') {
     const executable = path.join(directory, 'Uninstall.exe');
@@ -12,6 +12,12 @@ exports.uninstallTarget = ({ platform, execPath, home, dataHome }) => {
     return { kind: 'windows', executable };
   }
   if (platform === 'linux') {
+    if (appImage)
+      throw Error(
+        'This is the AppImage version. Close the app and delete ' +
+          path.basename(appImage) +
+          ' to remove it (and its menu entry if you added one). Saved accounts and settings are kept separately.'
+      );
     const base = dataHome && path.isAbsolute(dataHome) ? dataHome : path.join(home, '.local', 'share');
     const expected = path.join(base, 'stream-relay');
     if (

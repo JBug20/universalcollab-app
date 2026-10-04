@@ -1,6 +1,6 @@
 'use strict';
 const crypto = require('node:crypto');
-const MAX = 4 * 1024 * 1024;
+const MAX = 8 * 1024 * 1024;
 const password = p => {
   if (typeof p !== 'string' || p.length < 12 || p.length > 1024)
     throw Error('Use a backup password of at least 12 characters.');
@@ -62,6 +62,8 @@ exports.open = (text, p) => {
   }
 };
 exports.workspaceKeys = [
+  'universalcollab-stream-profiles-v2',
+  'uc-collaboration-placement-v1',
   'uc-ui8-workspace',
   'uc-ui8-dock-sizes',
   'uc-ui8-panel-weights',
@@ -81,7 +83,8 @@ exports.workspaceKeys = [
   'universalcollab-app-presets-v1',
   'universalcollab-stream-presets-v1',
   'universalcollab-chat-ui-v1',
-  'universalcollab-tools-v1'
+  'universalcollab-tools-v1',
+  'universalcollab-offline-layout-v1'
 ];
 exports.workspace = v => {
   const result = {};

@@ -5,6 +5,16 @@ const { pathToFileURL } = require('node:url');
 // Preserve legacy credentials and Chromium localStorage during the rename.
 app.setPath('userData', path.join(app.getPath('appData'), 'Stream Relay'));
 app.setName('UniversalCollab');
+if (!app.requestSingleInstanceLock()) {
+  app.exit(0);
+} else
+  app.on('second-instance', () => {
+    if (win) {
+      win.restore();
+      win.show();
+      win.focus();
+    }
+  });
 const localProfiles = require('./local-profile.cjs').createLocalProfileStore(app.getPath('userData'));
 
 const servers = require('./server-store.cjs').createServerStore(
@@ -12,16 +22,21 @@ const servers = require('./server-store.cjs').createServerStore(
   safeStorage,
   process.platform
 );
+const relayOwner = require('./relay-owner.cjs'),
+  ownerLabel = relayOwner.label;
+let ownerKeys = null;
 const home = path.join(__dirname, 'portal.html');
 let win, platforms, studio;
 let obs,
+  bundledOBS = null,
   obsControls,
   obsPrevious,
   obsCredentials,
   obsQueue = Promise.resolve();
 let studioQueue = Promise.resolve(),
   studioBusy = false,
-  backupBusy = false;
+  backupBusy = false,
+  layoutMedia = null;
 const { PlatformService, PlatformError } = require('./platforms/service.cjs');
 const { StudioService } = require('./platforms/studio.cjs');
 const { createVault } = require('./platforms/vault.cjs');
@@ -61,14 +76,34 @@ function getPlatforms() {
   return platforms;
 }
 app.whenReady().then(() => {
-  session.defaultSession.setPermissionRequestHandler((_w, _p, callback) => callback(false));
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  // Camera access is limited to the app's own top-level page, video only. It is used for the live OBS Virtual Camera preview.
+  const appFrame = (wc, url, mainFrame) =>
+    !!win &&
+    !win.isDestroyed() &&
+    wc === win.webContents &&
+    mainFrame !== false &&
+    /^file:/i.test(String(url || ''));
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details = {}) =>
+    callback(
+      permission === 'media' &&
+        appFrame(wc, details.requestingUrl, details.isMainFrame) &&
+        Array.isArray(details.mediaTypes) &&
+        details.mediaTypes.length > 0 &&
+        details.mediaTypes.every(t => t === 'video')
+    )
+  );
+  session.defaultSession.setPermissionCheckHandler(
+    (wc, permission, origin, details = {}) =>
+      permission === 'media' &&
+      details.mediaType !== 'audio' &&
+      appFrame(wc, origin || details.requestingUrl, details.isMainFrame)
+  );
   win = new BrowserWindow({
     width: 1240,
     height: 920,
     minWidth: 460,
     minHeight: 640,
-    title: 'UniversalCollab',
+    title: 'UniversalCollab · 1.2.0-preview.1',
     backgroundColor: '#101017',
     autoHideMenuBar: true,
     webPreferences: {
@@ -78,29 +113,117 @@ app.whenReady().then(() => {
       sandbox: true
     }
   });
+  require('./relay-video.cjs').start({ app, ipcMain, guard });
+  require('./browser-sources.cjs').start({ app, ipcMain, guard, BrowserWindow, session, mainWindow: win });
+  layoutMedia = require('./layout-media.cjs').start({ app, ipcMain, guard });
+  require('./assist-engine.cjs').start({ app, ipcMain, guard, getWindow: () => win });
+  require('./collaboration-service.cjs').start({ app, ipcMain, guard, servers });
+  // Recover from a crashed or frozen display process instead of leaving a blank window. Reasons are logged to userData/renderer-problems.log.
+  {
+    let crashes = 0,
+      hangTimer = null;
+    const note = text => {
+      try {
+        fs.appendFileSync(
+          path.join(app.getPath('userData'), 'renderer-problems.log'),
+          new Date().toISOString() + ' ' + text + '\n'
+        );
+      } catch {}
+    };
+    win.webContents.on('render-process-gone', (_e, d) => {
+      note('gone ' + d.reason + ' ' + d.exitCode);
+      if (d.reason === 'clean-exit' || win.isDestroyed()) return;
+      if (++crashes > 3) {
+        note('not reloading after 3 recoveries');
+        return;
+      }
+      setTimeout(() => {
+        if (!win.isDestroyed()) win.loadFile(home);
+      }, 500);
+    });
+    win.on('unresponsive', () => {
+      note('unresponsive');
+      clearTimeout(hangTimer);
+      hangTimer = setTimeout(() => {
+        if (!win.isDestroyed()) {
+          note('forcing reload after hang');
+          win.webContents.forcefullyCrashRenderer();
+        }
+      }, 10000);
+    });
+    win.on('responsive', () => {
+      clearTimeout(hangTimer);
+      hangTimer = null;
+    });
+    win.webContents.on('did-fail-load', (_e, code, desc, url, isMain) => {
+      if (isMain) note('load failed ' + code + ' ' + desc);
+    });
+  }
   win.setMenu(null);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', e => e.preventDefault());
   win.webContents.on('will-attach-webview', e => e.preventDefault());
+  ownerKeys = new relayOwner.OwnerKeys({ directory: app.getPath('userData'), safeStorage });
+  // Installs the relay release bundled with this app on the selected relay (owner only, signed).
+  ipcMain.handle('relay-update', async (e, input = {}) => {
+    guard(e);
+    try {
+      const release = relayOwner.bundledRelease(__dirname);
+      if (input.op === 'bundled')
+        return { ok: true, data: release ? { version: release.version, build: release.build } : null };
+      if (input.op !== 'install') throw Error();
+      if (!release) return { ok: false, error: 'This app does not include a relay update.' };
+      return await relayOwner.installRelease(ownerKeys, {
+        appDir: __dirname,
+        origin: parseAddress(input.address),
+        token: input.token
+      });
+    } catch {
+      return { ok: false, error: 'Could not reach the relay to update it.' };
+    }
+  });
   ipcMain.handle('relay-request', async (e, input) => {
     guard(e);
     try {
       const origin = parseAddress(input.address);
       if (
-        !/^\/api\/(v3\/(info|register|view|secrets|destination|settings|request|respond|collab-warning|collab-request|collab-respond|display-name|chat-frame|production|production-clear|recordings|recording-delete|invites|invite|invite-revoke|host-claim|host-view|host-settings|host-member|host-action|host-rotate)|end|allow|pip-on|pip-off|collab-on|collab-off|force-fallback|restore-primary)$/.test(
+        !/^\/api\/(v3\/(info|register|view|secrets|destination|settings|request|respond|collab-warning|collab-request|collab-respond|display-name|chat-frame|media-frame|production|production-clear|output-control|recordings|recording-delete|invites|invite|invite-revoke|host-claim|host-claim-device|host-device|host-view|host-settings|host-member|host-action|host-rotate|health)|end|allow|pip-on|pip-off|collab-on|collab-off|force-fallback|restore-primary)$/.test(
           input.route
         )
       )
         throw Error();
-      const body = input.body === undefined ? undefined : JSON.stringify(input.body);
-      if (body && body.length > (input.route === '/api/v3/chat-frame' ? 2500000 : 65536)) throw Error();
+      let body = input.body === undefined ? undefined : JSON.stringify(input.body);
+      if (
+        body &&
+        body.length >
+          (input.route === '/api/v3/chat-frame'
+            ? 2500000
+            : input.route === '/api/v3/media-frame'
+              ? 9000000
+              : input.route === '/api/v3/settings'
+                ? 262144
+                : 65536)
+      )
+        throw Error();
       if (input.token && !/^[A-Za-z0-9_-]{1,32}:[A-Za-z0-9_-]{24,64}$/.test(input.token)) throw Error();
+      // Owner requests are signed with this PC's owner key for the relay (see relay-owner.cjs).
+      const prepared = relayOwner.prepareOwnerRequest(ownerKeys, {
+        origin,
+        route: input.route,
+        token: input.token,
+        body,
+        input: input.body
+      });
+      if (prepared.error) return { ok: false, error: prepared.error };
+      body = prepared.body;
+      const ownerHeaders = prepared.headers;
       const response = await fetch(origin + input.route, {
         method: body === undefined ? 'GET' : 'POST',
         headers: {
           Origin: origin,
           ...(input.token ? { Authorization: 'Bearer ' + input.token } : {}),
-          ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+          ...ownerHeaders
         },
         body,
         redirect: 'error',
@@ -123,7 +246,19 @@ app.whenReady().then(() => {
       // Never display arbitrary server strings: they could contain a secret or address.
       if (!response.ok) {
         const reasons = {
-          HOST_HTTPS: 'Host administration requires an HTTPS control address.',
+          HOST_HTTPS:
+            'Owner tools need this PC to hold the relay owner key (relay 1.2.0 or newer, claimed from this PC) or an HTTPS relay address.',
+          CLAIM_CODE_NEEDED:
+            'Only the first account created on this relay can claim it with one click. Enter the setup code from data/host-setup-code.txt instead.',
+          CLAIM_CODE_WRONG: 'That setup code is not correct.',
+          CLAIMED: 'This relay already has an owner.',
+          OWNER_CLOCK: 'Your PC clock is more than 5 minutes off. Correct the time and try again.',
+          OWNER_SIGNATURE: 'The relay did not accept this PC as its owner.',
+          UPDATE_BUSY: 'A relay update is already running.',
+          UPDATE_LIVE: 'End all broadcasts on this relay before updating it.',
+          UPDATE_UNSUPPORTED:
+            'This relay cannot update itself yet. Upload the update files to the server once.',
+          UPDATE_REJECTED: 'The relay rejected the update files and kept its current version.',
           HOST_ONLY: 'Sign in with the relay owner account.',
           MEMBER_LIMIT: 'All host-configured member slots are occupied.',
           GUEST_LIMIT: 'Guest slots are reserved or full.'
@@ -172,6 +307,27 @@ app.whenReady().then(() => {
           fs.renameSync(file + '.tmp', file);
         };
         if (op === 'state') return { ok: true, data: { connected: obs.ready } };
+        // "With OBS" builds: the included copy of OBS (see bundled-obs.cjs).
+        bundledOBS ||= new (require('./bundled-obs.cjs').BundledOBS)();
+        if (op === 'bundled-info') return { ok: true, data: bundledOBS.info() };
+        if (op === 'bundled-show') return { ok: true, data: { shown: await bundledOBS.show() } };
+        if (op === 'bundled-stop') {
+          obs.close();
+          await bundledOBS.stop();
+          return { ok: true, data: bundledOBS.info() };
+        }
+        if (op === 'connect' && input.bundled === true && bundledOBS.available) {
+          // Retries do not reopen OBS after the user closed it; Connect and Start do.
+          if (input.retry && bundledOBS.closedByUser && !bundledOBS.running)
+            throw Error('The included OBS was closed. Start it again from Settings → OBS.');
+          const creds = await bundledOBS.start();
+          obsCredentials = creds;
+          await obs.connect(creds);
+          obsControls.available = null;
+          const data = await obsControls.init();
+          await firstRunScene().catch(() => {});
+          return { ok: true, data: { ...data, bundled: true } };
+        }
         if (op === 'connect') {
           const creds = input.discover
             ? obsCredentials ||
@@ -191,6 +347,7 @@ app.whenReady().then(() => {
           return { ok: true, data };
         }
         if (op === 'disconnect') {
+          if (bundledOBS?.available && obsCredentials === bundledOBS.credentials) obsCredentials = null;
           obs.close();
           return { ok: true, data: { connected: false } };
         }
@@ -317,7 +474,9 @@ app.whenReady().then(() => {
     if (studioBusy || backupBusy)
       return { ok: false, error: 'Wait for the current preparation or backup to finish.' };
     backupBusy = true;
-    const backup = require('./backup.cjs');
+    const backup = require('./backup.cjs'),
+      reminders = require('./reminder-backup.cjs'),
+      reminderDirectory = path.join(app.getPath('userData'), 'collaboration-reminders');
     try {
       if (op === 'export') {
         const chosen = await dialog.showSaveDialog(win, {
@@ -326,16 +485,26 @@ app.whenReady().then(() => {
           filters: [{ name: 'Encrypted backup', extensions: ['ucbackup'] }]
         });
         if (chosen.canceled) return { ok: true, data: { cancelled: true } };
+        const workspaceValue = backup.workspace(input.workspace),
+          pictures = layoutMedia
+            ? layoutMedia.read(
+                [...JSON.stringify(workspaceValue).matchAll(/\\"media\\":\\"([a-f0-9]{64})\\"/g)].map(
+                  m => m[1]
+                )
+              )
+            : { media: {}, skipped: 0 };
         const payload = {
           version: 1,
           local: localProfiles.load(),
           servers: servers.load(),
           platforms: getPlatforms().db,
-          workspace: backup.workspace(input.workspace)
+          workspace: workspaceValue,
+          reminders: reminders.read(reminderDirectory),
+          layoutMedia: pictures.media
         };
         const encrypted = backup.seal(payload, input.password);
         fs.writeFileSync(chosen.filePath, encrypted, { mode: 0o600 });
-        return { ok: true, data: { saved: true } };
+        return { ok: true, data: { saved: true, picturesSkipped: pictures.skipped } };
       }
       if (op === 'import') {
         const selected = servers.load().servers.find(s => s.key === servers.load().selectedKey);
@@ -362,7 +531,7 @@ app.whenReady().then(() => {
         });
         if (chosen.canceled) return { ok: true, data: { cancelled: true } };
         const file = chosen.filePaths[0];
-        if (fs.statSync(file).size > 8 * 1024 * 1024) throw Error('Backup is too large.');
+        if (fs.statSync(file).size > 16 * 1024 * 1024) throw Error('Backup is too large.');
         const v = backup.open(fs.readFileSync(file, 'utf8'), input.password);
         if (
           v.version !== 1 ||
@@ -376,6 +545,8 @@ app.whenReady().then(() => {
         require('./server-store.cjs').validate(v.servers);
         backup.validatePlatforms(v.platforms);
         const workspace = backup.workspace(v.workspace);
+        if (v.reminders !== undefined) reminders.validate(v.reminders);
+        const pictures = layoutMedia ? layoutMedia.validate(v.layoutMedia) : {};
         const result = await dialog.showMessageBox(win, {
           type: 'question',
           buttons: ['Cancel', 'Replace my local settings'],
@@ -387,16 +558,26 @@ app.whenReady().then(() => {
         });
         if (result.response !== 1) return { ok: true, data: { cancelled: true } };
         const vault = createVault(app.getPath('userData'), safeStorage),
-          old = { servers: servers.load(), local: localProfiles.load(), platforms: getPlatforms().db };
+          old = {
+            servers: servers.load(),
+            local: localProfiles.load(),
+            platforms: getPlatforms().db,
+            reminders: reminders.read(reminderDirectory)
+          };
         try {
           servers.save(v.servers);
           localProfiles.save(v.local);
           vault.save(v.platforms);
+          if (v.reminders !== undefined) reminders.write(reminderDirectory, v.reminders);
+          try {
+            layoutMedia?.write(pictures);
+          } catch {}
         } catch (error) {
           try {
             servers.save(old.servers);
             if (old.local) localProfiles.save(old.local);
             vault.save(old.platforms);
+            reminders.write(reminderDirectory, old.reminders);
           } catch {}
           throw Error('Restore failed. Existing settings were kept where possible; unlock your keyring.');
         }
@@ -448,6 +629,26 @@ app.whenReady().then(() => {
         if (JSON.stringify(input).length > 32768) throw new PlatformError('Request too large.');
         studio ??= new StudioService(getPlatforms());
         if (op === 'state') return { ok: true, data: studio.snapshot() };
+        if (op === 'kick-connect') {
+          let details;
+          try {
+            details = await require('./kick-connect.cjs').connectKick(url => shell.openExternal(url));
+          } catch (e) {
+            throw new PlatformError(e.message);
+          }
+          const data = studio.custom({
+            id: 'kick-oauth',
+            name: 'Kick · ' + details.name,
+            url: details.url,
+            key: details.key
+          });
+          if (win && !win.isDestroyed()) {
+            win.restore();
+            win.show();
+            win.focus();
+          }
+          return { ok: true, data };
+        }
         if (op === 'custom') return { ok: true, data: studio.custom(input) };
         if (op === 'remove-custom') return { ok: true, data: studio.remove(input.id) };
         if (op === 'open-tool') {
@@ -485,6 +686,23 @@ app.whenReady().then(() => {
         if (op === 'prepare') {
           studioBusy = true;
           const view = await request('/api/v3/view');
+          const chosen = (input.draft.selected || []).map(id => ({
+            r: input.draft.resolutions?.[id] || '',
+            q: input.draft.qualities?.[id] || {}
+          }));
+          if (chosen.some(x => x.r) && !view.capabilities?.destinationResolution)
+            throw new PlatformError(
+              'Update the relay to support per-destination resolution before preparing this stream.'
+            );
+          if (
+            chosen.some(
+              x => x.q.bitrateKbps || x.q.fps || ['2560x1440', '1600x900', '640x360'].includes(x.r)
+            ) &&
+            !(view.capabilities?.destinationQuality >= 2)
+          )
+            throw new PlatformError(
+              'Update the relay to 1.2.0 to use per-destination bitrate, frame rate, 1440p, 900p or 360p.'
+            );
           if (view.capabilities?.verifiedProduction !== 2)
             throw new PlatformError('Update your relay server to 0.7.1 first.');
           if (view.status.broadcast || ['starting', 'ending', 'held'].includes(view.status.state))
@@ -506,6 +724,16 @@ app.whenReady().then(() => {
           await request('/api/v3/production', production);
           report({ message: 'Verifying the server saved your destinations…' });
           const confirmed = (await request('/api/v3/view')).me?.production;
+          if (
+            confirmed &&
+            JSON.stringify(
+              confirmed.destinations.map(d => [d.resolution || null, d.bitrateKbps ?? null, d.fps ?? null])
+            ) !==
+              JSON.stringify(
+                production.destinations.map(d => [d.resolution || null, d.bitrateKbps ?? null, d.fps ?? null])
+              )
+          )
+            throw new PlatformError('Relay resolution settings could not be confirmed. Do not start OBS.');
           if (
             !confirmed ||
             confirmed.id !== production.id ||
@@ -578,7 +806,74 @@ app.whenReady().then(() => {
   });
   win.loadFile(home);
 });
-app.on('before-quit', () => {
+// First start of the included OBS: add a Display Capture to the empty default scene so the
+// stream shows something straight away. Runs once (marker file in the OBS config folder).
+async function firstRunScene() {
+  const marker = path.join(bundledOBS.found.root, 'config', 'obs-studio', 'universalcollab-setup.json');
+  if (fs.existsSync(marker)) return;
+  const { currentProgramSceneName: sceneName } = await obs.request('GetCurrentProgramScene');
+  const { sceneItems } = await obs.request('GetSceneItemList', { sceneName });
+  if (!sceneItems.length) {
+    const kind = process.platform === 'win32' ? 'monitor_capture' : 'xshm_input';
+    await obs.request('CreateInput', {
+      sceneName,
+      inputName: 'Display Capture',
+      inputKind: kind,
+      inputSettings: {}
+    });
+  }
+  fs.writeFileSync(marker, JSON.stringify({ setup: new Date().toISOString() }));
+}
+let quitAfterCamera = false,
+  quitAfterOBS = false;
+app.on('before-quit', e => {
+  // Close the included OBS with the app: stop its stream and recording first so files are finished.
+  if (!quitAfterOBS && bundledOBS?.running) {
+    quitAfterOBS = true;
+    e.preventDefault();
+    (async () => {
+      let busy = false;
+      if (obs?.ready)
+        try {
+          const [st, rec] = await Promise.all([
+            obs.request('GetStreamStatus'),
+            obs.request('GetRecordStatus')
+          ]);
+          busy = !!(st.outputActive || rec.outputActive);
+        } catch {}
+      if (busy) {
+        const { response } = await dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
+          type: 'question',
+          // No Cancel: the window may already be closed when the app quits.
+          buttons: ['Stop and quit', 'Keep OBS running'],
+          defaultId: 0,
+          cancelId: 1,
+          title: 'UniversalCollab',
+          message: 'OBS is still streaming or recording.',
+          detail:
+            'Stop and quit ends the stream and recording and closes OBS. Keep OBS running leaves it going in the system tray; the app reconnects to it next time.'
+        });
+        if (response === 1) return app.quit();
+        await Promise.race([
+          Promise.all([obs.request('StopStream').catch(() => {}), obs.request('StopRecord').catch(() => {})]),
+          new Promise(r => setTimeout(r, 3000))
+        ]);
+      }
+      obs?.close();
+      await bundledOBS.stop();
+      app.quit();
+    })().catch(() => app.quit());
+    return;
+  }
+  if (!quitAfterCamera && obsControls?.ownVirtualCam && obs?.ready) {
+    quitAfterCamera = true;
+    e.preventDefault();
+    Promise.race([
+      obs.request('StopVirtualCam').catch(() => {}),
+      new Promise(r => setTimeout(r, 1500))
+    ]).finally(() => app.quit());
+    return;
+  }
   obs?.close();
   platforms?.dispose();
 });

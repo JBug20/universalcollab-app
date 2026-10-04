@@ -48,8 +48,9 @@
   } catch {}
   pref = {
     enabled: pref?.enabled !== false,
-    rate: [100, 200, 500, 1000, 2000].includes(pref?.rate) ? pref.rate : 200,
-    width: [320, 640, 1280].includes(pref?.width) ? pref.width : 640
+    mode: pref?.mode === 'snapshots' ? 'snapshots' : 'live',
+    rate: [1000 / 60, 1000 / 30, 100, 200, 500, 1000, 2000].includes(pref?.rate) ? pref.rate : 1000 / 60,
+    width: [320, 640, 1280, 1920, 2560].includes(pref?.width) ? pref.width : 640
   };
   const say = text => {
     status.textContent = text;
@@ -59,6 +60,10 @@
     if (!bridge?.obs) throw Error('OBS controls require the desktop app.');
     return bridge.obs(op, { ...input, serverKey: selected()?.key });
   };
+  // "With OBS" builds include OBS. Settings → OBS chooses between it and the user's own OBS.
+  let bundled = { available: false };
+  let obsSource = localStorage.getItem('uc-obs-source');
+  const useBundled = () => bundled.available && obsSource !== 'own';
   async function run(fn) {
     if (working) return;
     working = true;
@@ -102,6 +107,8 @@
   });
   record.id = 'obsRecord';
   stop.after(record);
+  record.after($('end'));
+  $('end').hidden = false;
   function buttons() {
     start.hidden = !!state?.stream?.outputActive;
     stop.hidden = !online || !state?.stream?.outputActive;
@@ -113,6 +120,10 @@
     record.textContent = state?.record?.outputActive ? 'Stop Recording' : 'Start Recording';
   }
   function connection(value) {
+    if (!value) {
+      window.obsOutputs = null;
+      window.studioMode?.obsLost();
+    }
     $('obsConnectionIndicator').textContent = value
       ? 'OBS: Connected'
       : retryPaused
@@ -170,9 +181,9 @@
     await call(
       'connect',
       discover
-        ? { discover: true }
+        ? { discover: true, bundled: useBundled() }
         : saved
-          ? { saved: true }
+          ? { saved: true, bundled: useBundled() }
           : { port: Number($('obsPort').value), password, remember: $('obsRemember').checked }
     );
     paired = true;
@@ -251,18 +262,23 @@
     buttons();
     const scenes = (state.scenes || []).map(s => [s.sceneName, s.sceneName]);
     optionList($('obsEditScene'), scenes, editScene);
-    const sceneSig = JSON.stringify([scenes, state.current]);
+    const studio = !!state.studioMode;
+    const sceneSig = JSON.stringify([scenes, state.current, state.preview, studio]);
     if ($('obsScenes').dataset.signature !== sceneSig) {
       $('obsScenes').dataset.signature = sceneSig;
       $('obsScenes').replaceChildren(
         ...scenes.map(([name]) => {
           const b = btn(name, async () => {
-            await call('scene-switch', { sceneName: name });
+            // Studio mode: pick the preview scene; Transition puts it on the program.
+            if (state.studioMode) await call('preview-scene', { sceneName: name });
+            else await call('scene-switch', { sceneName: name });
             editScene = name;
             selectedSource = null;
             await poll();
           });
-          b.setAttribute('aria-pressed', String(name === state.current));
+          b.setAttribute('aria-pressed', String(name === (studio ? state.preview : state.current)));
+          b.classList.toggle('obs-program', studio && name === state.current);
+          if (studio && name === state.current) b.title = 'On the OBS program';
           return b;
         })
       );
@@ -387,7 +403,12 @@
         if (!$('studioPage').hidden) {
           state = await call('snapshot', { ...(editScene ? { sceneName: editScene } : {}) });
           editScene = state.sceneName;
+          // Stream and recording timers for the status bar (durations count on locally between polls).
+          window.obsOutputs = { stream: state.stream, record: state.record, at: Date.now() };
+          if (state.available?.includes?.('SetStudioModeEnabled'))
+            window.studioMode?.fromOBS(!!state.studioMode);
           paint();
+          checkVirtualCam();
         } else buttons();
       }
     } catch (e) {
@@ -477,6 +498,10 @@
         'video',
         Object.fromEntries(Object.entries(videoMap).map(([k, id]) => [k, Number($(id).value)]))
       );
+      stopLive(false);
+      live.offPolls = 0;
+      live.retryAt = 0;
+      schedulePreview();
       await loadSettings();
       say('OBS video settings saved.');
     });
@@ -488,30 +513,206 @@
   $('obsPreviewEnabled').checked = pref.enabled;
   $('obsPreviewRate').value = String(pref.rate);
   $('obsPreviewWidth').value = String(pref.width);
-  function previewAllowed() {
-    return pref.enabled && online && !document.hidden && !$('studioPage').hidden && !$('canvasPanel').hidden;
+  {
+    const label = node('label', 'Preview type');
+    const mode = node('select');
+    mode.id = 'obsPreviewMode';
+    for (const [value, text] of [
+      ['live', 'Live video · full quality (OBS Virtual Camera)'],
+      ['snapshots', 'Snapshots · uses the rate and width below']
+    ]) {
+      const o = node('option', text);
+      o.value = value;
+      mode.append(o);
+    }
+    mode.value = pref.mode;
+    label.append(mode);
+    $('obsPreviewRate').closest('label').before(label);
   }
+  const live = {
+    error: '',
+    stream: null,
+    starting: false,
+    failed: 0,
+    retryAt: 0,
+    epoch: 0,
+    offPolls: 0,
+    stoppedInOBS: false
+  };
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // Studio mode: the Virtual Camera (OBS's program) feeds the Program pane and snapshots of the
+  // OBS preview scene fill the editor. With the relay video live, Program shows the relay instead.
+  const studioOn = () => !!window.studioMode?.enabled;
+  function showLive(stream) {
+    if (studioOn()) {
+      window.streamCanvas.live?.(null);
+      window.studioMode.program(stream);
+    } else {
+      window.studioMode?.program(null);
+      window.streamCanvas.live?.(stream);
+    }
+  }
+  function liveWanted() {
+    return (
+      pref.mode === 'live' &&
+      !live.stoppedInOBS &&
+      previewAllowed() &&
+      !(studioOn() && window.relayVideoActive) &&
+      !!navigator.mediaDevices?.getUserMedia
+    );
+  }
+  function stopLive(releaseCamera) {
+    live.epoch++;
+    if (live.stream) {
+      for (const t of live.stream.getTracks()) t.stop();
+      live.stream = null;
+      showLive(null);
+    }
+    if (releaseCamera && online) call('virtualcam', { enabled: false }).catch(() => {});
+  }
+  async function startLive() {
+    if (live.stream || live.starting || Date.now() < live.retryAt) return;
+    live.starting = true;
+    const epoch = ++live.epoch;
+    try {
+      await call('virtualcam', { enabled: true });
+      let device = null;
+      for (let i = 0; i < 15 && !device; i++) {
+        device = (await navigator.mediaDevices.enumerateDevices()).find(
+          d => d.kind === 'videoinput' && /obs/i.test(d.label) && /virtual/i.test(d.label)
+        );
+        if (!device) await sleep(300);
+      }
+      if (!device) throw Error('Windows did not list the OBS Virtual Camera.');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          deviceId: { exact: device.deviceId },
+          width: { ideal: 3840 },
+          height: { ideal: 2160 },
+          frameRate: { ideal: 60 }
+        }
+      });
+      if (epoch !== live.epoch || !liveWanted()) {
+        for (const t of stream.getTracks()) t.stop();
+        return;
+      }
+      const track = stream.getVideoTracks()[0];
+      live.stream = stream;
+      live.failed = 0;
+      live.offPolls = 0;
+      clearTimeout(previewTimer);
+      previewTimer = null;
+      track.onended = () => {
+        if (live.stream !== stream) return;
+        stopLive(false);
+        live.retryAt = Date.now() + 3000;
+        schedulePreview();
+      };
+      showLive(stream);
+      if (live.error) say('Live OBS preview is running.');
+      live.error = '';
+      const v = track.getSettings();
+      previewStatus.textContent =
+        'Live OBS preview · ' +
+        (v.width || '?') +
+        '×' +
+        (v.height || '?') +
+        ' · ' +
+        Math.round(v.frameRate || 0) +
+        ' FPS · no audio';
+    } catch (e) {
+      if (epoch === live.epoch) {
+        live.failed++;
+        live.retryAt = Date.now() + Math.min(30000, 3000 * live.failed);
+        const message = e?.message || 'camera error';
+        if (message !== live.error)
+          say('Live OBS preview unavailable: ' + message + ' Showing snapshots until it works.');
+        live.error = message;
+      }
+    } finally {
+      live.starting = false;
+    }
+  }
+  function checkVirtualCam() {
+    if (pref.mode !== 'live' || !state || state.virtualCam === null || state.virtualCam === undefined) return;
+    if (state.virtualCam) {
+      live.offPolls = 0;
+      if (live.stoppedInOBS) {
+        live.stoppedInOBS = false;
+        live.retryAt = 0;
+        schedulePreview();
+      }
+      return;
+    }
+    if (live.stream && ++live.offPolls >= 2) {
+      stopLive(false);
+      live.stoppedInOBS = true;
+      say(
+        'The OBS Virtual Camera was stopped in OBS, so the preview is showing snapshots. Start it in OBS again to return to live video.'
+      );
+      schedulePreview();
+    }
+  }
+  function previewAllowed() {
+    return (
+      (!window.relayVideoActive || studioOn()) &&
+      pref.enabled &&
+      online &&
+      !document.hidden &&
+      !$('studioPage').hidden &&
+      !$('canvasPanel').hidden
+    );
+  }
+  let previewStarted = 0,
+    previewFrames = 0,
+    previewMeasured = performance.now(),
+    previewActual = 0;
   function schedulePreview() {
     clearTimeout(previewTimer);
     previewTimer = null;
     if (!pref.enabled) {
+      stopLive(true);
       window.streamCanvas.preview('');
       previewStatus.textContent = 'OBS preview is off.';
       return;
     }
-    if (!previewAllowed()) return;
-    previewTimer = setTimeout(preview, pref.rate);
+    if (pref.mode !== 'live') stopLive(true);
+    if (!previewAllowed()) {
+      stopLive(false);
+      return;
+    }
+    if (live.stream && !liveWanted()) stopLive(false);
+    if (liveWanted()) {
+      if (live.stream && !studioOn()) return;
+      if (!live.stream) void startLive();
+    }
+    previewTimer = setTimeout(preview, Math.max(0, pref.rate - (performance.now() - previewStarted)));
   }
   async function preview() {
     previewTimer = null;
-    if (previewBusy || !previewAllowed()) return;
+    if (previewBusy || !previewAllowed() || (live.stream && !studioOn())) return;
     previewBusy = true;
+    previewStarted = performance.now();
     const epoch = previewEpoch;
     try {
-      const r = await call('preview', { width: pref.width });
+      const r = await call('preview', { width: pref.width, ...(studioOn() ? { scene: 'preview' } : {}) });
       if (epoch === previewEpoch && previewAllowed()) {
         window.streamCanvas.preview(r.image);
-        previewStatus.textContent = 'OBS program preview · ' + 1000 / pref.rate + ' fps · local image';
+        previewFrames++;
+        const elapsed = performance.now() - previewMeasured;
+        if (elapsed >= 1000) {
+          previewActual = (previewFrames * 1000) / elapsed;
+          previewFrames = 0;
+          previewMeasured = performance.now();
+        }
+        previewStatus.textContent =
+          (studioOn() ? 'OBS preview scene · ' : 'OBS preview · ') +
+          previewActual.toFixed(1) +
+          ' updates/s · target ' +
+          Math.round(1000 / pref.rate) +
+          ' FPS' +
+          (pref.mode === 'live' && live.error ? ' · live video unavailable: ' + live.error : '');
       }
     } catch (e) {
       window.streamCanvas.preview('');
@@ -521,10 +722,14 @@
       schedulePreview();
     }
   }
-  for (const id of ['obsPreviewEnabled', 'obsPreviewRate', 'obsPreviewWidth'])
+  for (const id of ['obsPreviewEnabled', 'obsPreviewMode', 'obsPreviewRate', 'obsPreviewWidth'])
     $(id).onchange = () => {
+      live.stoppedInOBS = false;
+      live.retryAt = 0;
+      live.failed = 0;
       pref = {
         enabled: $('obsPreviewEnabled').checked,
+        mode: $('obsPreviewMode').value === 'snapshots' ? 'snapshots' : 'live',
         rate: Number($('obsPreviewRate').value),
         width: Number($('obsPreviewWidth').value)
       };
@@ -532,6 +737,12 @@
       previewEpoch++;
       schedulePreview();
     };
+  window.addEventListener('studio-mode', () => {
+    showLive(live.stream);
+    previewEpoch++;
+    schedulePreview();
+    void poll();
+  });
   document.addEventListener('visibilitychange', () => {
     previewEpoch++;
     schedulePreview();
@@ -547,6 +758,7 @@
     });
   bridge?.onOBS?.(e => {
     if (e.type === 'connection') {
+      if (!e.connected) stopLive(false);
       connection(e.connected);
       if (!e.connected) say('OBS disconnected. Reconnect in Settings → OBS.');
     } else if (e.type === 'meters' && meters) {
@@ -558,8 +770,115 @@
   });
   window.addEventListener('beforeunload', () => {
     clearTimeout(previewTimer);
+    stopLive(false);
     if (online) call('meters', { enabled: false }).catch(() => {});
   });
+  async function setupBundled() {
+    try {
+      bundled = await call('bundled-info');
+    } catch {
+      bundled = { available: false };
+    }
+    if (!bundled.available) return;
+    // Existing users who already paired their own OBS keep it until they switch.
+    if (!obsSource) {
+      obsSource = paired ? 'own' : 'bundled';
+      localStorage.setItem('uc-obs-source', obsSource);
+      if (obsSource === 'own')
+        say('This version includes OBS. Switch to it in Settings → OBS → OBS connection settings.');
+    }
+    const box = node('div');
+    box.id = 'bundledOBSBox';
+    box.className = 'bundled-obs';
+    const label = node('label', 'OBS to use');
+    const select = node('select');
+    select.id = 'obsSource';
+    for (const [v, t] of [
+      ['bundled', 'OBS included with UniversalCollab (recommended)'],
+      ['own', 'My own OBS installation']
+    ]) {
+      const o = node('option', t);
+      o.value = v;
+      select.append(o);
+    }
+    select.value = obsSource;
+    label.append(select);
+    const info = node('p');
+    info.id = 'bundledOBSStatus';
+    info.className = 'hint';
+    const start = btn('Start included OBS', async () => {
+      retryPaused = false;
+      say('Starting the included OBS…');
+      await connect(false, true);
+    });
+    start.id = 'bundledOBSStart';
+    const show = btn('Open OBS window', async () => {
+      const r = await call('bundled-show');
+      say(
+        r.shown
+          ? 'OBS window opened. Close it or minimise it to the tray when finished.'
+          : 'Open OBS from its icon in the system tray (near the clock).'
+      );
+    });
+    show.id = 'bundledOBSShow';
+    const stop = btn('Close included OBS', async () => {
+      retryPaused = true;
+      await call('bundled-stop');
+      connection(false);
+      say('Included OBS closed.');
+    });
+    stop.id = 'bundledOBSStop';
+    box.append(label, info, start, show, stop);
+    const intro = $('automaticOBS').querySelector('p');
+    $('automaticOBS').insertBefore(box, intro);
+    const manual = [
+      intro,
+      $('obsPort').closest('label'),
+      $('obsPassword').closest('label'),
+      $('obsRemember').closest('label'),
+      $('obsConnect'),
+      $('obsReconnect')
+    ];
+    async function paintBundled() {
+      try {
+        bundled = { ...(await call('bundled-info')), available: true };
+      } catch {}
+      const on = useBundled();
+      for (const n of manual) if (n) n.hidden = on;
+      start.hidden = show.hidden = stop.hidden = !on;
+      start.disabled = online && bundled.running;
+      show.disabled = stop.disabled = !bundled.running;
+      info.hidden = !on;
+      info.textContent = bundled.running
+        ? 'The included OBS' +
+          (bundled.version ? ' ' + bundled.version : '') +
+          ' is running in the background (system tray). UniversalCollab starts it and closes it for you.'
+        : bundled.error ||
+          (bundled.closedByUser
+            ? 'The included OBS was closed. Start it again here.'
+            : 'The included OBS starts automatically with UniversalCollab.');
+    }
+    select.onchange = () =>
+      run(async () => {
+        obsSource = select.value;
+        localStorage.setItem('uc-obs-source', obsSource);
+        retryPaused = false;
+        if (online) {
+          await call('disconnect');
+          connection(false);
+        }
+        if (obsSource === 'own' && bundled.running) await call('bundled-stop');
+        await paintBundled();
+        if (useBundled()) await connect(false, true);
+        else say('Using your own OBS. Enable its WebSocket server and connect below.');
+      });
+    window.addEventListener('obs-connection', () => void paintBundled());
+    setInterval(() => {
+      if ($('obsPairWindow').open) void paintBundled();
+    }, 2000);
+    await paintBundled();
+  }
+  await setupBundled();
   $('obsAutoReconnect').checked = autoRetry;
   $('obsAutoReconnect').onchange = () => {
     autoRetry = $('obsAutoReconnect').checked;
@@ -571,7 +890,7 @@
     if (!bridge?.obs || online || retrying || working || !paired || !autoRetry || retryPaused) return;
     retrying = true;
     try {
-      await call('connect', { retry: true });
+      await call('connect', { retry: true, bundled: useBundled() });
       connection(true);
       say('OBS reconnected.');
       await poll();
