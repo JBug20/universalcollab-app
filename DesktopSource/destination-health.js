@@ -185,7 +185,7 @@
   function paint() {
     const live = connected && !uncertain;
     current = live ? view?.status?.outputs || [] : [];
-    const value = JSON.stringify([current, live, pending, selected]);
+    const value = JSON.stringify([current, live, pending, selected, view?.status?.mode]);
     if (value === signature) return;
     signature = value;
     const entries = PLATFORMS.map(p => ({ ...p, outputs: current.filter(o => platformOf(o) === p.key) }));
@@ -200,9 +200,11 @@
     if (focused) find(focused)?.focus();
     message.textContent = current.length
       ? 'Hover over an icon for kbps and fps. Click it for output controls.'
-      : live
-        ? 'Start a broadcast to monitor each destination.'
-        : 'Connect to the relay to see output health.';
+      : !live
+        ? 'Connect to the relay to see output health.'
+        : view?.status?.mode === 'test'
+          ? 'The relay is in TEST mode, so nothing is sent to platforms and the icons stay grey.'
+          : 'Icons light up when a broadcast is live.';
     controls.replaceChildren(...selectedOutputs().flatMap(controlsFor));
     // Icons are rebuilt when anything changes; keep the hover box on the same platform with fresh numbers.
     const anchor = hovered && find(hovered);

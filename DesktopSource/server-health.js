@@ -32,7 +32,7 @@
     relay = seg('relay'),
     live = seg('live'),
     outputs = seg('outputs'),
-    cpu = seg('cpu', 'CPU'),
+    cpu = seg('cpu', 'Relay CPU'),
     memory = seg('memory', 'Memory'),
     upload = seg('upload', 'Upload'),
     disk = seg('disk', 'Disk'),
@@ -210,7 +210,7 @@
     const row = (k, v) => grid.append(make('dt', k), make('dd', v));
     const c = health.cpu.average10s ?? health.cpu.percent;
     row(
-      'CPU',
+      'Relay CPU',
       (c === null ? 'measuring' : Math.round(c) + '%') +
         ' of ' +
         health.cpu.cores +
