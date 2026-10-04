@@ -1,6 +1,6 @@
 'use strict';
 // Status bar along the bottom of the window, like OBS: relay connection, broadcast time and frame
-// rate, destinations, relay CPU, memory, upload and disk, and warnings. Click it for details.
+// rate, destinations, relay CPU, memory and upload, your own recording storage, and warnings. Click it for details.
 (async () => {
   await window.portalReady;
   if (!window.workspaceUI) await new Promise(r => window.addEventListener('studio-ready', r, { once: true }));
@@ -35,7 +35,7 @@
     cpu = seg('cpu', 'Relay CPU'),
     memory = seg('memory', 'Memory'),
     upload = seg('upload', 'Upload'),
-    disk = seg('disk', 'Disk'),
+    disk = seg('disk', 'My storage'),
     alerts = seg('alerts');
   bar.append(segments);
   document.body.append(bar);
@@ -167,8 +167,19 @@
       tx === null || tx === undefined ? '' : tx.toFixed(1) + ' Mb/s',
       hide || tx === null || tx === undefined
     );
-    set(disk, health?.disk ? gb(health.disk.freeBytes) + ' free' : '', hide || !health?.disk);
-    if (health?.disk) disk.el.classList.toggle('warn', health.disk.freeBytes < 1024 ** 3);
+    // Only this user's recording allowance is shown, never the server's disk. Relays that do not report
+    // the allowance (storage) leave the segment hidden.
+    const allowance = health?.storage;
+    set(
+      disk,
+      !allowance ? '' : allowance.limitBytes > 0 ? gb(allowance.freeBytes) + ' free' : 'No allowance',
+      hide || !allowance
+    );
+    if (allowance)
+      disk.el.classList.toggle(
+        'warn',
+        allowance.limitBytes > 0 && allowance.freeBytes < allowance.limitBytes * 0.1
+      );
     const warnings = health?.warnings || [];
     const critical = warnings.some(w => w.level === 'critical');
     set(
@@ -225,7 +236,18 @@
         'Network',
         health.network.txMbps.toFixed(1) + ' Mb/s up · ' + health.network.rxMbps.toFixed(1) + ' Mb/s down'
       );
-    if (health.disk) row('Disk', gb(health.disk.freeBytes) + ' free of ' + gb(health.disk.totalBytes));
+    if (health.storage)
+      row(
+        'My storage',
+        health.storage.limitBytes > 0
+          ? gb(health.storage.freeBytes) +
+              ' free of ' +
+              gb(health.storage.limitBytes) +
+              ' (' +
+              gb(health.storage.usedBytes) +
+              ' used by your recordings)'
+          : 'No recording allowance on this relay'
+      );
     body.append(grid);
     if (!health.sessions.length && !health.otherBroadcasts)
       body.append(make('p', 'No broadcasts running.', 'hint'));
