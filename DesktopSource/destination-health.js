@@ -66,19 +66,7 @@
   document.body.append(tip);
   document.getElementById('streamsPanel').append(box);
 
-  const style = document.createElement('style');
-  style.textContent = `
-.destination-icons { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0; }
-.destination-icons button { display: inline-flex; align-items: center; justify-content: center; width: 44px;
-  min-height: 44px; padding: 0; border-radius: 10px; background: #1d2030; border: 2px solid var(--health); }
-.destination-icons button[aria-pressed='true'] { background: #2a2e44; }
-.destination-icons svg { width: 26px; height: 26px; fill: var(--health); }
-.destination-icons .other { font-weight: 700; color: var(--health); }
-.destination-tip { position: fixed; z-index: 100000; max-width: 320px; padding: 6px 10px; border-radius: 6px;
-  background: #0b0d14; color: #edf0f6; border: 1px solid #3a3f55; font-size: 13px; pointer-events: none;
-  white-space: pre-line; }
-.destination-controls { display: flex; flex-wrap: wrap; gap: 8px; }`;
-  document.head.append(style);
+  // Styles are in portal.css: the page's Content-Security-Policy blocks inline <style> blocks.
 
   let signature = '',
     pending = false,
