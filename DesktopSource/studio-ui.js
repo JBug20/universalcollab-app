@@ -369,13 +369,24 @@
   for (const b of document.querySelectorAll('[data-custom-preset]'))
     b.onclick = () => {
       if (b.dataset.customPreset === 'Kick') {
+        // Progress and errors also go under the Connections buttons, where the Kick button is.
+        const feedback = $('linkFeedback');
+        const tell = text => {
+          say(text);
+          feedback.textContent = text;
+        };
         act(async () => {
-          say('Approve Kick in your browser. This may take a few minutes.');
-          const result = await call('kick-connect');
-          custom = result.custom;
-          customPaint();
-          choices();
-          say('Kick connected successfully. Select it when preparing your stream.');
+          tell('Approve Kick in your browser. This may take a few minutes.');
+          try {
+            const result = await call('kick-connect');
+            custom = result.custom;
+            customPaint();
+            choices();
+            tell('Kick connected successfully. Select it when preparing your stream.');
+          } catch (e) {
+            feedback.textContent = 'Kick connection failed: ' + (e.message || 'no reason given.');
+            throw e;
+          }
         });
         return;
       }
