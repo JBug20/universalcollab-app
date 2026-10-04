@@ -126,7 +126,43 @@
   filter.oninput = renderFeed;
   button('Pop out alerts', 'popout', pages.Activity);
   button('Try sample alerts', 'samples', pages.Activity);
-  button('Connection health', 'health', pages.Activity);
+  // Connection health opens inside the app: Assist's own health window never appeared in the combined
+  // app and, being modal, blocked every other Assist action until it timed out.
+  const health = el('dialog');
+  health.id = 'assistHealthWindow';
+  health.setAttribute('aria-label', 'Connection health');
+  const healthList = el('div');
+  const healthClose = el('button', 'Close');
+  healthClose.type = 'button';
+  healthClose.onclick = () => health.close();
+  health.append(el('h2', 'Connection health'), healthList, healthClose);
+  document.body.append(health);
+  function renderHealth() {
+    if (!health.open) return;
+    healthList.replaceChildren();
+    if (!lastState) {
+      healthList.append(el('p', 'Start Assist to see connection health.'));
+      return;
+    }
+    for (const a of lastState.accounts || []) {
+      // Alerts arrive newest first.
+      const last = (lastState.alerts || []).find(x => x.platform === a.name && !x.demo);
+      const row = el('article');
+      row.className = 'assist-card';
+      row.append(
+        el('h3', a.name),
+        el('p', a.status),
+        el('small', 'Last received event: ' + (last ? last.time : 'None yet'))
+      );
+      healthList.append(row);
+    }
+  }
+  const healthButton = el('button', 'Connection health');
+  healthButton.onclick = () => {
+    health.showModal();
+    renderHealth();
+  };
+  pages.Activity.append(healthButton);
   function card(parent, title, description, actions) {
     const c = el('section');
     c.className = 'assist-card';
@@ -247,6 +283,7 @@
           }
         }
         renderFeed();
+        renderHealth();
         const brief = JSON.stringify(s.alerts.slice(0, 8));
         if (brief !== recentSignature) {
           recentSignature = brief;
