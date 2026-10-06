@@ -72,6 +72,64 @@ class OBSControls {
     this.ownVirtualCam = false;
     return { active: false };
   }
+  // Clips use OBS's replay buffer: OBS keeps the last few seconds in memory and saves them as a file
+  // in its recording folder on the OBS computer when asked.
+  async replayStatus() {
+    if (!this.available?.has('GetReplayBufferStatus') || !this.available.has('SaveReplayBuffer'))
+      return { supported: false };
+    const active = !!(await this.call('GetReplayBufferStatus')).outputActive;
+    let seconds = null;
+    if (this.available.has('GetProfileParameter'))
+      try {
+        const mode = (
+          await this.call('GetProfileParameter', { parameterCategory: 'Output', parameterName: 'Mode' })
+        ).parameterValue;
+        const r = await this.call('GetProfileParameter', {
+          parameterCategory: mode === 'Advanced' ? 'AdvOut' : 'SimpleOutput',
+          parameterName: 'RecRBTime'
+        });
+        seconds = Number(r.parameterValue ?? r.defaultParameterValue) || null;
+      } catch {}
+    return { supported: true, active, seconds };
+  }
+  async replayStart() {
+    const s = await this.replayStatus();
+    if (!s.supported) throw Error('This OBS version has no replay buffer, so it cannot save clips.');
+    if (s.active) return s;
+    try {
+      await this.call('StartReplayBuffer');
+    } catch {
+      throw Error(
+        'Turn on the replay buffer in OBS (Settings → Output → Replay Buffer → Enable Replay Buffer), then press Clip again.'
+      );
+    }
+    return { ...s, active: true, started: true };
+  }
+  async lastReplay() {
+    if (!this.available?.has('GetLastReplayBufferReplay')) return '';
+    try {
+      return (await this.call('GetLastReplayBufferReplay')).savedReplayPath || '';
+    } catch {
+      return '';
+    }
+  }
+  async clip() {
+    const s = await this.replayStatus();
+    // A buffer that has only just started holds nothing yet, so the first press starts it.
+    if (!s.active) return this.replayStart();
+    const before = await this.lastReplay();
+    await this.call('SaveReplayBuffer');
+    // OBS writes the file in the background and then reports its path.
+    for (let i = 0; i < 40 && this.available.has('GetLastReplayBufferReplay'); i++) {
+      await new Promise(r => setTimeout(r, 250));
+      const now = await this.lastReplay();
+      if (now && now !== before) {
+        this.clips = [now, ...(this.clips || []).filter(p => p !== now)].slice(0, 50);
+        return { ...s, saved: true, path: now };
+      }
+    }
+    return { ...s, saved: true, path: '' };
+  }
   async handle(op, i = {}) {
     if (!this.link.ready) throw Error('Connect OBS first.');
     if (!this.available) await this.init();
@@ -177,6 +235,9 @@ class OBSControls {
         throw Error('Stop recording before changing its folder.');
       return this.call('SetRecordDirectory', { recordDirectory: name(i.directory) });
     }
+    if (op === 'replay-status') return this.replayStatus();
+    if (op === 'replay-start') return this.replayStart();
+    if (op === 'clip') return this.clip();
     if (op === 'record-start') return this.call('StartRecord');
     if (op === 'record-stop') return this.call('StopRecord');
     if (op === 'stream-stop') return this.call('StopStream');

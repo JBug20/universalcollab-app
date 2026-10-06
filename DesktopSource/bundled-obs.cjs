@@ -80,6 +80,27 @@ function prepare(found) {
   // OBS 30 keeps these in global.ini; OBS 31+ moved user settings to user.ini.
   iniMerge(path.join(config, 'global.ini'), general);
   iniMerge(path.join(config, 'user.ini'), general);
+  // Replay buffer on (60 s) so the app's Clip button works. Only fills keys that are missing, so a profile where
+  // it was turned off in OBS stays off. "Untitled" is OBS's first profile, created here if OBS has not run yet.
+  const profiles = path.join(config, 'basic', 'profiles');
+  let names = [];
+  try {
+    names = fs.readdirSync(profiles).filter(n => fs.statSync(path.join(profiles, n)).isDirectory());
+  } catch {}
+  if (!names.length) names = ['Untitled'];
+  for (const n of names) {
+    const file = path.join(profiles, n, 'basic.ini');
+    let text = '';
+    try {
+      text = fs.readFileSync(file, 'utf8');
+    } catch {}
+    // A profile that already has a replay buffer setting (on or off, in either output mode) is left alone.
+    if (/^\s*RecRB\s*=/m.test(text)) continue;
+    iniMerge(file, {
+      SimpleOutput: { RecRB: 'true', RecRBTime: '60' },
+      AdvOut: { RecRB: 'true', RecRBTime: '60' }
+    });
+  }
   const wsFile = path.join(config, 'plugin_config', 'obs-websocket', 'config.json');
   let ws = {};
   try {
