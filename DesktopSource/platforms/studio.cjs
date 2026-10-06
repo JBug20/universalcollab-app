@@ -17,6 +17,12 @@ function target(url, key = '') {
       u.pathname = u.pathname.slice(0, at);
     }
     if (!/^[A-Za-z0-9_.-]{1,512}$/.test(key) || ['.', '..'].includes(key)) throw Error();
+    // Kick's dashboard and sign-in give its Amazon IVS server without the RTMP app; IVS needs
+    // rtmps://host:443/app (as OBS's Kick preset uses), otherwise it rejects the stream.
+    if (/(^|\.)live-video\.net$/i.test(u.hostname) && u.pathname.replace(/\//g, '') === '') {
+      u.pathname = '/app';
+      if (u.protocol === 'rtmps:' && !u.port) u.port = '443';
+    }
     return { url: u.href.replace(/\/$/, ''), key };
   } catch {
     throw new PlatformError('Enter a valid RTMP/RTMPS URL and stream key.');
