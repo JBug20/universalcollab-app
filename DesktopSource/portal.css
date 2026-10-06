@@ -1598,22 +1598,34 @@ footer span {
 }
 
 /* Destination health icons (destination-health.js). --health is set per icon: green, yellow or grey. */
+#destinationHealthCard {
+  padding: 8px 10px;
+}
+#destinationHealthCard h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+#destinationHealthCard .hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+}
 #destinationHealthCard .destination-icons {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin: 6px 0;
+  gap: 8px;
+  margin: 0;
 }
 #destinationHealthCard .destination-icons button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  min-width: 44px;
-  min-height: 44px;
+  width: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  height: 38px;
   margin: 0;
   padding: 0;
-  border-radius: 10px;
+  border-radius: 9px;
   background: #1d2030;
   border: 2px solid var(--health);
   color: var(--health);
@@ -1622,8 +1634,8 @@ footer span {
   background: #2a2e44;
 }
 #destinationHealthCard .destination-icons svg {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   fill: var(--health);
   stroke: none;
 }

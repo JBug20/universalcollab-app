@@ -135,8 +135,12 @@
   });
   clip.id = 'obsClip';
   clip.title = 'Save the last seconds of your stream as a video file (OBS replay buffer)';
-  record.after(clip);
-  clip.after(clipNote);
+  // Start Recording and Clip share a row (like End Relay and its settings) to keep Stream controls short.
+  const recordRow = node('div');
+  recordRow.className = 'record-clip-row';
+  record.after(recordRow);
+  recordRow.append(record, clip);
+  recordRow.after(clipNote);
   clipNote.after($('end'));
   $('end').hidden = false;
   function buttons() {
@@ -144,6 +148,7 @@
     stop.hidden = !online || !state?.stream?.outputActive;
     record.hidden = !online;
     clip.hidden = !online;
+    recordRow.hidden = !online;
     clip.disabled = working || !online;
     start.disabled =
       draftPending || working || !online || !connected || uncertain || !!state?.stream?.outputActive;
