@@ -1,3 +1,4 @@
+import http from 'node:http';
 import vm from 'node:vm';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -142,6 +143,40 @@ try {
     (await call('relay-request', { address: 'rtmp://private.test', route: '/api/v3/view', token: '' })).ok,
     false
   );
+  // Routes added for 1.2.0 (relay health report, destination output controls) pass the allowlist.
+  const seen = [];
+  const stub = http.createServer((req, res) => {
+    seen.push(req.method + ' ' + req.url + ' ' + (req.headers.authorization ? 'auth' : 'noauth'));
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ ok: true }));
+  });
+  await new Promise(r => stub.listen(0, '127.0.0.1', r));
+  try {
+    const stubOrigin = 'http://127.0.0.1:' + stub.address().port,
+      token = user.id + ':' + user.controlToken;
+    assert.equal(
+      (await call('relay-request', { address: stubOrigin, route: '/api/v3/health', token })).ok,
+      true
+    );
+    assert.equal(
+      (
+        await call('relay-request', {
+          address: stubOrigin,
+          route: '/api/v3/output-control',
+          token,
+          body: { id: 'youtube', action: 'pause' }
+        })
+      ).ok,
+      true
+    );
+    assert.equal(
+      (await call('relay-request', { address: stubOrigin, route: '/api/v3/nope', token })).ok,
+      false
+    );
+    assert.deepEqual(seen, ['GET /api/v3/health auth', 'POST /api/v3/output-control auth']);
+  } finally {
+    stub.close();
+  }
   const bad = await call('relay-request', {
     address: origin,
     route: '/api/v3/view',

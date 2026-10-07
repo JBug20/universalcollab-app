@@ -113,6 +113,7 @@
     record.textContent = state?.record?.outputActive ? 'Stop Recording' : 'Start Recording';
   }
   function connection(value) {
+    if (!value) window.obsOutputs = null;
     $('obsConnectionIndicator').textContent = value
       ? 'OBS: Connected'
       : retryPaused
@@ -387,6 +388,8 @@
         if (!$('studioPage').hidden) {
           state = await call('snapshot', { ...(editScene ? { sceneName: editScene } : {}) });
           editScene = state.sceneName;
+          // Stream and recording timers for the status bar (durations count on locally between polls).
+          window.obsOutputs = { stream: state.stream, record: state.record, at: Date.now() };
           paint();
         } else buttons();
       }

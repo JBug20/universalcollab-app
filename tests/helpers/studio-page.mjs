@@ -4,7 +4,14 @@
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url),
   { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
-export async function openStudio({ viewport = { width: 1500, height: 1000 } } = {}) {
+// source: the DesktopSource folder to load (default: this repo's). initScript: runs in the page before the app
+// starts (with initArg), e.g. to set window.relayHook = async q => reply, which can answer a relay request itself.
+export async function openStudio({
+  viewport = { width: 1500, height: 1000 },
+  source = new URL('../../DesktopSource/', import.meta.url).pathname,
+  initScript,
+  initArg
+} = {}) {
   const browser = await chromium.launch({
     executablePath: process.env.CHROMIUM_PATH,
     headless: true,
@@ -61,7 +68,8 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
       },
       obs: async (op, input = {}) => {
         calls.push({ obs: op, input });
-        if (op === 'state' || op === 'connect' || op === 'auto-connect') return { connected: true };
+        if (op === 'state' || op === 'connect' || op === 'auto-connect')
+          return { connected: !window.obsDown };
         if (op === 'snapshot')
           return {
             connected: true,
@@ -71,7 +79,7 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
             items: [],
             inputs: mixer.map(m => ({ inputName: m.inputName })),
             mixer,
-            stream: { outputActive: window.obsStreaming },
+            stream: { outputActive: window.obsStreaming, ...window.obsStreamExtra },
             record: { outputActive: false },
             available: []
           };
@@ -100,6 +108,10 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
       },
       request: async q => {
         calls.push(q);
+        if (window.relayHook) {
+          const reply = await window.relayHook(q);
+          if (reply !== undefined) return reply;
+        }
         if (q.route.endsWith('/secrets'))
           return {
             obsServer: 'rtmp://secret/live',
@@ -135,7 +147,8 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
             collabFallback: true,
             width: 1920,
             height: 1080,
-            fps: 30
+            fps: 30,
+            ...window.statusExtra
           },
           peers: [{ id: 'bob', online: true }],
           requests: [{ owner: 'alice', peer: 'bob', kind: 'fallback', status: 'approved' }]
@@ -143,6 +156,7 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
       }
     };
   });
-  await page.goto('file://' + new URL('../../DesktopSource/portal.html', import.meta.url).pathname);
+  if (initScript) await page.addInitScript(initScript, initArg);
+  await page.goto('file://' + source.replace(/\/?$/, '/') + 'portal.html');
   return { browser, page, errors };
 }

@@ -959,3 +959,338 @@ footer span {
   touch-action: none;
   user-select: none;
 }
+
+.health-warning {
+  margin: 6px 0;
+  padding: 7px 9px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.health-warning.warning {
+  background: #3d3220;
+  border: 1px solid #8a6a2a;
+}
+.health-warning.critical {
+  background: #3f2024;
+  border: 1px solid #a1434d;
+}
+.health-ok {
+  color: #8fd6a9;
+  font-size: 13px;
+  margin: 6px 0;
+}
+.health-session {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 9px;
+  margin: 6px 0;
+  background: #222532;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.health-bad {
+  color: #ff9b9b;
+}
+.health-stamp {
+  font-size: 11px;
+}
+/* Status bar (bottom of the window, like OBS). It sits in the strip right of the Collab button. */
+.status-bar {
+  position: fixed;
+  z-index: 50;
+  left: 150px;
+  right: 8px;
+  bottom: 11px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px 0 10px;
+  background: #151821;
+  border: 1px solid #343847;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #cfc9dc;
+}
+.status-bar #notice {
+  position: static;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.status-segments {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  height: 26px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.status-segments:hover .status-seg {
+  color: #fff;
+}
+.status-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border-left: 1px solid #343847;
+}
+.status-seg:first-child {
+  border-left: 0;
+}
+.status-seg[hidden] {
+  display: none;
+}
+.status-key {
+  color: #8f8aa0;
+}
+.status-value {
+  font-variant-numeric: tabular-nums;
+}
+.status-seg.relay::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6b6680;
+}
+.status-seg.relay.ok::before {
+  background: #4fb37a;
+}
+.status-seg.live.on {
+  color: #ff8d8d;
+  font-weight: 650;
+}
+.status-seg.live.fallback {
+  color: #e8b45a;
+}
+.status-seg.warn {
+  color: #e8b45a;
+}
+.status-seg.crit {
+  color: #ff7a7a;
+  font-weight: 650;
+}
+.status-out {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+}
+.status-out:last-child {
+  margin-right: 0;
+}
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6b6680;
+}
+.status-dot.ok {
+  background: #4fb37a;
+}
+.status-dot.bad {
+  background: #e05a5a;
+}
+.status-details {
+  position: fixed;
+  z-index: 60;
+  left: auto;
+  right: 8px;
+  bottom: 50px;
+  top: auto;
+  margin: 0;
+  width: min(420px, 92vw);
+  max-height: 70vh;
+  overflow: auto;
+  padding: 0 14px 12px;
+  background: #1b1e28;
+  color: #efeaf7;
+  border: 1px solid #4a415e;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px #000a;
+}
+.status-details .window-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+}
+.status-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+.status-grid dt {
+  color: #a9a2bb;
+}
+.status-grid dd {
+  margin: 0;
+}
+@media (max-width: 1100px) {
+  .status-seg.disk,
+  .status-seg.upload {
+    display: none;
+  }
+}
+@media (max-width: 850px) {
+  .status-seg.memory,
+  .status-seg.outputs {
+    display: none;
+  }
+}
+/* Inside the status bar the notice is plain text, not a floating box. */
+.status-bar #notice {
+  display: block;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  width: auto;
+  max-width: none;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: #e9e3f5;
+  font-size: 12px;
+}
+.status-bar .status-segments,
+.status-bar .status-segments:hover {
+  min-height: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 4px;
+}
+.status-bar .status-segments:focus-visible {
+  outline: 2px solid #b38cff;
+}
+.status-details > .window-title {
+  margin: 0 -14px;
+  padding: 10px 14px;
+}
+/* OBS stream and recording timers at the start of the status bar. */
+.status-seg.stream-time,
+.status-seg.record-time {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.status-seg.stream-time {
+  color: #8fd6a9;
+}
+.status-seg.stream-time::before,
+.status-seg.record-time::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.status-seg.stream-time::before {
+  background: #4fb37a;
+}
+.status-seg.record-time {
+  color: #ff8d8d;
+}
+.status-seg.record-time::before {
+  background: #e05a5a;
+  animation: status-blink 1.2s steps(2, start) infinite;
+}
+.status-seg.record-time.paused {
+  color: #e8b45a;
+}
+.status-seg.record-time.paused::before {
+  background: #e8b45a;
+  animation: none;
+}
+@keyframes status-blink {
+  to {
+    visibility: hidden;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .status-seg.record-time::before {
+    animation: none;
+  }
+}
+
+/* Destination health icons (destination-health.js). --health is set per icon: green, yellow or grey. */
+#destinationHealthCard {
+  padding: 8px 10px;
+}
+#destinationHealthCard h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+#destinationHealthCard .hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+}
+#destinationHealthCard .destination-icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+#destinationHealthCard .destination-icons button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  height: 38px;
+  margin: 0;
+  padding: 0;
+  border-radius: 9px;
+  background: #1d2030;
+  border: 2px solid var(--health);
+  color: var(--health);
+}
+#destinationHealthCard .destination-icons button[aria-pressed='true'] {
+  background: #2a2e44;
+}
+#destinationHealthCard .destination-icons svg {
+  width: 22px;
+  height: 22px;
+  fill: var(--health);
+  stroke: none;
+}
+#destinationHealthCard .destination-icons .other {
+  font-weight: 700;
+  color: var(--health);
+}
+.destination-tip {
+  position: fixed;
+  z-index: 100000;
+  max-width: 320px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #0b0d14;
+  color: #edf0f6;
+  border: 1px solid #3a3f55;
+  font-size: 13px;
+  pointer-events: none;
+  white-space: pre-line;
+}
+.destination-tip[hidden] {
+  display: none;
+}
+#destinationHealthCard .destination-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

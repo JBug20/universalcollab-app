@@ -87,7 +87,7 @@ app.whenReady().then(() => {
     try {
       const origin = parseAddress(input.address);
       if (
-        !/^\/api\/(v3\/(info|register|view|secrets|destination|settings|request|respond|collab-warning|collab-request|collab-respond|display-name|chat-frame|production|production-clear|recordings|recording-delete|invites|invite|invite-revoke|host-claim|host-view|host-settings|host-member|host-action|host-rotate)|end|allow|pip-on|pip-off|collab-on|collab-off|force-fallback|restore-primary)$/.test(
+        !/^\/api\/(v3\/(info|register|view|secrets|destination|settings|request|respond|collab-warning|collab-request|collab-respond|display-name|chat-frame|production|production-clear|output-control|recordings|recording-delete|invites|invite|invite-revoke|host-claim|host-view|host-settings|host-member|host-action|host-rotate|health)|end|allow|pip-on|pip-off|collab-on|collab-off|force-fallback|restore-primary)$/.test(
           input.route
         )
       )
