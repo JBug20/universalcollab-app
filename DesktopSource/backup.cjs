@@ -81,7 +81,8 @@ exports.workspaceKeys = [
   'universalcollab-app-presets-v1',
   'universalcollab-stream-presets-v1',
   'universalcollab-chat-ui-v1',
-  'universalcollab-tools-v1'
+  'universalcollab-tools-v1',
+  'universalcollab-offline-layout-v1'
 ];
 exports.workspace = v => {
   const result = {};

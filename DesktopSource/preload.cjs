@@ -1,5 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('relayDesktop', {
+  layoutMedia: input => ipcRenderer.invoke('layout-media', input),
+  browserSource: input => ipcRenderer.invoke('browser-source', input),
   maintenance: async op => {
     const r = await ipcRenderer.invoke('app-maintenance', op);
     if (!r.ok) throw Error(r.error);

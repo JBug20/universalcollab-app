@@ -21,7 +21,8 @@ let obs,
   obsQueue = Promise.resolve();
 let studioQueue = Promise.resolve(),
   studioBusy = false,
-  backupBusy = false;
+  backupBusy = false,
+  layoutMedia = null;
 const { PlatformService, PlatformError } = require('./platforms/service.cjs');
 const { StudioService } = require('./platforms/studio.cjs');
 const { createVault } = require('./platforms/vault.cjs');
@@ -97,6 +98,8 @@ app.whenReady().then(() => {
       sandbox: true
     }
   });
+  require('./browser-sources.cjs').start({ app, ipcMain, guard, BrowserWindow, session, mainWindow: win });
+  layoutMedia = require('./layout-media.cjs').start({ app, ipcMain, guard });
   // Recover from a crashed or frozen display process instead of leaving a blank window. Reasons are logged to userData/renderer-problems.log.
   {
     let crashes = 0,
@@ -147,13 +150,24 @@ app.whenReady().then(() => {
     try {
       const origin = parseAddress(input.address);
       if (
-        !/^\/api\/(v3\/(info|register|view|secrets|destination|settings|request|respond|collab-warning|collab-request|collab-respond|display-name|chat-frame|production|production-clear|output-control|recordings|recording-delete|invites|invite|invite-revoke|host-claim|host-view|host-settings|host-member|host-action|host-rotate|health)|end|allow|pip-on|pip-off|collab-on|collab-off|force-fallback|restore-primary)$/.test(
+        !/^\/api\/(v3\/(info|register|view|secrets|destination|settings|request|respond|collab-warning|collab-request|collab-respond|display-name|chat-frame|media-frame|production|production-clear|output-control|recordings|recording-delete|invites|invite|invite-revoke|host-claim|host-view|host-settings|host-member|host-action|host-rotate|health)|end|allow|pip-on|pip-off|collab-on|collab-off|force-fallback|restore-primary)$/.test(
           input.route
         )
       )
         throw Error();
       const body = input.body === undefined ? undefined : JSON.stringify(input.body);
-      if (body && body.length > (input.route === '/api/v3/chat-frame' ? 2500000 : 65536)) throw Error();
+      if (
+        body &&
+        body.length >
+          (input.route === '/api/v3/chat-frame'
+            ? 2500000
+            : input.route === '/api/v3/media-frame'
+              ? 9000000
+              : input.route === '/api/v3/settings'
+                ? 262144
+                : 65536)
+      )
+        throw Error();
       if (input.token && !/^[A-Za-z0-9_-]{1,32}:[A-Za-z0-9_-]{24,64}$/.test(input.token)) throw Error();
       const response = await fetch(origin + input.route, {
         method: body === undefined ? 'GET' : 'POST',
@@ -395,16 +409,25 @@ app.whenReady().then(() => {
           filters: [{ name: 'Encrypted backup', extensions: ['ucbackup'] }]
         });
         if (chosen.canceled) return { ok: true, data: { cancelled: true } };
+        const workspaceValue = backup.workspace(input.workspace),
+          pictures = layoutMedia
+            ? layoutMedia.read(
+                [...JSON.stringify(workspaceValue).matchAll(/\\"media\\":\\"([a-f0-9]{64})\\"/g)].map(
+                  m => m[1]
+                )
+              )
+            : { media: {}, skipped: 0 };
         const payload = {
           version: 1,
           local: localProfiles.load(),
           servers: servers.load(),
           platforms: getPlatforms().db,
-          workspace: backup.workspace(input.workspace)
+          workspace: workspaceValue,
+          layoutMedia: pictures.media
         };
         const encrypted = backup.seal(payload, input.password);
         fs.writeFileSync(chosen.filePath, encrypted, { mode: 0o600 });
-        return { ok: true, data: { saved: true } };
+        return { ok: true, data: { saved: true, picturesSkipped: pictures.skipped } };
       }
       if (op === 'import') {
         const selected = servers.load().servers.find(s => s.key === servers.load().selectedKey);
@@ -431,7 +454,7 @@ app.whenReady().then(() => {
         });
         if (chosen.canceled) return { ok: true, data: { cancelled: true } };
         const file = chosen.filePaths[0];
-        if (fs.statSync(file).size > 8 * 1024 * 1024) throw Error('Backup is too large.');
+        if (fs.statSync(file).size > 16 * 1024 * 1024) throw Error('Backup is too large.');
         const v = backup.open(fs.readFileSync(file, 'utf8'), input.password);
         if (
           v.version !== 1 ||
@@ -445,6 +468,7 @@ app.whenReady().then(() => {
         require('./server-store.cjs').validate(v.servers);
         backup.validatePlatforms(v.platforms);
         const workspace = backup.workspace(v.workspace);
+        const pictures = layoutMedia ? layoutMedia.validate(v.layoutMedia) : {};
         const result = await dialog.showMessageBox(win, {
           type: 'question',
           buttons: ['Cancel', 'Replace my local settings'],
@@ -461,6 +485,9 @@ app.whenReady().then(() => {
           servers.save(v.servers);
           localProfiles.save(v.local);
           vault.save(v.platforms);
+          try {
+            layoutMedia?.write(pictures);
+          } catch {}
         } catch (error) {
           try {
             servers.save(old.servers);

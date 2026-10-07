@@ -1294,3 +1294,81 @@ footer span {
   flex-wrap: wrap;
   gap: 8px;
 }
+/* 1.2.0: text, picture and browser sources; snapping guides; source properties */
+.canvas-item.text,
+.canvas-item.image,
+.canvas-item.browser {
+  background: transparent;
+  border-style: dotted;
+}
+.canvas-item.selected.text,
+.canvas-item.selected.image,
+.canvas-item.selected.browser {
+  border-style: solid;
+}
+.canvas-item .media-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: transparent;
+  object-fit: fill;
+}
+.canvas-item .media-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: #11111ccc;
+}
+.snap-guide {
+  position: absolute;
+  z-index: 999;
+  pointer-events: none;
+  background: #f1c66f;
+}
+.snap-guide.v {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.snap-guide.h {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+.source-properties {
+  width: min(560px, 92vw);
+  max-height: 88vh;
+  overflow: auto;
+}
+.source-properties form {
+  display: grid;
+  gap: 10px;
+}
+.source-properties textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+.source-properties .check-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.source-properties input[type='color'] {
+  min-width: 48px;
+  height: 32px;
+  padding: 2px;
+}
+#offlineLayoutChoice {
+  width: min(520px, 92vw);
+}
+#offlineLayoutChoice .buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

@@ -395,15 +395,23 @@ const offlineFields = [
   'destinationKey'
 ];
 // Disabled fieldsets keep server controls visible, while panel handles remain usable.
-for (const card of document.querySelectorAll(
-  '#manualOBS,#canvasPanel,#fallbackPanel,#legacyPermissions > .card'
-)) {
+// The stream layout stays editable offline (1.2.0); only relay-bound controls are locked.
+for (const card of document.querySelectorAll('#manualOBS,#fallbackPanel,#legacyPermissions > .card')) {
   const field = document.createElement('fieldset');
   field.className = 'server-controls';
   field.disabled = true;
   for (const node of [...card.childNodes])
     if (!(node.nodeType === 1 && node.matches('h2,h3,.sectionhead,.panel-tools'))) field.append(node);
   card.append(field);
+}
+// Saving the layout works offline too (it saves on this device), so keep that button outside the locked fieldset.
+{
+  const save = $('canvasSave'),
+    form = $('layoutForm');
+  if (save && form) {
+    save.setAttribute('form', 'layoutForm');
+    form.closest('fieldset').after(save);
+  }
 }
 function setControls(on) {
   for (const f of document.querySelectorAll('.server-controls')) f.disabled = !on;

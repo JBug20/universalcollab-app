@@ -47,7 +47,7 @@ const electron = {
     setPath() {},
     whenReady: () => ({ then: fn => (ready = fn) }),
     getPath: () => dir + '/client',
-    on: (event, fn) => (appEvents[event] = fn),
+    on: (event, fn) => (appEvents[event] = [...(appEvents[event] || []), fn]),
     quit: () => quits++
   },
   BrowserWindow: class {
@@ -134,10 +134,12 @@ assert.equal(check('media', appUrl, { mediaType: 'video', isMainFrame: false }),
 assert.equal(check('media', appUrl, { mediaType: 'video', isMainFrame: true }, {}), false);
 assert.equal(check('geolocation', appUrl, { isMainFrame: true }), false);
 
+// Electron calls every before-quit handler in turn, as the app's own and the browser capture module's.
+const quit = () => appEvents['before-quit'].forEach(fn => fn({ preventDefault: () => prevented++ }));
 // Quitting: with no camera started by the app, quitting is not delayed.
 const sender = { sender: win.webContents, senderFrame: { url: appUrl } };
 let prevented = 0;
-appEvents['before-quit']({ preventDefault: () => prevented++ });
+quit();
 assert.equal(prevented, 0);
 assert.equal(quits, 0);
 
@@ -145,12 +147,12 @@ assert.equal(quits, 0);
 await handlers.get('obs-command')(sender, 'connect', { port: 4455, password: '' });
 await handlers.get('obs-command')(sender, 'virtualcam', { enabled: true });
 assert.equal(cameraOn, true);
-appEvents['before-quit']({ preventDefault: () => prevented++ });
+quit();
 assert.equal(prevented, 1, 'the first quit request is held while the camera stops');
 await new Promise(r => setTimeout(r, 50));
 assert.equal(cameraOn, false, 'the camera the app started is switched off');
 assert.equal(quits, 1, 'then the app quits');
-appEvents['before-quit']({ preventDefault: () => prevented++ });
+quit();
 assert.equal(prevented, 1, 'the second quit request goes straight through');
 console.log(
   'PASS camera permission is video-only for the app page; a camera started by the app is stopped on quit.'

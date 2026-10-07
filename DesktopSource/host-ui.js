@@ -170,8 +170,11 @@
       'fallbackTimeout',
       'povLabels',
       'streamHealth',
-      'sessionPermissions'
+      'sessionPermissions',
+      'mediaSources'
     ]) {
+      // A relay older than 1.2.0 does not know this setting and rejects the whole save if it is sent.
+      if (k === 'mediaSources' && v.features[k] === undefined) continue;
       const l = make(
         'label',
         {
@@ -187,7 +190,8 @@
           fallbackTimeout: 'Allow disconnect timeout',
           povLabels: 'Allow POV labels',
           streamHealth: 'Allow stream health checks',
-          sessionPermissions: 'Allow session-only approvals'
+          sessionPermissions: 'Allow session-only approvals',
+          mediaSources: 'Allow text, picture and browser sources'
         }[k]
       );
       const i = make('input');

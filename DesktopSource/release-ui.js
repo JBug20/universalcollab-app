@@ -175,7 +175,8 @@
     'universalcollab-app-presets-v1',
     'universalcollab-stream-presets-v1',
     'universalcollab-chat-ui-v1',
-    'universalcollab-tools-v1'
+    'universalcollab-tools-v1',
+    'universalcollab-offline-layout-v1'
   ];
   async function backup(op) {
     if (!desktop?.backup) {
@@ -201,7 +202,14 @@
         }
         localStorage.removeItem('universalcollab-production-draft-v1');
         location.reload();
-      } else note('Encrypted backup saved.');
+      } else
+        note(
+          result.picturesSkipped
+            ? 'Encrypted backup saved. ' +
+                result.picturesSkipped +
+                ' large layout picture(s) were left out to keep the backup small; add them again after restoring.'
+            : 'Encrypted backup saved.'
+        );
     } catch (e) {
       note(e.message);
     }

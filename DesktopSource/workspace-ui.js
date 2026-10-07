@@ -595,14 +595,27 @@
       ['Delete', () => sceneAction('Delete', true)]
     ]);
   };
-  const sourceActions = () => [
-    ['Add source', () => $('addItem').click()],
-    ['Properties', () => open('sourceProperties')],
-    ['Lock / unlock', () => window.streamCanvas.toggleLock()],
-    ['Move forward', () => $('canvasFront').click()],
-    ['Move backward', () => $('canvasBack').click()],
-    ['Remove', () => $('canvasRemove').click()]
-  ];
+  const sourceActions = () => {
+    const sel = window.streamCanvas.selected(),
+      fixed = sel.locked;
+    return [
+      ['Add source', () => $('addItem').click()],
+      ...(sel.media ? [['Source settings…', () => window.streamCanvas.openProperties(), fixed]] : []),
+      ['Position & size…', () => open('sourceProperties')],
+      ['Lock / unlock', () => window.streamCanvas.toggleLock()],
+      ['Move forward', () => $('canvasFront').click()],
+      ['Move backward', () => $('canvasBack').click()],
+      ...[
+        ['top-left', 'Top left quarter'],
+        ['top-right', 'Top right quarter'],
+        ['bottom-left', 'Bottom left quarter'],
+        ['bottom-right', 'Bottom right quarter'],
+        ['center', 'Centre']
+      ].map(([c, label]) => [label, () => window.streamCanvas.placeCorner(c), fixed]),
+      ['Make 2×2 split', () => window.streamCanvas.split()],
+      ['Remove', () => $('canvasRemove').click(), fixed || sel.kind === 'main']
+    ];
+  };
   const sourceBar = bar($('sourcesPanel'));
   sourceBar.append(
     btn('+', 'Add relay source', () => $('addItem').click()),

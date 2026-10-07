@@ -6,11 +6,13 @@ const require = createRequire(import.meta.url),
   { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 // source: the DesktopSource folder to load (default: this repo's). initScript: runs in the page before the app
 // starts (with initArg), e.g. to set window.relayHook = async q => reply, which can answer a relay request itself.
+// expose: { name: fn } makes Node functions callable from the page (for example to forward requests to a real relay).
 export async function openStudio({
   viewport = { width: 1500, height: 1000 },
   source = new URL('../../DesktopSource/', import.meta.url).pathname,
   initScript,
-  initArg
+  initArg,
+  expose = {}
 } = {}) {
   const browser = await chromium.launch({
     executablePath: process.env.CHROMIUM_PATH,
@@ -51,6 +53,25 @@ export async function openStudio({
       loadLocalProfile: async () => ({ displayName: 'Bug' }),
       saveLocalProfile: async () => {},
       copy: async () => {},
+      // Pictures live in the main process (by content hash); browser pages are captured there too.
+      layoutMedia: async input => {
+        calls.push({ layoutMedia: input.op });
+        window.pictureStore ??= new Map();
+        if (input.op === 'put') {
+          const hash = [...Array(64)].map((_, i) => ((input.dataUrl.length + i) % 16).toString(16)).join('');
+          window.pictureStore.set(hash, input.dataUrl);
+          return { ok: true, hash };
+        }
+        if (input.op === 'get')
+          return window.pictureStore.has(input.hash)
+            ? { ok: true, dataUrl: window.pictureStore.get(input.hash) }
+            : { ok: false, error: 'Picture not found on this computer.' };
+        return { ok: false, error: 'Unknown picture action.' };
+      },
+      browserSource: async input => {
+        calls.push({ browserSource: input.op, input });
+        return input.op === 'frames' ? { ok: true, frames: [] } : { ok: true, limit: 4, skipped: 0 };
+      },
       onPlatforms: () => {},
       platform: async (op, input) => {
         calls.push({ op, input });
@@ -141,7 +162,9 @@ export async function openStudio({
             manualFallback: true,
             fallbackTimeout: true,
             povLabels: true,
-            streamHealth: true
+            streamHealth: true,
+            // A 1.2.0 relay adds { mediaSourcesApi: 1, mediaSources: true } (window.relayCaps).
+            ...window.relayCaps
           },
           me: { id: 'alice', settings, destinationConfigured: true },
           status: {
@@ -161,6 +184,7 @@ export async function openStudio({
       }
     };
   });
+  for (const [name, fn] of Object.entries(expose)) await page.exposeFunction(name, fn);
   if (initScript) await page.addInitScript(initScript, initArg);
   await page.goto('file://' + source.replace(/\/?$/, '/') + 'portal.html');
   return { browser, page, errors };

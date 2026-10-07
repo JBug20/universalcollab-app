@@ -1,7 +1,11 @@
 // Compact studio (1.0.0-rc.8): OBS mixer meters and the End Relay controls.
 import assert from 'node:assert/strict';
 import { openStudio } from './helpers/studio-page.mjs';
-const { browser, page, errors } = await openStudio();
+// The main flow runs against a 1.2.0 relay (text, picture and browser sources go to the relay); the last
+// part runs against a relay without the media API, like the rc.8 relay published on GitHub.
+const { browser, page, errors } = await openStudio({
+  initScript: () => (window.relayCaps = { mediaSourcesApi: 1, mediaSources: true })
+});
 try {
   const meterCalls = () =>
     page.evaluate(() => calls.filter(c => c.obs === 'meters').map(c => c.input.enabled));
@@ -93,11 +97,13 @@ try {
   assert.equal(await page.locator('#streamMore').count(), 1);
 
   // Text sources survive saving, relay scene switches and presets.
-  page.once('dialog', d => d.accept('Hello chat'));
   await page.evaluate(() => {
     document.getElementById('canvasSource').value = 'text:new';
     document.getElementById('canvasAdd').click();
   });
+  // The text is typed in the source settings window (no prompt box).
+  await page.locator('#sourcePropertiesWindow textarea').fill('Hello chat');
+  await page.locator('#sourcePropertiesWindow input[type=submit]').click();
   const textItems = () => page.locator('#layoutPreview .canvas-item.text').count();
   assert.equal(await textItems(), 1);
   assert(await page.evaluate(() => window.streamCanvas.save()));
@@ -129,8 +135,35 @@ try {
   });
   assert.equal(await textItems(), 1, 'loading a preset dropped the text source');
   assert.deepEqual(errors, []);
+
+  // A relay without the media API (like rc.8): the source stays on this PC, saving still works, and nothing
+  // media-related is sent for the relay to reject.
+  {
+    const old = await openStudio();
+    try {
+      await old.page.evaluate(() => document.getElementById('serverConnect').click());
+      await old.page.waitForSelector('#canvasSource', { state: 'attached' });
+      await old.page.evaluate(() => {
+        document.getElementById('canvasSource').value = 'text:new';
+        document.getElementById('canvasAdd').click();
+      });
+      await old.page.locator('#sourcePropertiesWindow textarea').fill('Hello chat');
+      await old.page.locator('#sourcePropertiesWindow input[type=submit]').click();
+      const oldText = () => old.page.locator('#layoutPreview .canvas-item.text').count();
+      assert.equal(await oldText(), 1);
+      assert(await old.page.evaluate(() => window.streamCanvas.save()), 'saving works with an older relay');
+      const body = await old.page.evaluate(
+        () => calls.filter(c => c.route?.endsWith('/settings')).at(-1).body
+      );
+      assert.equal(body.mediaOverlays, undefined, 'sources are not sent to a relay that cannot take them');
+      assert.equal(await oldText(), 1, 'the source stays in the editor');
+      assert.deepEqual(old.errors, []);
+    } finally {
+      await old.browser.close();
+    }
+  }
   console.log(
-    'PASS mixer meters on a dB scale and after reconnect, End Relay placement and confirmation, auto-end timer and fallback saved from its settings, text sources kept through save, scene switch and preset.'
+    'PASS mixer meters on a dB scale and after reconnect, End Relay placement and confirmation, auto-end timer and fallback saved from its settings, text sources kept through save, scene switch and preset, and kept local with a relay that has no media API.'
   );
 } finally {
   await browser.close();
