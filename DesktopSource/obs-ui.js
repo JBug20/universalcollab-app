@@ -77,6 +77,8 @@
     if (!online) throw Error('Connect OBS in Settings → OBS first.');
     await call('start', { automatic: $('obsMode').value === 'auto' });
     say('Stream started in OBS.');
+    // Start the replay buffer with the stream so the first Clip already has footage (skipped if it is off in OBS).
+    call('replay-start').catch(() => {});
     await poll();
   });
   start.id = 'startStream';
@@ -103,10 +105,48 @@
   });
   record.id = 'obsRecord';
   stop.after(record);
+  // Clip: saves the last seconds of OBS output (OBS replay buffer) as a video file in OBS's recording folder.
+  const clipNote = node('p');
+  clipNote.id = 'obsClipNote';
+  clipNote.className = 'hint';
+  clipNote.setAttribute('role', 'status');
+  clipNote.hidden = true;
+  async function saveClip() {
+    if (!online) throw Error('Connect OBS in Settings → OBS first.');
+    const r = await call('clip');
+    clipNote.replaceChildren();
+    clipNote.hidden = false;
+    if (r.started) {
+      clipNote.textContent = `Replay buffer started. Press Clip again to save the last ${r.seconds || 'few'} seconds.`;
+      return 'Replay buffer started.';
+    }
+    const file = r.path ? r.path.split(/[\\/]/).pop() : '';
+    clipNote.append(file ? 'Clip saved: ' + file + ' ' : "Clip saved in OBS's recording folder.");
+    if (r.path) {
+      const show = btn('Show file', async () => {
+        const s = await call('clip-show', { path: r.path });
+        if (!s.shown) say('That clip is on the computer running OBS: ' + s.path);
+      });
+      clipNote.append(show);
+    }
+    return 'Clip saved.';
+  }
+  const clip = btn('Clip', saveClip);
+  clip.id = 'obsClip';
+  clip.title = 'Save the last seconds of your stream as a video file (OBS replay buffer)';
+  // Start Recording and Clip share a row (like End Relay and its settings) to keep Stream controls short.
+  const recordRow = node('div');
+  recordRow.className = 'record-clip-row';
+  record.after(recordRow);
+  recordRow.append(record, clip);
+  recordRow.after(clipNote);
   function buttons() {
     start.hidden = !!state?.stream?.outputActive;
     stop.hidden = !online || !state?.stream?.outputActive;
     record.hidden = !online;
+    clip.hidden = !online;
+    recordRow.hidden = !online;
+    clip.disabled = working || !online;
     start.disabled =
       draftPending || working || !online || !connected || uncertain || !!state?.stream?.outputActive;
     stop.disabled = working || !state?.stream?.outputActive;

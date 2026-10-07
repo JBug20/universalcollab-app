@@ -261,6 +261,15 @@ app.whenReady().then(() => {
           await obs.request('SetStreamServiceSettings', old);
           return { ok: true, data: { restored: true } };
         }
+        // Show a saved clip in Explorer: only paths OBS reported for clips saved in this session.
+        if (op === 'clip-show') {
+          const file = typeof input.path === 'string' ? input.path : '';
+          if (!file || !obsControls?.clips?.includes(file)) throw Error('That clip is not available.');
+          // OBS may run on another computer; then the file is there, not on this PC.
+          if (!fs.existsSync(file)) return { ok: true, data: { shown: false, path: file } };
+          shell.showItemInFolder(file);
+          return { ok: true, data: { shown: true, path: file } };
+        }
         if (!['configure', 'start'].includes(op))
           return { ok: true, data: await obsControls.handle(op, input) };
         const saved = servers.load(),

@@ -1703,3 +1703,30 @@ body.onboarding #manageOBS {
   background: #15141c;
   transition: height 80ms linear;
 }
+
+/* Start Recording and Clip side by side (obs-ui.js). */
+.record-clip-row {
+  display: flex;
+  gap: 6px;
+}
+.record-clip-row[hidden] {
+  display: none;
+}
+#streamsPanel .record-clip-row #obsRecord {
+  flex: 1;
+  min-width: 0;
+}
+#streamsPanel .record-clip-row #obsClip {
+  flex: 0 0 64px;
+  width: 64px;
+  min-width: 0;
+}
+#obsClipNote {
+  font-size: 11px;
+  margin: 0;
+}
+#streamsPanel .record-clip-row button {
+  white-space: nowrap;
+  padding-left: 4px;
+  padding-right: 4px;
+}
