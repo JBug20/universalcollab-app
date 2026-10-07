@@ -103,8 +103,16 @@ export async function openStudio({
             stream: { outputActive: window.obsStreaming, ...window.obsStreamExtra },
             record: { outputActive: false },
             virtualCam: window.obsVirtualCam ?? null,
-            available: []
+            // Studio mode: window.obsStudio = { enabled, preview } makes OBS report it.
+            ...(window.obsStudio
+              ? { studioMode: !!window.obsStudio.enabled, preview: window.obsStudio.preview || null }
+              : {}),
+            available: window.obsStudio ? ['SetStudioModeEnabled'] : []
           };
+        if (op === 'studio-mode') {
+          window.obsStudio = { ...window.obsStudio, enabled: !!input.enabled };
+          return { studioMode: !!input.enabled };
+        }
         if (op === 'virtualcam') {
           window.obsVirtualCam = !!input.enabled;
           return { active: !!input.enabled, startedByApp: true };

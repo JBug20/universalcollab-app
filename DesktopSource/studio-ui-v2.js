@@ -234,6 +234,7 @@
   let sceneScope = '',
     scenes = [],
     selectedScene = '',
+    liveScene = '',
     restoring = false,
     switching = false;
   let library = read('uc-ui5-scenes', {});
@@ -242,7 +243,7 @@
     if (restoring || !sceneScope || !selectedScene) return;
     const scene = scenes.find(s => s.id === selectedScene);
     if (scene) scene.layout = window.streamCanvas.snapshot();
-    library[sceneScope] = { selected: selectedScene, scenes };
+    library[sceneScope] = { selected: selectedScene, live: liveScene, scenes };
     write('uc-ui5-scenes', library);
   }
   function drawScenes() {
@@ -253,6 +254,11 @@
         act(() => switchScene(scene.id))
       );
       b.setAttribute('aria-pressed', String(scene.id === selectedScene));
+      // Studio mode: the scene on stream (Program) is marked separately from the one being edited.
+      const onAir = window.studioMode?.enabled && connected && scene.id === liveScene;
+      b.classList.toggle('scene-live', !!onAir);
+      if (onAir) b.title = 'Live on the stream (Program)';
+      else b.removeAttribute('title');
       b.disabled = switching;
       $('sceneList').append(b);
     }
@@ -271,6 +277,7 @@
       : [];
     if (!scenes.length) scenes = [{ id: uid(), name: 'Main scene', layout: window.streamCanvas.snapshot() }];
     selectedScene = scenes.some(s => s.id === saved?.selected) ? saved.selected : scenes[0].id;
+    liveScene = scenes.some(s => s.id === saved?.live) ? saved.live : selectedScene;
     restoring = true;
     try {
       if (saved) window.streamCanvas.restore(scenes.find(s => s.id === selectedScene).layout);
@@ -291,11 +298,13 @@
     drawScenes();
     try {
       window.streamCanvas.restore(scene.layout);
-      if (connected && !(await window.streamCanvas.save())) {
+      // In studio mode a scene opens in Preview only; Transition sends it to the stream.
+      if (connected && !window.studioMode?.enabled && !(await window.streamCanvas.save())) {
         window.streamCanvas.restore(before);
         return;
       }
       selectedScene = id;
+      if (!window.studioMode?.enabled) liveScene = id;
     } finally {
       restoring = false;
       switching = false;
@@ -344,6 +353,13 @@
       drawScenes();
     }
   });
+  window.addEventListener('studio-program', e => {
+    if (!e.detail?.layout || !selectedScene || switching) return;
+    liveScene = selectedScene;
+    saveScene();
+    drawScenes();
+  });
+  window.addEventListener('studio-mode', () => drawScenes());
   window.addEventListener('scene-change', () => {
     try {
       saveScene();

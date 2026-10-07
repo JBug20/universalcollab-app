@@ -140,7 +140,14 @@ class OBSControls {
         this.call('GetRecordStatus'),
         this.call('GetInputList')
       ]);
-      const sceneName = i.sceneName ? name(i.sceneName) : scenes.currentProgramSceneName;
+      let studioMode = false;
+      if (this.available.has('GetStudioModeEnabled')) {
+        try {
+          studioMode = !!(await this.call('GetStudioModeEnabled')).studioModeEnabled;
+        } catch {}
+      }
+      const preview = studioMode ? scenes.currentPreviewSceneName || null : null;
+      const sceneName = i.sceneName ? name(i.sceneName) : preview || scenes.currentProgramSceneName;
       const items = sceneName ? (await this.call('GetSceneItemList', { sceneName })).sceneItems : [];
       const mixer = [];
       for (const input of (inputs.inputs || []).slice(0, 64)) {
@@ -162,6 +169,8 @@ class OBSControls {
         connected: true,
         scenes: scenes.scenes,
         current: scenes.currentProgramSceneName,
+        preview,
+        studioMode,
         sceneName,
         items,
         inputs: inputs.inputs,
@@ -174,9 +183,15 @@ class OBSControls {
     }
     if (op === 'preview') {
       const width = num(i.width, 160, 2560);
-      const { currentProgramSceneName } = await this.call('GetCurrentProgramScene');
+      // Studio mode: the editor shows the preview scene; otherwise the program scene.
+      let sourceName = (await this.call('GetCurrentProgramScene')).currentProgramSceneName;
+      if (i.scene === 'preview') {
+        try {
+          sourceName = (await this.call('GetCurrentPreviewScene')).currentPreviewSceneName || sourceName;
+        } catch {}
+      }
       const r = await this.call('GetSourceScreenshot', {
-        sourceName: currentProgramSceneName,
+        sourceName,
         imageFormat: 'jpeg',
         imageWidth: width,
         imageCompressionQuality: 65
@@ -223,6 +238,12 @@ class OBSControls {
     if (op === 'replay-status') return this.replayStatus();
     if (op === 'replay-start') return this.replayStart();
     if (op === 'clip') return this.clip();
+    if (op === 'studio-mode') {
+      await this.call('SetStudioModeEnabled', { studioModeEnabled: bool(i.enabled) });
+      return { studioMode: bool(i.enabled) };
+    }
+    if (op === 'preview-scene') return this.call('SetCurrentPreviewScene', { sceneName: name(i.sceneName) });
+    if (op === 'transition') return this.call('TriggerStudioModeTransition');
     if (op === 'record-start') return this.call('StartRecord');
     if (op === 'record-stop') return this.call('StopRecord');
     if (op === 'stream-stop') return this.call('StopStream');

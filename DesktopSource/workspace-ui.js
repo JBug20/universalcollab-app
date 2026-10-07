@@ -109,6 +109,7 @@
       ['Lock / unlock source', () => window.streamCanvas.toggleLock()]
     ],
     View: [
+      ['Studio mode (Preview / Program)', () => window.studioMode?.toggle()],
       ['Preview settings', settings('preview')],
       [
         'Fullscreen',
@@ -247,7 +248,8 @@
     }
     const before = window.streamCanvas.snapshot().resolution;
     window.streamCanvas.resolution(choice === 'auto' ? null : { width: w, height: h });
-    if (!(await window.streamCanvas.save())) window.streamCanvas.resolution(before);
+    // Nothing is live while the resolution changes, so in studio mode this also sends Preview.
+    if (!(await window.streamCanvas.save({ transition: true }))) window.streamCanvas.resolution(before);
     resolutionPaint();
   };
   window.addEventListener('relay-state', resolutionPaint);
@@ -320,19 +322,24 @@
       for (const n of parent.children)
         if (n !== canvas && !n.hidden) {
           const st = getComputedStyle(n);
-          if (st.display !== 'none')
+          if (st.display !== 'none' && st.position !== 'absolute')
             extra +=
               n.getBoundingClientRect().height +
               (parseFloat(st.marginTop) || 0) +
               (parseFloat(st.marginBottom) || 0);
         }
-      const room = Math.max(70, parent.clientHeight - extra - 20);
+      // Studio mode panes are already padded by the stage.
+      const room = Math.max(
+        70,
+        parent.clientHeight - extra - (parent.classList.contains('studio-pane') ? 0 : 20)
+      );
       const width = Math.max(80, Math.min(parent.clientWidth, room * aspect));
       canvas.style.width = width + 'px';
       canvas.style.height = width / aspect + 'px';
       fitting = false;
     });
   }
+  window.fitStreamCanvas = fitCanvas;
   new ResizeObserver(fitCanvas).observe(panel);
   new ResizeObserver(fitCanvas).observe($('resolutionBar'));
   window.addEventListener('scene-change', fitCanvas);
@@ -621,7 +628,9 @@
     btn('+', 'Add relay source', () => $('addItem').click()),
     btn('−', 'Remove selected source', () => $('canvasRemove').click()),
     btn('⚙', 'Source properties', () => open('sourceProperties')),
-    btn('✓', 'Apply relay layout', () => window.streamCanvas.save())
+    btn('✓', 'Apply relay layout', () =>
+      window.studioMode?.enabled ? window.studioMode.transition() : window.streamCanvas.save()
+    )
   );
   $('canvasLayers').oncontextmenu = e => {
     e.target.closest('[data-layer]')?.querySelector('.source-name')?.click();

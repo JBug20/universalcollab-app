@@ -1372,3 +1372,164 @@ footer span {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* Studio mode: Preview / Program (studio-mode.js) */
+.studio-stage {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  gap: 3px;
+  padding: 3px;
+}
+.studio-panes {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  gap: 4px;
+}
+/* Both videos meet in the middle of the panel and share the same top edge. */
+.studio-preview-pane {
+  align-items: flex-end;
+}
+.studio-program-pane {
+  align-items: flex-start;
+}
+.studio-pane {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.studio-label {
+  position: absolute;
+  z-index: 1100;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(9, 10, 16, 0.75);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.studio-label.is-preview {
+  color: #6ee7a8;
+}
+.studio-label.is-program {
+  color: #ff6b7a;
+}
+.studio-preview-pane > #layoutPreview {
+  outline: 2px solid #2fbf71;
+  outline-offset: -2px;
+}
+.studio-program {
+  position: relative;
+  flex: none;
+  margin: 0;
+  background: #090a10;
+  outline: 2px solid #e5394b;
+  outline-offset: -2px;
+  overflow: hidden;
+}
+.studio-program > #relayCanvasVideo,
+.studio-program-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+.studio-program-boxes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.studio-program-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed rgba(255, 255, 255, 0.55);
+}
+.studio-program-box.main {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.studio-program-box span {
+  position: absolute;
+  left: 3px;
+  top: 2px;
+  font-size: 11px;
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: calc(100% - 6px);
+  text-overflow: ellipsis;
+}
+.studio-program-note {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 4px;
+  margin: 0;
+  font-size: 11px;
+  color: #c9c3d6;
+  text-shadow: 0 1px 2px #000;
+  pointer-events: none;
+}
+.studio-program.relay-video .studio-program-note:empty {
+  display: none;
+}
+#canvasPanel.studio-mode > .dock-handle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.studio-transition {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-left: auto;
+  cursor: default;
+}
+.studio-stage > .studio-transition {
+  margin: 0 auto;
+}
+.studio-transition-button {
+  min-width: 120px;
+  min-height: 22px;
+  margin: -4px 0;
+  padding: 1px 14px;
+  font-size: 12px;
+}
+.studio-pending {
+  font-size: 11px;
+  color: #f5c26b;
+}
+.studio-mode-toggle.active {
+  background: #3a2f55;
+  border-color: #a78bfa;
+  color: #fff;
+}
+#sceneList button.scene-live,
+#obsScenes button.obs-program {
+  box-shadow: inset 3px 0 0 #e5394b;
+}
+#sceneList button.scene-live::after,
+#obsScenes button.obs-program::after {
+  content: 'LIVE';
+  float: right;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ff6b7a;
+}

@@ -154,7 +154,10 @@
     record.textContent = state?.record?.outputActive ? 'Stop Recording' : 'Start Recording';
   }
   function connection(value) {
-    if (!value) window.obsOutputs = null;
+    if (!value) {
+      window.obsOutputs = null;
+      window.studioMode?.obsLost();
+    }
     $('obsConnectionIndicator').textContent = value
       ? 'OBS: Connected'
       : retryPaused
@@ -293,18 +296,23 @@
     buttons();
     const scenes = (state.scenes || []).map(s => [s.sceneName, s.sceneName]);
     optionList($('obsEditScene'), scenes, editScene);
-    const sceneSig = JSON.stringify([scenes, state.current]);
+    const studio = !!state.studioMode;
+    const sceneSig = JSON.stringify([scenes, state.current, state.preview, studio]);
     if ($('obsScenes').dataset.signature !== sceneSig) {
       $('obsScenes').dataset.signature = sceneSig;
       $('obsScenes').replaceChildren(
         ...scenes.map(([name]) => {
           const b = btn(name, async () => {
-            await call('scene-switch', { sceneName: name });
+            // Studio mode: pick the preview scene; Transition puts it on the program.
+            if (state.studioMode) await call('preview-scene', { sceneName: name });
+            else await call('scene-switch', { sceneName: name });
             editScene = name;
             selectedSource = null;
             await poll();
           });
-          b.setAttribute('aria-pressed', String(name === state.current));
+          b.setAttribute('aria-pressed', String(name === (studio ? state.preview : state.current)));
+          b.classList.toggle('obs-program', studio && name === state.current);
+          if (studio && name === state.current) b.title = 'On the OBS program';
           return b;
         })
       );
@@ -431,6 +439,8 @@
           editScene = state.sceneName;
           // Stream and recording timers for the status bar (durations count on locally between polls).
           window.obsOutputs = { stream: state.stream, record: state.record, at: Date.now() };
+          if (state.available?.includes?.('SetStudioModeEnabled'))
+            window.studioMode?.fromOBS(!!state.studioMode);
           paint();
           checkVirtualCam();
         } else buttons();
@@ -761,6 +771,12 @@
       previewEpoch++;
       schedulePreview();
     };
+  window.addEventListener('studio-mode', () => {
+    showLive(live.stream);
+    previewEpoch++;
+    schedulePreview();
+    void poll();
+  });
   document.addEventListener('visibilitychange', () => {
     previewEpoch++;
     schedulePreview();
