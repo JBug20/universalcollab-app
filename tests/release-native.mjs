@@ -55,6 +55,10 @@ try {
       }
       setMenu() {}
       loadFile() {}
+      on() {}
+      isDestroyed() {
+        return false;
+      }
     },
     ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
     clipboard: { writeText: text => (copied = text) },

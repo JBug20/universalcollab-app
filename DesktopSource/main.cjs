@@ -78,6 +78,47 @@ app.whenReady().then(() => {
       sandbox: true
     }
   });
+  // Recover from a crashed or frozen display process instead of leaving a blank window. Reasons are logged to userData/renderer-problems.log.
+  {
+    let crashes = 0,
+      hangTimer = null;
+    const note = text => {
+      try {
+        fs.appendFileSync(
+          path.join(app.getPath('userData'), 'renderer-problems.log'),
+          new Date().toISOString() + ' ' + text + '\n'
+        );
+      } catch {}
+    };
+    win.webContents.on('render-process-gone', (_e, d) => {
+      note('gone ' + d.reason + ' ' + d.exitCode);
+      if (d.reason === 'clean-exit' || win.isDestroyed()) return;
+      if (++crashes > 3) {
+        note('not reloading after 3 recoveries');
+        return;
+      }
+      setTimeout(() => {
+        if (!win.isDestroyed()) win.loadFile(home);
+      }, 500);
+    });
+    win.on('unresponsive', () => {
+      note('unresponsive');
+      clearTimeout(hangTimer);
+      hangTimer = setTimeout(() => {
+        if (!win.isDestroyed()) {
+          note('forcing reload after hang');
+          win.webContents.forcefullyCrashRenderer();
+        }
+      }, 10000);
+    });
+    win.on('responsive', () => {
+      clearTimeout(hangTimer);
+      hangTimer = null;
+    });
+    win.webContents.on('did-fail-load', (_e, code, desc, url, isMain) => {
+      if (isMain) note('load failed ' + code + ' ' + desc);
+    });
+  }
   win.setMenu(null);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', e => e.preventDefault());
