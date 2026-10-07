@@ -61,8 +61,27 @@ function getPlatforms() {
   return platforms;
 }
 app.whenReady().then(() => {
-  session.defaultSession.setPermissionRequestHandler((_w, _p, callback) => callback(false));
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  const appFrame = (wc, url, mainFrame) =>
+    !!win &&
+    !win.isDestroyed() &&
+    wc === win.webContents &&
+    mainFrame !== false &&
+    /^file:/i.test(String(url || ''));
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details = {}) =>
+    callback(
+      permission === 'media' &&
+        appFrame(wc, details.requestingUrl, details.isMainFrame) &&
+        Array.isArray(details.mediaTypes) &&
+        details.mediaTypes.length > 0 &&
+        details.mediaTypes.every(t => t === 'video')
+    )
+  );
+  session.defaultSession.setPermissionCheckHandler(
+    (wc, permission, origin, details = {}) =>
+      permission === 'media' &&
+      details.mediaType !== 'audio' &&
+      appFrame(wc, origin || details.requestingUrl, details.isMainFrame)
+  );
   win = new BrowserWindow({
     width: 1240,
     height: 920,
@@ -619,7 +638,18 @@ app.whenReady().then(() => {
   });
   win.loadFile(home);
 });
-app.on('before-quit', () => {
+let quitAfterCamera = false;
+app.on('before-quit', e => {
+  // Switch off the OBS Virtual Camera if this app started it, so it is not left running after quitting.
+  if (!quitAfterCamera && obsControls?.ownVirtualCam && obs?.ready) {
+    quitAfterCamera = true;
+    e.preventDefault();
+    Promise.race([
+      obs.request('StopVirtualCam').catch(() => {}),
+      new Promise(r => setTimeout(r, 1500))
+    ]).finally(() => app.quit());
+    return;
+  }
   obs?.close();
   platforms?.dispose();
 });

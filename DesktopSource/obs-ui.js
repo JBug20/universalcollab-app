@@ -48,8 +48,9 @@
   } catch {}
   pref = {
     enabled: pref?.enabled !== false,
-    rate: [100, 200, 500, 1000, 2000].includes(pref?.rate) ? pref.rate : 200,
-    width: [320, 640, 1280].includes(pref?.width) ? pref.width : 640
+    mode: pref?.mode === 'snapshots' ? 'snapshots' : 'live',
+    rate: [1000 / 60, 1000 / 30, 100, 200, 500, 1000, 2000].includes(pref?.rate) ? pref.rate : 1000 / 60,
+    width: [320, 640, 1280, 1920, 2560].includes(pref?.width) ? pref.width : 640
   };
   const say = text => {
     status.textContent = text;
@@ -391,6 +392,7 @@
           // Stream and recording timers for the status bar (durations count on locally between polls).
           window.obsOutputs = { stream: state.stream, record: state.record, at: Date.now() };
           paint();
+          checkVirtualCam();
         } else buttons();
       }
     } catch (e) {
@@ -480,6 +482,10 @@
         'video',
         Object.fromEntries(Object.entries(videoMap).map(([k, id]) => [k, Number($(id).value)]))
       );
+      stopLive(false);
+      live.offPolls = 0;
+      live.retryAt = 0;
+      schedulePreview();
       await loadSettings();
       say('OBS video settings saved.');
     });
@@ -491,30 +497,206 @@
   $('obsPreviewEnabled').checked = pref.enabled;
   $('obsPreviewRate').value = String(pref.rate);
   $('obsPreviewWidth').value = String(pref.width);
-  function previewAllowed() {
-    return pref.enabled && online && !document.hidden && !$('studioPage').hidden && !$('canvasPanel').hidden;
+  {
+    const label = node('label', 'Preview type');
+    const mode = node('select');
+    mode.id = 'obsPreviewMode';
+    for (const [value, text] of [
+      ['live', 'Live video · full quality (OBS Virtual Camera)'],
+      ['snapshots', 'Snapshots · uses the rate and width below']
+    ]) {
+      const o = node('option', text);
+      o.value = value;
+      mode.append(o);
+    }
+    mode.value = pref.mode;
+    label.append(mode);
+    $('obsPreviewRate').closest('label').before(label);
   }
+  const live = {
+    error: '',
+    stream: null,
+    starting: false,
+    failed: 0,
+    retryAt: 0,
+    epoch: 0,
+    offPolls: 0,
+    stoppedInOBS: false
+  };
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // Studio mode: the Virtual Camera (OBS's program) feeds the Program pane and snapshots of the
+  // OBS preview scene fill the editor. With the relay video live, Program shows the relay instead.
+  const studioOn = () => !!window.studioMode?.enabled;
+  function showLive(stream) {
+    if (studioOn()) {
+      window.streamCanvas.live?.(null);
+      window.studioMode.program(stream);
+    } else {
+      window.studioMode?.program(null);
+      window.streamCanvas.live?.(stream);
+    }
+  }
+  function liveWanted() {
+    return (
+      pref.mode === 'live' &&
+      !live.stoppedInOBS &&
+      previewAllowed() &&
+      !(studioOn() && window.relayVideoActive) &&
+      !!navigator.mediaDevices?.getUserMedia
+    );
+  }
+  function stopLive(releaseCamera) {
+    live.epoch++;
+    if (live.stream) {
+      for (const t of live.stream.getTracks()) t.stop();
+      live.stream = null;
+      showLive(null);
+    }
+    if (releaseCamera && online) call('virtualcam', { enabled: false }).catch(() => {});
+  }
+  async function startLive() {
+    if (live.stream || live.starting || Date.now() < live.retryAt) return;
+    live.starting = true;
+    const epoch = ++live.epoch;
+    try {
+      await call('virtualcam', { enabled: true });
+      let device = null;
+      for (let i = 0; i < 15 && !device; i++) {
+        device = (await navigator.mediaDevices.enumerateDevices()).find(
+          d => d.kind === 'videoinput' && /obs/i.test(d.label) && /virtual/i.test(d.label)
+        );
+        if (!device) await sleep(300);
+      }
+      if (!device) throw Error('Windows did not list the OBS Virtual Camera.');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          deviceId: { exact: device.deviceId },
+          width: { ideal: 3840 },
+          height: { ideal: 2160 },
+          frameRate: { ideal: 60 }
+        }
+      });
+      if (epoch !== live.epoch || !liveWanted()) {
+        for (const t of stream.getTracks()) t.stop();
+        return;
+      }
+      const track = stream.getVideoTracks()[0];
+      live.stream = stream;
+      live.failed = 0;
+      live.offPolls = 0;
+      clearTimeout(previewTimer);
+      previewTimer = null;
+      track.onended = () => {
+        if (live.stream !== stream) return;
+        stopLive(false);
+        live.retryAt = Date.now() + 3000;
+        schedulePreview();
+      };
+      showLive(stream);
+      if (live.error) say('Live OBS preview is running.');
+      live.error = '';
+      const v = track.getSettings();
+      previewStatus.textContent =
+        'Live OBS preview · ' +
+        (v.width || '?') +
+        '×' +
+        (v.height || '?') +
+        ' · ' +
+        Math.round(v.frameRate || 0) +
+        ' FPS · no audio';
+    } catch (e) {
+      if (epoch === live.epoch) {
+        live.failed++;
+        live.retryAt = Date.now() + Math.min(30000, 3000 * live.failed);
+        const message = e?.message || 'camera error';
+        if (message !== live.error)
+          say('Live OBS preview unavailable: ' + message + ' Showing snapshots until it works.');
+        live.error = message;
+      }
+    } finally {
+      live.starting = false;
+    }
+  }
+  function checkVirtualCam() {
+    if (pref.mode !== 'live' || !state || state.virtualCam === null || state.virtualCam === undefined) return;
+    if (state.virtualCam) {
+      live.offPolls = 0;
+      if (live.stoppedInOBS) {
+        live.stoppedInOBS = false;
+        live.retryAt = 0;
+        schedulePreview();
+      }
+      return;
+    }
+    if (live.stream && ++live.offPolls >= 2) {
+      stopLive(false);
+      live.stoppedInOBS = true;
+      say(
+        'The OBS Virtual Camera was stopped in OBS, so the preview is showing snapshots. Start it in OBS again to return to live video.'
+      );
+      schedulePreview();
+    }
+  }
+  function previewAllowed() {
+    return (
+      (!window.relayVideoActive || studioOn()) &&
+      pref.enabled &&
+      online &&
+      !document.hidden &&
+      !$('studioPage').hidden &&
+      !$('canvasPanel').hidden
+    );
+  }
+  let previewStarted = 0,
+    previewFrames = 0,
+    previewMeasured = performance.now(),
+    previewActual = 0;
   function schedulePreview() {
     clearTimeout(previewTimer);
     previewTimer = null;
     if (!pref.enabled) {
+      stopLive(true);
       window.streamCanvas.preview('');
       previewStatus.textContent = 'OBS preview is off.';
       return;
     }
-    if (!previewAllowed()) return;
-    previewTimer = setTimeout(preview, pref.rate);
+    if (pref.mode !== 'live') stopLive(true);
+    if (!previewAllowed()) {
+      stopLive(false);
+      return;
+    }
+    if (live.stream && !liveWanted()) stopLive(false);
+    if (liveWanted()) {
+      if (live.stream && !studioOn()) return;
+      if (!live.stream) void startLive();
+    }
+    previewTimer = setTimeout(preview, Math.max(0, pref.rate - (performance.now() - previewStarted)));
   }
   async function preview() {
     previewTimer = null;
-    if (previewBusy || !previewAllowed()) return;
+    if (previewBusy || !previewAllowed() || (live.stream && !studioOn())) return;
     previewBusy = true;
+    previewStarted = performance.now();
     const epoch = previewEpoch;
     try {
-      const r = await call('preview', { width: pref.width });
+      const r = await call('preview', { width: pref.width, ...(studioOn() ? { scene: 'preview' } : {}) });
       if (epoch === previewEpoch && previewAllowed()) {
         window.streamCanvas.preview(r.image);
-        previewStatus.textContent = 'OBS program preview · ' + 1000 / pref.rate + ' fps · local image';
+        previewFrames++;
+        const elapsed = performance.now() - previewMeasured;
+        if (elapsed >= 1000) {
+          previewActual = (previewFrames * 1000) / elapsed;
+          previewFrames = 0;
+          previewMeasured = performance.now();
+        }
+        previewStatus.textContent =
+          (studioOn() ? 'OBS preview scene · ' : 'OBS preview · ') +
+          previewActual.toFixed(1) +
+          ' updates/s · target ' +
+          Math.round(1000 / pref.rate) +
+          ' FPS' +
+          (pref.mode === 'live' && live.error ? ' · live video unavailable: ' + live.error : '');
       }
     } catch (e) {
       window.streamCanvas.preview('');
@@ -524,10 +706,14 @@
       schedulePreview();
     }
   }
-  for (const id of ['obsPreviewEnabled', 'obsPreviewRate', 'obsPreviewWidth'])
+  for (const id of ['obsPreviewEnabled', 'obsPreviewMode', 'obsPreviewRate', 'obsPreviewWidth'])
     $(id).onchange = () => {
+      live.stoppedInOBS = false;
+      live.retryAt = 0;
+      live.failed = 0;
       pref = {
         enabled: $('obsPreviewEnabled').checked,
+        mode: $('obsPreviewMode').value === 'snapshots' ? 'snapshots' : 'live',
         rate: Number($('obsPreviewRate').value),
         width: Number($('obsPreviewWidth').value)
       };
@@ -550,6 +736,7 @@
     });
   bridge?.onOBS?.(e => {
     if (e.type === 'connection') {
+      if (!e.connected) stopLive(false);
       connection(e.connected);
       if (!e.connected) say('OBS disconnected. Reconnect in Settings → OBS.');
     } else if (e.type === 'meters' && meters) {
@@ -561,6 +748,7 @@
   });
   window.addEventListener('beforeunload', () => {
     clearTimeout(previewTimer);
+    stopLive(false);
     if (online) call('meters', { enabled: false }).catch(() => {});
   });
   $('obsAutoReconnect').checked = autoRetry;

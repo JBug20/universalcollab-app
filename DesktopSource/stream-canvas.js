@@ -144,8 +144,14 @@
     item.x = clamp(x / Math.max(0.000001, 1 - item.width), 0, 1);
     item.y = clamp(y / Math.max(0.000001, 1 - item.height), 0, 1);
   }
-  let obsImage = '';
+  let obsImage = '',
+    liveVideo = null;
   function previewImage(tile) {
+    if (liveVideo) {
+      tile.prepend(liveVideo);
+      if (liveVideo.paused) liveVideo.play().catch(() => {});
+      return;
+    }
     if (!obsImage) return;
     const img = document.createElement('img');
     img.className = 'obs-preview-image';
@@ -863,9 +869,33 @@
     },
     preview: data => {
       obsImage = data || '';
+      if (liveVideo) return;
       const tile = root.querySelector('[data-item="main"]');
       if (tile) {
         tile.querySelector('.obs-preview-image')?.remove();
+        previewImage(tile);
+      }
+    },
+    live: stream => {
+      if (stream) {
+        if (!liveVideo) {
+          liveVideo = document.createElement('video');
+          liveVideo.className = 'obs-preview-image obs-live-video';
+          liveVideo.muted = true;
+          liveVideo.autoplay = true;
+          liveVideo.playsInline = true;
+          liveVideo.disablePictureInPicture = true;
+          liveVideo.setAttribute('aria-label', 'Live OBS program output');
+        }
+        if (liveVideo.srcObject !== stream) liveVideo.srcObject = stream;
+      } else if (liveVideo) {
+        liveVideo.srcObject = null;
+        liveVideo.remove();
+        liveVideo = null;
+      }
+      const tile = root.querySelector('[data-item="main"]');
+      if (tile) {
+        tile.querySelector('img.obs-preview-image')?.remove();
         previewImage(tile);
       }
     },

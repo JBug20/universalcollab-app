@@ -218,6 +218,8 @@
               feed</label
             ><label
               >Refresh rate<select id="obsPreviewRate">
+                <option value="16.666666666666668">Up to 60 FPS · highest load</option>
+                <option value="33.333333333333336">Up to 30 FPS · high load</option>
                 <option value="2000">Every 2 seconds · lowest load</option>
                 <option selected="" value="1000">1 frame per second</option>
                 <option value="500">2 frames per second</option>
@@ -228,12 +230,18 @@
               >Preview width<select id="obsPreviewWidth">
                 <option value="320">320 pixels</option>
                 <option selected="" value="640">640 pixels</option>
-                <option value="1280">1280 pixels</option>
+                <option value="1280">1280 pixels · 720p</option>
+                <option value="1920">1920 pixels · 1080p</option>
+                <option value="2560">2560 pixels · 1440p</option>
               </select></label
             >
             <p class="hint">
-              A periodically refreshed image of the OBS program output, without audio. It does not show the
-              relay’s final outgoing feed. Turning it off stops image requests.
+              Live video shows the OBS program output in real time at OBS’s output resolution and frame rate,
+              before and during streaming, without audio. It starts the OBS Virtual Camera (OBS 28 or newer)
+              and stops it again when the preview is turned off or the app closes, unless it was already
+              running. If the virtual camera is unavailable, snapshots are used. Snapshots are periodically
+              refreshed images; their rate and width are set below. It does not show the relay’s final
+              outgoing feed.
             </p>
           </section>
           <section class="card" id="appearanceSettings">

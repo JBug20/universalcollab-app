@@ -81,8 +81,13 @@ export async function openStudio({
             mixer,
             stream: { outputActive: window.obsStreaming, ...window.obsStreamExtra },
             record: { outputActive: false },
+            virtualCam: window.obsVirtualCam ?? null,
             available: []
           };
+        if (op === 'virtualcam') {
+          window.obsVirtualCam = !!input.enabled;
+          return { active: !!input.enabled, startedByApp: true };
+        }
         if (op === 'start') {
           window.obsStreaming = true;
           return {};
