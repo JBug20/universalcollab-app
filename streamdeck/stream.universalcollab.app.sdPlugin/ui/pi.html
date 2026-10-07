@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>UniversalCollab</title>
+    <link rel="stylesheet" href="pi.css" />
+  </head>
+  <body>
+    <div class="row" id="choiceRow" hidden>
+      <label for="choice" id="choiceLabel">Choice</label>
+      <select id="choice"></select>
+    </div>
+    <p class="hint" id="choiceHint" hidden></p>
+    <details id="pairing">
+      <summary>Connection to UniversalCollab</summary>
+      <p class="hint">
+        In UniversalCollab choose Tools → Stream Deck → Enable Stream Deck control, then Copy pairing token
+        and paste it here. Every UniversalCollab key shares this connection.
+      </p>
+      <div class="row">
+        <label for="token">Pairing token</label>
+        <input id="token" type="password" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="row">
+        <label for="port">Port</label>
+        <input id="port" type="number" min="1024" max="65535" placeholder="18750" />
+      </div>
+      <div class="row"><span></span><button id="save" type="button">Save connection</button></div>
+    </details>
+    <p class="status" id="status" role="status">Checking connection…</p>
+    <script src="pi.js"></script>
+  </body>
+</html>

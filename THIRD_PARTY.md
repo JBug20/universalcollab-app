@@ -24,4 +24,4 @@ used with temporary local instances.
 ## rc.2 packaging
 The customer relay update contains an obfuscated program rather than the original module tree. The existing MIT notice remains in BASE-MIT-LICENSE.txt. No Node.js, FFmpeg or MediaMTX binary is bundled in that update. esbuild and javascript-obfuscator are build tools only; pinning information is in the private owner-source build files. Electron desktop packages retain their existing Electron/Chromium license files and the desktop MIT notice. No registry or activation is required.
 
-The desktop includes ws 8.18.3 (MIT) for optional OBS WebSocket setup. Its full notice is included in DesktopSource/vendor/ws/LICENSE.
+The desktop includes ws 8.18.3 (MIT) for optional OBS WebSocket setup. Its full notice is included in DesktopSource/vendor/ws/LICENSE. The Stream Deck plugin includes the same unmodified copy in streamdeck/stream.universalcollab.app.sdPlugin/bin/ws (with its LICENSE).

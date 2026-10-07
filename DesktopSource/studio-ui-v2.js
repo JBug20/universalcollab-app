@@ -312,6 +312,17 @@
       drawScenes();
     }
   }
+  // Stream Deck (remote-control.js): list relay scenes and switch by name, like clicking the scene button.
+  window.relayScenes = {
+    list: () =>
+      scenes.map(s => ({ name: s.name, selected: s.id === selectedScene, live: s.id === liveScene })),
+    switch: async name => {
+      const scene = scenes.find(s => s.name === name);
+      if (!scene) throw Error('There is no relay scene called "' + name + '".');
+      if (switching || busy) throw Error('A relay scene change is already in progress. Try again.');
+      await switchScene(scene.id);
+    }
+  };
   const sceneName = () => {
     const n = $('sceneName').value.trim();
     if (!n) throw Error('Enter a scene name.');

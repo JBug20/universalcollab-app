@@ -1,0 +1,214 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "Name": "UniversalCollab",
+  "Version": "1.2.0.0",
+  "Author": "UniversalCollab",
+  "Description": "Control UniversalCollab from Stream Deck: stream, recording, clips, OBS and relay scenes, Studio Mode, audio and Stream Assist.",
+  "URL": "https://github.com/JBug20/universalcollab-app",
+  "UUID": "stream.universalcollab.app",
+  "SDKVersion": 2,
+  "Software": {
+    "MinimumVersion": "6.5"
+  },
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "CodePath": "bin/plugin.js",
+  "Nodejs": {
+    "Version": "20",
+    "Debug": "disabled"
+  },
+  "Icon": "imgs/plugin",
+  "Category": "UniversalCollab",
+  "CategoryIcon": "imgs/category",
+  "Actions": [
+    {
+      "UUID": "stream.universalcollab.app.stream",
+      "Name": "Start / Stop Stream",
+      "Tooltip": "Start streaming, or stop (press twice within 3 seconds).",
+      "Icon": "imgs/actions/stream",
+      "PropertyInspectorPath": "ui/pi.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/keys/stream-off",
+          "Name": "Not live"
+        },
+        {
+          "Image": "imgs/keys/stream-on",
+          "Name": "Live"
+        }
+      ]
+    },
+    {
+      "UUID": "stream.universalcollab.app.record",
+      "Name": "Start / Stop Recording",
+      "Tooltip": "Start or stop the local OBS recording.",
+      "Icon": "imgs/actions/record",
+      "PropertyInspectorPath": "ui/pi.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/keys/record-off",
+          "Name": "Not recording"
+        },
+        {
+          "Image": "imgs/keys/record-on",
+          "Name": "Recording"
+        }
+      ]
+    },
+    {
+      "UUID": "stream.universalcollab.app.clip",
+      "Name": "Clip",
+      "Tooltip": "Save the last seconds of the stream as a video file (OBS replay buffer).",
+      "Icon": "imgs/actions/clip",
+      "PropertyInspectorPath": "ui/pi.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/keys/clip"
+        }
+      ]
+    },
+    {
+      "UUID": "stream.universalcollab.app.endrelay",
+      "Name": "End Relay",
+      "Tooltip": "End the relay broadcast and stop OBS streaming (press twice within 3 seconds).",
+      "Icon": "imgs/actions/endrelay",
+      "PropertyInspectorPath": "ui/pi.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/keys/endrelay-off",
+          "Name": "No broadcast"
+        },
+        {
+          "Image": "imgs/keys/endrelay-on",
+          "Name": "Broadcasting"
+        }
+      ]
+    },
+    {
+      "UUID": "stream.universalcollab.app.obsscene",
+      "Name": "OBS Scene",
+      "Tooltip": "Switch to an OBS scene (the preview scene in Studio Mode).",
+      "Icon": "imgs/actions/obsscene",
+      "PropertyInspectorPath": "ui/pi.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/keys/obsscene-off",
+          "Name": "Other scene"
+        },
+        {
+          "Image": "imgs/keys/obsscene-on",
+          "Name": "This scene"
+        }
+      ]
+    },
+    {
+      "UUID": "stream.universalcollab.app.relayscene",
+      "Name": "Relay Scene",
+      "Tooltip": "Switch to a relay scene (opens in Preview in Studio Mode).",
+      "Icon": "imgs/actions/relayscene",
+      "PropertyInspectorPath": "ui/pi.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/keys/relayscene-off",
+          "Name": "Other scene"
+        },
+        {
+          "Image": "imgs/keys/relayscene-on",
+          "Name": "This scene"
+        }
+      ]
+    },
+    {
+      "UUID": "stream.universalcollab.app.studiomode",
+      "Name": "Studio Mode",
+      "Tooltip": "Turn Studio Mode (Preview / Program) on or off.",
+      "Icon": "imgs/actions/studiomode",
+      "PropertyInspectorPath": "ui/pi.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/keys/studiomode-off",
+          "Name": "Off"
+        },
+        {
+          "Image": "imgs/keys/studiomode-on",
+          "Name": "On"
+        }
+      ]
+    },
+    {
+      "UUID": "stream.universalcollab.app.transition",
+      "Name": "Transition",
+      "Tooltip": "Send Preview to the stream (Studio Mode).",
+      "Icon": "imgs/actions/transition",
+      "PropertyInspectorPath": "ui/pi.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/keys/transition"
+        }
+      ]
+    },
+    {
+      "UUID": "stream.universalcollab.app.mute",
+      "Name": "Mute Audio",
+      "Tooltip": "Mute or unmute an OBS audio source.",
+      "Icon": "imgs/actions/mute",
+      "PropertyInspectorPath": "ui/pi.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/keys/mute-off",
+          "Name": "Audio on"
+        },
+        {
+          "Image": "imgs/keys/mute-on",
+          "Name": "Muted"
+        }
+      ]
+    },
+    {
+      "UUID": "stream.universalcollab.app.assist",
+      "Name": "Stream Assist",
+      "Tooltip": "Run a Stream Assist action: sound, desktop alerts, sample alerts, chat pop-out and more.",
+      "Icon": "imgs/actions/assist",
+      "PropertyInspectorPath": "ui/pi.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/keys/assist"
+        }
+      ]
+    }
+  ]
+}

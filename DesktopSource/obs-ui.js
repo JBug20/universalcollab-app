@@ -77,36 +77,53 @@
       buttons();
     }
   }
-  const start = btn('Start Stream', async () => {
+  // Shared by the buttons and Stream Deck (window.streamControls below). `ask` shows the confirmations
+  // the buttons use; a Stream Deck key confirms with a second press instead.
+  async function startStream() {
     if (!online) throw Error('Connect OBS in Settings → OBS first.');
+    if (state?.stream?.outputActive) return 'Already live.';
+    if (!connected || uncertain) throw Error('Connect to the relay first.');
+    if (draftPending) throw Error('Apply or discard the offline layout first.');
     await call('start', { automatic: $('obsMode').value === 'auto' });
     say('Stream started in OBS.');
     // Start the replay buffer with the stream so the first Clip already has footage (skipped if it is off in OBS).
     call('replay-start').catch(() => {});
     await poll();
-  });
-  start.id = 'startStream';
-  $('newStream').after(start);
-  const stop = btn('Stop Stream', async () => {
+    return 'Stream started.';
+  }
+  async function stopStream(ask) {
+    if (!state?.stream?.outputActive) return 'Not live.';
     if (
-      confirm(
+      ask &&
+      !confirm(
         'Stop sending your OBS feed? Your relay may continue broadcasting its fallback until you end the relay broadcast.'
       )
-    ) {
-      await call('stream-stop');
-      say('OBS stream stopped.');
+    )
+      return;
+    await call('stream-stop');
+    say('OBS stream stopped.');
+    await poll();
+    return 'Stream stopped.';
+  }
+  async function toggleRecord(ask) {
+    if (!online) throw Error('Connect OBS in Settings → OBS first.');
+    if (state?.record?.outputActive) {
+      if (ask && !confirm('Stop the local OBS recording?')) return;
+      await call('record-stop');
       await poll();
+      return 'Recording stopped.';
     }
-  });
+    await call('record-start');
+    await poll();
+    return 'Recording started.';
+  }
+  const start = btn('Start Stream', startStream);
+  start.id = 'startStream';
+  $('newStream').after(start);
+  const stop = btn('Stop Stream', () => stopStream(true));
   stop.id = 'stopOBSStream';
   start.after(stop);
-  const record = btn('Start Recording', async () => {
-    if (state?.record?.outputActive) {
-      if (!confirm('Stop the local OBS recording?')) return;
-      await call('record-stop');
-    } else await call('record-start');
-    await poll();
-  });
+  const record = btn('Start Recording', () => toggleRecord(true));
   record.id = 'obsRecord';
   stop.after(record);
   // Clip: saves the last seconds of OBS output (OBS replay buffer) as a video file in OBS's recording folder.
@@ -115,13 +132,14 @@
   clipNote.className = 'hint';
   clipNote.setAttribute('role', 'status');
   clipNote.hidden = true;
-  const clip = btn('Clip', async () => {
+  async function saveClip() {
+    if (!online) throw Error('Connect OBS in Settings → OBS first.');
     const r = await call('clip');
     clipNote.replaceChildren();
     clipNote.hidden = false;
     if (r.started) {
       clipNote.textContent = `Replay buffer started. Press Clip again to save the last ${r.seconds || 'few'} seconds.`;
-      return;
+      return 'Replay buffer started.';
     }
     const file = r.path ? r.path.split(/[\\/]/).pop() : '';
     clipNote.append(file ? 'Clip saved: ' + file + ' ' : "Clip saved in OBS's recording folder.");
@@ -132,7 +150,9 @@
       });
       clipNote.append(show);
     }
-  });
+    return 'Clip saved.';
+  }
+  const clip = btn('Clip', saveClip);
   clip.id = 'obsClip';
   clip.title = 'Save the last seconds of your stream as a video file (OBS replay buffer)';
   // Start Recording and Clip share a row (like End Relay and its settings) to keep Stream controls short.
@@ -143,6 +163,51 @@
   recordRow.after(clipNote);
   clipNote.after($('end'));
   $('end').hidden = false;
+  // Stream Deck runs the same actions; errors go back to the key instead of the status line.
+  async function remote(fn) {
+    if (working) throw Error('UniversalCollab is busy with another action. Try again.');
+    working = true;
+    buttons();
+    try {
+      return await fn();
+    } finally {
+      working = false;
+      buttons();
+    }
+  }
+  window.streamControls = {
+    state: () => ({
+      online,
+      live: !!state?.stream?.outputActive,
+      recording: !!state?.record?.outputActive,
+      scenes: (state?.scenes || []).map(s => s.sceneName),
+      current: state?.current || '',
+      preview: state?.preview || '',
+      inputs: (state?.mixer || []).map(i => ({ name: i.inputName, muted: !!i.inputMuted }))
+    }),
+    start: () => remote(startStream),
+    stop: () => remote(() => stopStream(false)),
+    record: () => remote(() => toggleRecord(false)),
+    clip: () => remote(saveClip),
+    scene: name =>
+      remote(async () => {
+        if (!online) throw Error('Connect OBS in Settings → OBS first.');
+        if (!(state?.scenes || []).some(s => s.sceneName === name))
+          throw Error('OBS has no scene called "' + name + '".');
+        // Same as clicking the scene: in Studio Mode it becomes the preview scene.
+        if (state.studioMode) await call('preview-scene', { sceneName: name });
+        else await call('scene-switch', { sceneName: name });
+        await poll();
+      }),
+    mute: name =>
+      remote(async () => {
+        const input = (state?.mixer || []).find(i => i.inputName === name);
+        if (!input) throw Error('OBS has no audio source called "' + name + '".');
+        await call('mute', { inputName: name, muted: !input.inputMuted });
+        await poll();
+        return input.inputMuted ? 'Unmuted.' : 'Muted.';
+      })
+  };
   function buttons() {
     start.hidden = !!state?.stream?.outputActive;
     stop.hidden = !online || !state?.stream?.outputActive;

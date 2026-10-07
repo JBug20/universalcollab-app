@@ -122,6 +122,7 @@
     Panels: [],
     Tools: [
       ['Collaboration centre', () => window.openAssistCollaboration?.()],
+      ['Stream Deck', () => window.openStreamDeckSettings?.()],
       ['OBS Connection', settings('obs')],
       ['Platform connections', settings('connections')],
       ['Relay connection', settings('relay')],

@@ -59,6 +59,24 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
           obsListener = null;
         };
       },
+      // Stream Deck control: tests drive window.remoteCommand and read window.remoteReplies / remoteStateLast.
+      remote: async input => {
+        calls.push({ remote: input.op });
+        return {
+          ok: true,
+          enabled: input.op === 'enable',
+          port: 18750,
+          clients: 0,
+          paired: input.op === 'enable'
+        };
+      },
+      onRemoteCommand: callback => {
+        window.remoteCommand = callback;
+      },
+      remoteReply: result => (window.remoteReplies ||= []).push(result),
+      remoteState: state => {
+        window.remoteStateLast = state;
+      },
       obs: async (op, input = {}) => {
         calls.push({ obs: op, input });
         if (op === 'state' || op === 'connect' || op === 'auto-connect') return { connected: true };

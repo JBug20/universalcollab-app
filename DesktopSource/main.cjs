@@ -117,6 +117,14 @@ app.whenReady().then(() => {
   require('./browser-sources.cjs').start({ app, ipcMain, guard, BrowserWindow, session, mainWindow: win });
   layoutMedia = require('./layout-media.cjs').start({ app, ipcMain, guard });
   require('./assist-engine.cjs').start({ app, ipcMain, guard, getWindow: () => win });
+  require('./remote-control.cjs').start({
+    app,
+    ipcMain,
+    guard,
+    getWindow: () => win,
+    safeStorage,
+    clipboard
+  });
   require('./collaboration-service.cjs').start({ app, ipcMain, guard, servers });
   // Recover from a crashed or frozen display process instead of leaving a blank window. Reasons are logged to userData/renderer-problems.log.
   {

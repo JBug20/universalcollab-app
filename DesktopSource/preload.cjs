@@ -4,6 +4,15 @@ contextBridge.exposeInMainWorld('relayDesktop', {
   layoutMedia: input => ipcRenderer.invoke('layout-media', input),
   browserSource: input => ipcRenderer.invoke('browser-source', input),
   assist: input => ipcRenderer.invoke('integrated-assist', input),
+  // Stream Deck control (remote-control.cjs / remote-control.js).
+  remote: input => ipcRenderer.invoke('remote-control', input),
+  onRemoteCommand: callback => {
+    const fn = (_event, data) => callback(data);
+    ipcRenderer.on('remote-command', fn);
+    return () => ipcRenderer.removeListener('remote-command', fn);
+  },
+  remoteReply: result => ipcRenderer.send('remote-result', result),
+  remoteState: state => ipcRenderer.send('remote-state', state),
   collaboration: input => ipcRenderer.invoke('notify-collaboration', input),
   maintenance: async op => {
     const r = await ipcRenderer.invoke('app-maintenance', op);
