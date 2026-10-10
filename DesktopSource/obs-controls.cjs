@@ -130,6 +130,43 @@ class OBSControls {
     }
     return { ...s, saved: true, path: '' };
   }
+  // Pre-stream readiness (readiness.js): read-only. The encoders come from the OBS profile (Simple or Advanced
+  // output mode); the relay needs H.264 video and AAC audio.
+  async readiness() {
+    const param = async (parameterCategory, parameterName) => {
+      try {
+        return (
+          (await this.call('GetProfileParameter', { parameterCategory, parameterName })).parameterValue || ''
+        );
+      } catch {
+        return '';
+      }
+    };
+    const mode = (await param('Output', 'Mode')) || 'Simple';
+    const advanced = mode === 'Advanced';
+    const encoder = advanced
+      ? await param('AdvOut', 'Encoder')
+      : await param('SimpleOutput', 'StreamEncoder');
+    const audioEncoder = advanced ? await param('AdvOut', 'AudioEncoder') : '';
+    // Replay buffer turned on in the profile (needed for Clip).
+    const replayEnabled = (await param(advanced ? 'AdvOut' : 'SimpleOutput', 'RecRB')) === 'true';
+    const safe = p => p.catch(() => null);
+    const [video, stream, record, replay] = await Promise.all([
+      safe(this.call('GetVideoSettings')),
+      safe(this.call('GetStreamStatus')),
+      safe(this.call('GetRecordStatus')),
+      safe(this.replayStatus())
+    ]);
+    return {
+      mode,
+      encoder,
+      audioEncoder,
+      video,
+      streaming: !!stream?.outputActive,
+      recording: !!record?.outputActive,
+      replay: replay && { supported: !!replay.supported, enabled: replayEnabled, active: !!replay.active }
+    };
+  }
   async handle(op, i = {}) {
     if (!this.link.ready) throw Error('Connect OBS first.');
     if (!this.available) await this.init();
@@ -235,6 +272,7 @@ class OBSControls {
         throw Error('Stop recording before changing its folder.');
       return this.call('SetRecordDirectory', { recordDirectory: name(i.directory) });
     }
+    if (op === 'readiness') return this.readiness();
     if (op === 'replay-status') return this.replayStatus();
     if (op === 'replay-start') return this.replayStart();
     if (op === 'clip') return this.clip();

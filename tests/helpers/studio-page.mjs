@@ -150,6 +150,19 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
           window.obsStreaming = false;
           return {};
         }
+        if (op === 'readiness')
+          return (
+            window.fakeReadiness || {
+              mode: 'Simple',
+              encoder: 'x264',
+              audioEncoder: '',
+              video: { outputWidth: 1920, outputHeight: 1080, fpsNumerator: 60, fpsDenominator: 1 },
+              streaming: !!window.obsStreaming,
+              recording: !!window.obsRecording,
+              replay: { supported: true, enabled: true, active: false },
+              recordFolder: { ok: true, folder: 'D:\\Rec' }
+            }
+          );
         if (op === 'record-start') {
           window.obsRecording = true;
           return {};

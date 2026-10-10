@@ -37,4 +37,22 @@ function check(dir) {
   return folder;
 }
 
+// Read-only version for the readiness check: nothing is created or written.
+function status(dir) {
+  const folder = typeof dir === 'string' ? dir.trim() : '';
+  if (!folder) return { ok: false, error: 'OBS has no recordings folder set.' };
+  try {
+    if (!fs.statSync(folder).isDirectory()) return { ok: false, folder, error: folder + ' is not a folder.' };
+  } catch {
+    return { ok: false, folder, error: folder + ' does not exist (is the drive connected?).' };
+  }
+  try {
+    fs.accessSync(folder, fs.constants.W_OK);
+  } catch {
+    return { ok: false, folder, error: 'No permission to save recordings in ' + folder + '.' };
+  }
+  return { ok: true, folder };
+}
+
 exports.check = check;
+exports.status = status;

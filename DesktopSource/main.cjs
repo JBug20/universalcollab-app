@@ -485,6 +485,12 @@ app.whenReady().then(() => {
           await obsControls.handle('record-directory', { directory });
           return { ok: true, data: { directory } };
         }
+        // Pre-stream readiness: read-only.
+        if (op === 'readiness') {
+          const data = await obsControls.handle('readiness');
+          const dir = (await obsControls.handle('settings').catch(() => null))?.record?.recordDirectory;
+          return { ok: true, data: { ...data, recordFolder: require('./record-folder.cjs').status(dir) } };
+        }
         if (op === 'record-dir-open') {
           const dir = (await obsControls.handle('settings')).record?.recordDirectory;
           if (!dir || !fs.existsSync(dir)) throw Error('The recordings folder does not exist yet.');

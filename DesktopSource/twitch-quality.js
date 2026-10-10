@@ -84,6 +84,8 @@
           )
         : [];
     }
+    // The readiness check (readiness.js) shows the same comparison.
+    window.twitchQuality.currentGaps = prepareGaps;
     function paintPrepare() {
       const gaps = prepareGaps();
       warning.hidden = !gaps.length;

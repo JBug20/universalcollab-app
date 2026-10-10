@@ -46,6 +46,11 @@ You need:
   - [ ] "Alert sound when a destination drops" turns the sound off.
 - [ ] Stream controls on a short window (e.g. 1280×800): Destination health is not cut off; scroll if needed.
 
+- [ ] **Readiness check** (Tools → Check stream readiness, or Stream controls ⋯ → Check readiness):
+  - [ ] Before preparing a stream it says "Not ready" and lists what's missing.
+  - [ ] Set OBS to an HEVC or AV1 encoder: it's listed under "Fix before going live". Set it back to H.264: it's ready.
+  - [ ] Nothing in OBS or the relay changes just by checking.
+
 ## 4. Recording, clips and storage
 
 - [ ] Start Recording, then stop: the file is in OBS's recordings folder.

@@ -1770,3 +1770,54 @@ footer span {
   border-color: #ff5d5d;
   color: #ffb0b0;
 }
+/* Pre-stream readiness (readiness.js). */
+#readinessWindow {
+  max-width: 640px;
+}
+.readiness-summary {
+  font-weight: 700;
+  font-size: 15px;
+}
+.readiness-summary[data-level='block'] {
+  color: #ff8a8a;
+}
+.readiness-summary[data-level='warn'] {
+  color: #ffd76a;
+}
+.readiness-summary[data-level='ok'] {
+  color: #7ee2a2;
+}
+.readiness-group h3 {
+  margin: 12px 0 4px;
+  font-size: 13px;
+}
+.readiness-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.readiness-group li {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.readiness-mark {
+  flex: none;
+  width: 16px;
+  text-align: center;
+  font-weight: 700;
+}
+.readiness-group.block .readiness-mark {
+  color: #ff6b6b;
+}
+.readiness-group.warn .readiness-mark {
+  color: #f2c230;
+}
+.readiness-group.info .readiness-mark {
+  color: #8fb7ff;
+}
+.readiness-group.ok .readiness-mark {
+  color: #3ecf6e;
+}

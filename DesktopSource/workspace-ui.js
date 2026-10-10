@@ -124,6 +124,7 @@
       ['Collaboration centre', () => window.openAssistCollaboration?.()],
       ['Stream Deck', () => window.openStreamDeckSettings?.()],
       ['Keyboard shortcuts', () => window.openKeyboardShortcuts?.()],
+      ['Check stream readiness', () => window.openReadiness?.()],
       ['OBS Connection', settings('obs')],
       [
         'Recordings folder',
