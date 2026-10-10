@@ -6,13 +6,16 @@ try {
   await page.waitForFunction(() => calls.some(c => c.obs === 'own-obs-autostart'));
   await page.evaluate(() => {
     const original = window.relayDesktop.obs;
-    let enabled = false;
+    let enabled = false,
+      closeOnQuit = false;
     window.relayDesktop.obs = async (op, input = {}) => {
       if (op === 'own-obs-info' || op === 'own-obs-set') {
         calls.push({ obs: op, input });
-        if (op === 'own-obs-set') enabled = input.enabled;
+        if (op === 'own-obs-set' && 'enabled' in input) enabled = input.enabled;
+        if (op === 'own-obs-set' && 'closeOnQuit' in input) closeOnQuit = input.closeOnQuit;
         return {
           enabled,
+          closeOnQuit,
           found: true,
           chosen: false,
           path: 'C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe'
@@ -31,6 +34,9 @@ try {
   await page.locator('#ownOBSAutostart').check();
   await page.waitForFunction(() => calls.some(c => c.obs === 'own-obs-set' && c.input.enabled === true));
   assert.match(await box.innerText(), /Start my OBS with UniversalCollab, minimized to the tray/);
+  await page.locator('#ownOBSCloseOnQuit').check();
+  await page.waitForFunction(() => calls.some(c => c.obs === 'own-obs-set' && c.input.closeOnQuit === true));
+  assert.match(await box.innerText(), /Close my OBS when UniversalCollab closes/);
   assert.deepEqual(errors, []);
   console.log('PASS own OBS UI: start-up launch requested, setting shown in Connect OBS and saved.');
 } finally {

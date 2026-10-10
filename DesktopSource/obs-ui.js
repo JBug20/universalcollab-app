@@ -993,20 +993,29 @@
     const label = node('label');
     label.className = 'check-row';
     label.append(check, ' Start my OBS with UniversalCollab, minimized to the tray');
+    const closeCheck = node('input');
+    closeCheck.type = 'checkbox';
+    closeCheck.id = 'ownOBSCloseOnQuit';
+    const closeLabel = node('label');
+    closeLabel.className = 'check-row';
+    closeLabel.append(closeCheck, ' Close my OBS when UniversalCollab closes');
     const where = node('p');
     where.className = 'hint';
     where.id = 'ownOBSPath';
     const find = btn('Choose OBS program…', async () => paint(await call('own-obs-browse')));
     find.id = 'ownOBSBrowse';
-    box.append(label, where, find);
+    box.append(label, closeLabel, where, find);
     $('automaticOBS').insertBefore(box, $('obsFeedback'));
     function paint(info) {
       check.checked = !!info?.enabled;
+      closeCheck.checked = !!info?.closeOnQuit;
       where.textContent = info?.found
         ? 'OBS: ' + info.path + (info.chosen ? '' : ' (found automatically)')
         : 'OBS was not found. Choose obs64.exe (usually in C:\\Program Files\\obs-studio\\bin\\64bit).';
     }
     check.onchange = () => run(async () => paint(await call('own-obs-set', { enabled: check.checked })));
+    closeCheck.onchange = () =>
+      run(async () => paint(await call('own-obs-set', { closeOnQuit: closeCheck.checked })));
     const refresh = async () => {
       box.hidden = useBundled();
       if (!box.hidden) paint(await call('own-obs-info').catch(() => null));

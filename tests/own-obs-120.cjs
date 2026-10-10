@@ -79,8 +79,67 @@ const assert = require('node:assert/strict'),
     r = await o.handle('own-obs-autostart');
     assert.equal(r.alreadyRunning, true);
     assert.equal(spawned.length, 1);
+    // Close my OBS when UniversalCollab closes: saved, then OBS is asked to close, and forced only if it stays.
+    assert.equal(o.closeOnQuit, false);
+    await assert.rejects(o.handle('own-obs-set', { closeOnQuit: 'yes' }), /Invalid/);
+    assert.equal((await o.handle('own-obs-set', { closeOnQuit: true })).closeOnQuit, true);
+    assert.equal(make().closeOnQuit, true, 'remembered after a restart');
+    const asked = [];
+    let alive = ['4321'];
+    // The saved OBS program, as "Choose OBS program…" stores it.
+    fs.writeFileSync(
+      path.join(dir, 'own-obs.json'),
+      JSON.stringify({ enabled: true, closeOnQuit: true, path: exe })
+    );
+    const closer2 = own.create({
+      app: { getPath: () => dir },
+      dialog: {},
+      getWindow: () => null,
+      platform: 'win32',
+      query: async (cmd, args) => {
+        asked.push([cmd, args]);
+        if (cmd === 'powershell') return alive.join('\r\n');
+        if (cmd === 'taskkill' && !args.includes('/F')) setTimeout(() => (alive = []), 30);
+        return '';
+      }
+    });
+    asked.length = 0;
+    alive = ['4321'];
+    let c = await closer2.close({ timeout: 2000, poll: 20 });
+    assert.deepEqual(c, { closed: true, forced: false });
+    const ps = asked.find(([cmd]) => cmd === 'powershell')[1].at(-1);
+    assert(ps.includes(`$_.Path -eq '${exe}'`), 'only OBS running from this exact program is closed');
+    assert.deepEqual(
+      asked.find(([cmd]) => cmd === 'taskkill')[1],
+      ['/PID', '4321', '/T'],
+      'asked to close, not forced'
+    );
+    // An OBS that will not close is forced after the wait.
+    const stubborn = own.create({
+      app: { getPath: () => dir },
+      dialog: {},
+      getWindow: () => null,
+      platform: 'win32',
+      query: async (cmd, args) => {
+        asked.push([cmd, args]);
+        return cmd === 'powershell' ? '777' : '';
+      }
+    });
+    asked.length = 0;
+    c = await stubborn.close({ timeout: 100, poll: 20 });
+    assert.deepEqual(c, { closed: true, forced: true });
+    assert(asked.some(([cmd, args]) => cmd === 'taskkill' && args.includes('/F')));
+    // Not running: nothing to close.
+    const idle = own.create({
+      app: { getPath: () => dir },
+      dialog: {},
+      getWindow: () => null,
+      platform: 'win32',
+      query: async () => ''
+    });
+    assert.deepEqual(await idle.close({ timeout: 100, poll: 20 }), { closed: false });
     console.log(
-      'PASS own OBS: found via registry/folders, starts once in the tray, not when running, OBS only.'
+      'PASS own OBS: found, starts once in the tray, not when running, OBS only; closes on quit, gently then forced.'
     );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

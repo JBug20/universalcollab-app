@@ -851,8 +851,15 @@ async function firstRunScene() {
 let quitAfterCamera = false,
   quitAfterOBS = false;
 app.on('before-quit', e => {
-  // Close the included OBS with the app: stop its stream and recording first so files are finished.
-  if (!quitAfterOBS && bundledOBS?.running) {
+  // Close OBS with the app: the included OBS always, your own OBS when "Close my OBS when UniversalCollab
+  // closes" is on (own-obs.cjs). Stop its stream and recording first so files are finished.
+  let closeOwn = false;
+  try {
+    closeOwn =
+      !bundledOBS?.running &&
+      (ownOBS ||= require('./own-obs.cjs').create({ app, dialog, getWindow: () => win })).closeOnQuit;
+  } catch {}
+  if (!quitAfterOBS && (bundledOBS?.running || closeOwn)) {
     quitAfterOBS = true;
     e.preventDefault();
     (async () => {
@@ -884,7 +891,8 @@ app.on('before-quit', e => {
         ]);
       }
       obs?.close();
-      await bundledOBS.stop();
+      if (bundledOBS?.running) await bundledOBS.stop();
+      else await ownOBS.close();
       app.quit();
     })().catch(() => app.quit());
     return;

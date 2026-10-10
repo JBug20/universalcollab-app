@@ -1,7 +1,8 @@
 'use strict';
 // Start the user's own OBS (not the bundled copy) when UniversalCollab opens, minimized to the system tray.
 // Off unless chosen in Connect OBS. OBS is only started if it is not already running, and it keeps running when
-// UniversalCollab quits (the user owns it). Only an OBS program (obs64.exe / obs) can be set as the path.
+// UniversalCollab quits (the user owns it) unless "Close my OBS when UniversalCollab closes" is on. Only an OBS
+// program (obs64.exe / obs) can be set as the path, and closing only touches OBS processes running that program.
 const fs = require('node:fs'),
   path = require('node:path'),
   { spawn, execFile } = require('node:child_process');
@@ -63,10 +64,14 @@ exports.create = ({
   query = run
 }) => {
   const file = path.join(app.getPath('userData'), 'own-obs.json');
-  let settings = { enabled: false, path: '' };
+  let settings = { enabled: false, closeOnQuit: false, path: '' };
   try {
     const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-    settings = { enabled: saved.enabled === true, path: isOBS(saved.path) ? saved.path : '' };
+    settings = {
+      enabled: saved.enabled === true,
+      closeOnQuit: saved.closeOnQuit === true,
+      path: isOBS(saved.path) ? saved.path : ''
+    };
   } catch {}
   const save = () => {
     fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -77,14 +82,59 @@ exports.create = ({
   const exe = async () => (isOBS(settings.path) ? settings.path : await find({ platform, query }));
   const info = async () => {
     const found = await exe();
-    return { enabled: settings.enabled, path: found, chosen: !!settings.path, found: !!found, launched };
+    return {
+      enabled: settings.enabled,
+      closeOnQuit: settings.closeOnQuit,
+      path: found,
+      chosen: !!settings.path,
+      found: !!found,
+      launched
+    };
   };
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  // Process IDs of OBS running from exactly this program (so the included OBS or anything else is never touched).
+  async function pids(target) {
+    if (platform === 'win32') {
+      const quoted = "'" + target.replace(/'/g, "''") + "'";
+      const out = await query('powershell', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `(Get-Process -Name obs64 -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq ${quoted} }).Id`
+      ]);
+      return out.split(/\s+/).filter(v => /^\d+$/.test(v));
+    }
+    return (await query('pgrep', ['-x', 'obs'])).split(/\s+/).filter(v => /^\d+$/.test(v));
+  }
   return {
+    // Checked synchronously when the app starts quitting; the close itself is async.
+    get closeOnQuit() {
+      return settings.closeOnQuit;
+    },
+    // Ask OBS to close normally (it saves its settings); force it only if it is still running after `timeout`.
+    async close({ timeout = 10000, poll = 500 } = {}) {
+      const target = await exe();
+      if (!target) return { closed: false };
+      let list = await pids(target);
+      if (!list.length) return { closed: false };
+      const kill = (force, ids) =>
+        platform === 'win32'
+          ? query('taskkill', [...ids.flatMap(id => ['/PID', id]), '/T', ...(force ? ['/F'] : [])])
+          : query('kill', [force ? '-KILL' : '-TERM', ...ids]);
+      await kill(false, list);
+      for (const end = Date.now() + timeout; Date.now() < end; await wait(poll)) {
+        list = await pids(target);
+        if (!list.length) return { closed: true, forced: false };
+      }
+      await kill(true, list);
+      return { closed: true, forced: true };
+    },
     async handle(op, input = {}) {
       if (op === 'own-obs-info') return info();
       if (op === 'own-obs-set') {
-        if (typeof input.enabled !== 'boolean') throw Error('Invalid setting.');
-        settings.enabled = input.enabled;
+        const keys = ['enabled', 'closeOnQuit'].filter(k => k in input);
+        if (!keys.length || keys.some(k => typeof input[k] !== 'boolean')) throw Error('Invalid setting.');
+        for (const k of keys) settings[k] = input[k];
         save();
         return info();
       }
