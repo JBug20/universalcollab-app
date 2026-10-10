@@ -1331,7 +1331,9 @@ footer span {
   margin: 0;
 }
 @media (max-width: 1100px) {
-  .status-seg.disk,
+  /* Storage stays visible on narrow windows when it is nearly full. */
+  .status-seg.disk:not(.warn):not(.crit),
+  .status-seg.local:not(.warn):not(.crit),
   .status-seg.upload {
     display: none;
   }
@@ -1683,4 +1685,26 @@ footer span {
 }
 .quality-warning[hidden] {
   display: none;
+}
+/* Destination alerts (destination-alerts.js). */
+.destination-alert-sound {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #a9a2bb;
+}
+/* Stream controls scroll instead of cutting off Destination health when the window is short. */
+#streamsPanel {
+  overflow-y: auto;
+}
+/* While a destination or Twitch warning is showing, its text replaces the "hover over an icon" hint. */
+#destinationHealthCard:has(.quality-warning:not([hidden])) > .hint {
+  display: none;
+}
+#streamsPanel > .dock-handle {
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }

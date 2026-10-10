@@ -64,6 +64,34 @@ try {
   assert.equal(await notice.isVisible(), false);
   await win.getByRole('button', { name: 'Open release page' }).click();
   await page.waitForFunction(() => calls.some(c => c.appUpdate === 'open-page'));
+  // Settings backups: listed newest first with Restore, which asks first.
+  assert.match(await win.textContent(), /No backups yet/);
+  await page.evaluate(() => {
+    window.fakeBackups = {
+      restored: null,
+      backups: [
+        { id: 'b2', label: 'Before updating to 1.2.0-preview.3', at: Date.UTC(2026, 9, 12), bytes: 1000 },
+        { id: 'b1', label: 'Before updating to 1.2.0-preview.2', at: Date.UTC(2026, 9, 10), bytes: 900 }
+      ]
+    };
+  });
+  await win.getByRole('button', { name: 'Close' }).click();
+  await page.evaluate(() => window.openAppUpdates());
+  const rows = win.locator('.settings-backups li');
+  await page.waitForFunction(
+    () => document.querySelectorAll('#appUpdateWindow .settings-backups li button').length === 2
+  );
+  assert.match(await rows.first().textContent(), /Before updating to 1\.2\.0-preview\.3/);
+  page.once('dialog', d => d.dismiss());
+  await rows.nth(1).getByRole('button', { name: 'Restore' }).click();
+  await page.waitForTimeout(200);
+  assert.ok(
+    !(await page.evaluate(() => calls.some(c => c.appUpdate === 'restore-backup'))),
+    'Cancel does nothing'
+  );
+  page.once('dialog', d => d.accept());
+  await rows.nth(1).getByRole('button', { name: 'Restore' }).click();
+  await page.waitForFunction(() => calls.find(c => c.appUpdate === 'restore-backup')?.input.id === 'b1');
   assert.deepEqual(errors, []);
   console.log(
     'PASS app updates window: check, automatic setting, update ready notice, restart, release page.'

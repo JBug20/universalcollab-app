@@ -1,6 +1,8 @@
 'use strict';
 // Status bar along the bottom of the window, like OBS: relay connection, broadcast time and frame
-// rate, destinations, relay CPU, memory and upload, your own recording storage, and warnings. Click it for details.
+// rate, destinations, relay CPU, memory and upload, your own recording storage on the relay, free space on this PC
+// (the drive OBS records to), and warnings. Storage nearly full turns yellow (red when almost none is left) and
+// says so once in the notice line. Click it for details.
 (async () => {
   await window.portalReady;
   if (!window.workspaceUI) await new Promise(r => window.addEventListener('studio-ready', r, { once: true }));
@@ -36,6 +38,7 @@
     memory = seg('memory', 'Memory'),
     upload = seg('upload', 'Upload'),
     disk = seg('disk', 'My storage'),
+    local = seg('local', 'This PC'),
     alerts = seg('alerts');
   bar.append(segments);
   document.body.append(bar);
@@ -76,6 +79,48 @@
   function set(s, text, hidden = false) {
     s.value.textContent = text;
     s.el.hidden = hidden;
+  }
+  // Free space on this PC's recording drive, checked every 30 seconds.
+  let pc = null;
+  const pcLevel = s =>
+    !s
+      ? ''
+      : s.freeBytes < 2e9
+        ? 'crit'
+        : s.freeBytes < 1e10 || s.freeBytes < s.totalBytes * 0.05
+          ? 'warn'
+          : '';
+  const relayLevel = s =>
+    !s || !(s.limitBytes > 0)
+      ? ''
+      : s.freeBytes <= 0
+        ? 'crit'
+        : s.freeBytes < s.limitBytes * 0.1
+          ? 'warn'
+          : '';
+  // One notice per storage problem; it can come back once the storage has recovered.
+  const told = { pc: '', relay: '' };
+  function tell(key, levelNow, text) {
+    if (levelNow && levelNow !== told[key]) note(text);
+    told[key] = levelNow;
+  }
+  async function pollPC() {
+    if (!window.relayDesktop?.diskSpace || document.hidden) return;
+    try {
+      const r = await window.relayDesktop.diskSpace();
+      pc = r?.ok ? r.data : null;
+    } catch {
+      pc = null;
+    }
+    const l = pcLevel(pc);
+    tell(
+      'pc',
+      l,
+      l === 'crit'
+        ? `This PC is almost out of space for recordings and clips: ${pc && gb(pc.freeBytes)} free on ${pc?.drive}. Free up space before recording.`
+        : `This PC is running low on space for recordings and clips: ${pc && gb(pc.freeBytes)} free on ${pc?.drive}.`
+    );
+    paint();
   }
   let health = null,
     unsupported = false,
@@ -175,11 +220,23 @@
       !allowance ? '' : allowance.limitBytes > 0 ? gb(allowance.freeBytes) + ' free' : 'No allowance',
       hide || !allowance
     );
-    if (allowance)
-      disk.el.classList.toggle(
-        'warn',
-        allowance.limitBytes > 0 && allowance.freeBytes < allowance.limitBytes * 0.1
+    if (allowance) {
+      const l = relayLevel(allowance);
+      disk.el.classList.toggle('warn', l === 'warn');
+      disk.el.classList.toggle('crit', l === 'crit');
+      disk.el.title = 'Your recording allowance on the relay';
+      tell(
+        'relay',
+        l,
+        l === 'crit'
+          ? 'Your recording storage on the relay is full. Delete old recordings or ask the relay owner for more space.'
+          : `Your recording storage on the relay is nearly full: ${gb(allowance.freeBytes)} free of ${gb(allowance.limitBytes)}.`
       );
+    }
+    set(local, pc ? gb(pc.freeBytes) + ' free' : '', !pc);
+    local.el.classList.toggle('warn', pcLevel(pc) === 'warn');
+    local.el.classList.toggle('crit', pcLevel(pc) === 'crit');
+    local.el.title = pc ? 'Free space on ' + pc.drive + ' (where your recordings and clips are saved)' : '';
     const warnings = health?.warnings || [];
     const critical = warnings.some(w => w.level === 'critical');
     set(
@@ -199,8 +256,26 @@
 
   function paintDetails() {
     body.replaceChildren();
+    const pcRow = () => {
+      if (!pc) return;
+      const g = make('dl', null, 'status-grid');
+      g.append(
+        make('dt', 'This PC'),
+        make(
+          'dd',
+          gb(pc.freeBytes) +
+            ' free of ' +
+            gb(pc.totalBytes) +
+            ' on ' +
+            pc.drive +
+            (pc.fromOBS ? ' (OBS recordings folder: ' + pc.folder + ')' : ' (Videos folder)')
+        )
+      );
+      body.append(g);
+    };
     if (!connected) {
       body.append(make('p', 'Connect to a relay to see its health.', 'hint'));
+      pcRow();
       return;
     }
     if (!health) {
@@ -213,6 +288,7 @@
           'hint'
         )
       );
+      pcRow();
       return;
     }
     if (!health.warnings.length) body.append(make('p', 'Everything looks healthy.', 'health-ok'));
@@ -249,6 +325,7 @@
           : 'No recording allowance on this relay'
       );
     body.append(grid);
+    pcRow();
     if (!health.sessions.length && !health.otherBroadcasts)
       body.append(make('p', 'No broadcasts running.', 'hint'));
     for (const s of health.sessions) {
@@ -304,6 +381,8 @@
     }
   }
   setInterval(poll, 3000);
+  setInterval(pollPC, 30000);
+  void pollPC();
   setInterval(paint, 1000);
   document.addEventListener('visibilitychange', poll);
   void poll();

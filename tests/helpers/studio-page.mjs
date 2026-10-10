@@ -77,9 +77,15 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
       remoteState: state => {
         window.remoteStateLast = state;
       },
+      // Free space on this PC: tests set window.fakeDisk.
+      diskSpace: async () =>
+        window.fakeDisk ? { ok: true, data: window.fakeDisk } : { ok: false, error: 'n/a' },
       // App updates: tests set window.appUpdateState and push changes through window.appUpdatePush.
       appUpdate: async input => {
         calls.push({ appUpdate: input.op, input });
+        if (input.op === 'backups')
+          return { ok: true, data: window.fakeBackups || { restored: null, backups: [] } };
+        if (input.op === 'restore-backup') return { ok: true, data: null };
         window.appUpdateState ||= {
           version: '1.2.0-preview.2',
           repo: 'JBug20/universalcollab-app',
@@ -143,6 +149,8 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
             destinationStreamKey: ''
           };
         if (q.route.endsWith('/recordings')) return { items: [] };
+        // Relay health: tests set window.fakeHealth.
+        if (q.route.endsWith('/health') && window.fakeHealth) return window.fakeHealth;
         if (q.route.endsWith('/settings')) settings = { ...settings, ...q.body };
         if (q.route.endsWith('/end')) live = false;
         return {

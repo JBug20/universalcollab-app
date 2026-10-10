@@ -1,7 +1,8 @@
 'use strict';
 // App updates (1.2.0), window side. Help → Check for updates shows the version, checks GitHub Releases and
 // offers Restart to update once a signed update is downloaded; an "Update ready" button appears in the menu bar.
-// The update itself is checked and installed by app-update.cjs.
+// The update itself is checked and installed by app-update.cjs. Settings backups (settings-backup.cjs), taken before
+// each update installs, are listed here with Restore.
 (async () => {
   await window.portalReady;
   if (!window.workspaceUI) await new Promise(r => window.addEventListener('studio-ready', r, { once: true }));
@@ -39,7 +40,31 @@
     'Updates come from the UniversalCollab releases on GitHub and are only installed when they carry the UniversalCollab signature. A downloaded update is installed when you close UniversalCollab. Closing the app does not stop a relay broadcast.'
   );
   hint.className = 'hint';
-  dialog.append(el('h2', 'Updates'), version, status, notes, autoLabel, row, hint);
+  // Settings backups.
+  const backupsHead = el('h3', 'Settings backups'),
+    backupsNote = el(
+      'p',
+      'Your settings are backed up automatically before each update installs. Restore puts them back and restarts UniversalCollab; your current settings are backed up first, so you can undo it.'
+    ),
+    restored = el('p'),
+    backupList = el('ul');
+  backupsNote.className = 'hint';
+  restored.className = 'hint';
+  restored.setAttribute('role', 'status');
+  backupList.className = 'settings-backups';
+  dialog.append(
+    el('h2', 'Updates'),
+    version,
+    status,
+    notes,
+    autoLabel,
+    row,
+    hint,
+    backupsHead,
+    backupsNote,
+    restored,
+    backupList
+  );
   document.body.append(dialog);
 
   const notice = el('button', 'Update ready');
@@ -97,10 +122,52 @@
       void request({ op: 'restart' });
   };
   close.onclick = () => dialog.close();
+  async function paintBackups() {
+    const r = await bridge.appUpdate({ op: 'backups' });
+    if (!r?.ok) return;
+    const { backups, restored: last } = r.data;
+    restored.hidden = !last;
+    restored.textContent = last
+      ? 'Settings were restored from the backup "' +
+        last.label +
+        '" (' +
+        new Date(last.at).toLocaleString() +
+        ').'
+      : '';
+    backupList.replaceChildren(
+      ...(backups.length
+        ? backups.map(b => {
+            const li = el('li'),
+              text = el('span', b.label + ' · ' + new Date(b.at).toLocaleString()),
+              restore = el('button', 'Restore');
+            restore.type = 'button';
+            restore.onclick = () => {
+              if (
+                confirm(
+                  'Restore the settings from "' +
+                    b.label +
+                    '"? UniversalCollab restarts to do it. A relay broadcast keeps running.'
+                )
+              )
+                void bridge.appUpdate({ op: 'restore-backup', id: b.id }).then(x => {
+                  if (!x?.ok) restored.textContent = x?.error || 'Could not restore.';
+                });
+            };
+            li.append(text, restore);
+            return li;
+          })
+        : [el('li', 'No backups yet. One is made before each update installs.')])
+    );
+  }
   window.openAppUpdates = async () => {
     if (!dialog.open) dialog.showModal();
     await request({ op: 'status' });
+    await paintBackups();
   };
   notice.onclick = () => window.openAppUpdates();
   await request({ op: 'status' });
+  // Just restored from a backup: say so once at start.
+  const first = await bridge.appUpdate({ op: 'backups' }).catch(() => null);
+  if (first?.ok && first.data.restored)
+    note('Settings restored from the backup "' + first.data.restored.label + '".');
 })().catch(() => {});

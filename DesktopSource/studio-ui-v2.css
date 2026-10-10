@@ -1756,3 +1756,19 @@ body.onboarding #manageOBS {
 #appUpdateWindow .app-update-notes[hidden] {
   display: none;
 }
+#appUpdateWindow .settings-backups {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 160px;
+  overflow: auto;
+}
+#appUpdateWindow .settings-backups li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-top: 1px solid #343847;
+  font-size: 12px;
+}

@@ -5,9 +5,15 @@ const { pathToFileURL } = require('node:url');
 // Preserve legacy credentials and Chromium localStorage during the rename.
 app.setPath('userData', path.join(app.getPath('appData'), 'Stream Relay'));
 app.setName('UniversalCollab');
+// Automatic settings backups (settings-backup.cjs); a restore asked for last time is done now, before settings load.
+const settingsBackups = require('./settings-backup.cjs').create(app.getPath('userData'));
+let restoredBackup = null;
 if (!app.requestSingleInstanceLock()) {
   app.exit(0);
-} else
+} else {
+  try {
+    restoredBackup = settingsBackups.applyPendingRestore();
+  } catch {}
   app.on('second-instance', () => {
     if (win && !win.isDestroyed()) {
       win.restore();
@@ -18,6 +24,7 @@ if (!app.requestSingleInstanceLock()) {
       relaunchAfterQuit = true;
     }
   });
+}
 let relaunchAfterQuit = false;
 const localProfiles = require('./local-profile.cjs').createLocalProfileStore(app.getPath('userData'));
 
@@ -132,6 +139,7 @@ app.whenReady().then(() => {
     clipboard
   });
   require('./collaboration-service.cjs').start({ app, ipcMain, guard, servers });
+  require('./local-storage.cjs').start({ app, ipcMain, guard, getOBS: () => obs });
   // App updates from GitHub Releases (app-update.cjs): checked shortly after start and every 6 hours when
   // automatic checks are on, installed when the app closes or with Restart to update.
   appUpdate = require('./app-update.cjs').create({
@@ -149,6 +157,21 @@ app.whenReady().then(() => {
       if (input.op === 'status') return { ok: true, data: appUpdate.status() };
       if (input.op === 'check') return { ok: true, data: await appUpdate.check() };
       if (input.op === 'set-auto') return { ok: true, data: appUpdate.setAuto(input.auto) };
+      if (input.op === 'backups')
+        return {
+          ok: true,
+          data: {
+            restored: restoredBackup && { label: restoredBackup.label, at: restoredBackup.at },
+            backups: settingsBackups.list().map(({ id, label, at, bytes }) => ({ id, label, at, bytes }))
+          }
+        };
+      if (input.op === 'restore-backup') {
+        if (typeof input.id !== 'string') throw Error('Choose a backup.');
+        settingsBackups.requestRestore(input.id);
+        app.relaunch();
+        app.quit();
+        return { ok: true, data: null };
+      }
       if (input.op === 'open-page') {
         const page = appUpdate.status().latest?.page;
         if (page) await shell.openExternal(page);
@@ -964,6 +987,19 @@ app.on('before-quit', e => {
 app.on('will-quit', () => {
   if (relaunchAfterQuit) app.relaunch();
   try {
+    // Back up the settings first (settings-backup.cjs), so they can be restored if the new version has a problem.
+    const pendingUpdate = appUpdate?.status();
+    if (pendingUpdate?.state === 'ready') {
+      try {
+        session.defaultSession.flushStorageData();
+      } catch {}
+      try {
+        settingsBackups.snapshot('Before updating to ' + pendingUpdate.latest.version, {
+          from: app.getVersion(),
+          to: pendingUpdate.latest.version
+        });
+      } catch {}
+    }
     appUpdate?.apply();
   } catch (e) {
     try {
