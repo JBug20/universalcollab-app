@@ -29,6 +29,7 @@ const home = path.join(__dirname, 'portal.html');
 let win, platforms, studio;
 let obs,
   bundledOBS = null,
+  ownOBS = null,
   obsControls,
   obsPrevious,
   obsCredentials,
@@ -318,6 +319,12 @@ app.whenReady().then(() => {
         // "With OBS" builds: the included copy of OBS (see bundled-obs.cjs).
         bundledOBS ||= new (require('./bundled-obs.cjs').BundledOBS)();
         if (op === 'bundled-info') return { ok: true, data: bundledOBS.info() };
+        // The user's own OBS: optional start with UniversalCollab, minimized to the tray (own-obs.cjs).
+        if (op.startsWith('own-obs-')) {
+          ownOBS ||= require('./own-obs.cjs').create({ app, dialog, getWindow: () => win });
+          const data = await ownOBS.handle(op, input);
+          if (data) return { ok: true, data };
+        }
         if (op === 'bundled-show') return { ok: true, data: { shown: await bundledOBS.show() } };
         if (op === 'bundled-stop') {
           obs.close();

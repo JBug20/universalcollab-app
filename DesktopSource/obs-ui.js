@@ -981,6 +981,46 @@
     await paintBundled();
   }
   await setupBundled();
+  // Your own OBS (not the included one): optionally start it with UniversalCollab, minimized to the tray.
+  // Auto-reconnect then connects to it once its WebSocket server is up.
+  function setupOwnOBS() {
+    const box = node('div');
+    box.id = 'ownOBSBox';
+    box.className = 'own-obs';
+    const check = node('input');
+    check.type = 'checkbox';
+    check.id = 'ownOBSAutostart';
+    const label = node('label');
+    label.className = 'check-row';
+    label.append(check, ' Start my OBS with UniversalCollab, minimized to the tray');
+    const where = node('p');
+    where.className = 'hint';
+    where.id = 'ownOBSPath';
+    const find = btn('Choose OBS program…', async () => paint(await call('own-obs-browse')));
+    find.id = 'ownOBSBrowse';
+    box.append(label, where, find);
+    $('automaticOBS').insertBefore(box, $('obsFeedback'));
+    function paint(info) {
+      check.checked = !!info?.enabled;
+      where.textContent = info?.found
+        ? 'OBS: ' + info.path + (info.chosen ? '' : ' (found automatically)')
+        : 'OBS was not found. Choose obs64.exe (usually in C:\\Program Files\\obs-studio\\bin\\64bit).';
+    }
+    check.onchange = () => run(async () => paint(await call('own-obs-set', { enabled: check.checked })));
+    const refresh = async () => {
+      box.hidden = useBundled();
+      if (!box.hidden) paint(await call('own-obs-info').catch(() => null));
+    };
+    setInterval(() => $('obsPairWindow').open && void refresh(), 2000);
+    void refresh();
+  }
+  setupOwnOBS();
+  if (!useBundled())
+    call('own-obs-autostart')
+      .then(r => {
+        if (r?.started) say('Starting your OBS in the system tray…');
+      })
+      .catch(e => say(e.message));
   $('obsAutoReconnect').checked = autoRetry;
   $('obsAutoReconnect').onchange = () => {
     autoRetry = $('obsAutoReconnect').checked;

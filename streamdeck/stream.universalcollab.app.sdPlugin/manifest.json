@@ -31,9 +31,7 @@
       "Tooltip": "Start streaming, or stop (press twice within 3 seconds).",
       "Icon": "imgs/actions/stream",
       "PropertyInspectorPath": "ui/pi.html",
-      "Controllers": [
-        "Keypad"
-      ],
+      "Controllers": ["Keypad"],
       "States": [
         {
           "Image": "imgs/keys/stream-off",
@@ -51,9 +49,7 @@
       "Tooltip": "Start or stop the local OBS recording.",
       "Icon": "imgs/actions/record",
       "PropertyInspectorPath": "ui/pi.html",
-      "Controllers": [
-        "Keypad"
-      ],
+      "Controllers": ["Keypad"],
       "States": [
         {
           "Image": "imgs/keys/record-off",
@@ -71,9 +67,7 @@
       "Tooltip": "Save the last seconds of the stream as a video file (OBS replay buffer).",
       "Icon": "imgs/actions/clip",
       "PropertyInspectorPath": "ui/pi.html",
-      "Controllers": [
-        "Keypad"
-      ],
+      "Controllers": ["Keypad"],
       "States": [
         {
           "Image": "imgs/keys/clip"
@@ -86,9 +80,7 @@
       "Tooltip": "End the relay broadcast and stop OBS streaming (press twice within 3 seconds).",
       "Icon": "imgs/actions/endrelay",
       "PropertyInspectorPath": "ui/pi.html",
-      "Controllers": [
-        "Keypad"
-      ],
+      "Controllers": ["Keypad"],
       "States": [
         {
           "Image": "imgs/keys/endrelay-off",
@@ -106,9 +98,7 @@
       "Tooltip": "Switch to an OBS scene (the preview scene in Studio Mode).",
       "Icon": "imgs/actions/obsscene",
       "PropertyInspectorPath": "ui/pi.html",
-      "Controllers": [
-        "Keypad"
-      ],
+      "Controllers": ["Keypad"],
       "States": [
         {
           "Image": "imgs/keys/obsscene-off",
@@ -126,9 +116,7 @@
       "Tooltip": "Switch to a relay scene (opens in Preview in Studio Mode).",
       "Icon": "imgs/actions/relayscene",
       "PropertyInspectorPath": "ui/pi.html",
-      "Controllers": [
-        "Keypad"
-      ],
+      "Controllers": ["Keypad"],
       "States": [
         {
           "Image": "imgs/keys/relayscene-off",
@@ -146,9 +134,7 @@
       "Tooltip": "Turn Studio Mode (Preview / Program) on or off.",
       "Icon": "imgs/actions/studiomode",
       "PropertyInspectorPath": "ui/pi.html",
-      "Controllers": [
-        "Keypad"
-      ],
+      "Controllers": ["Keypad"],
       "States": [
         {
           "Image": "imgs/keys/studiomode-off",
@@ -166,9 +152,7 @@
       "Tooltip": "Send Preview to the stream (Studio Mode).",
       "Icon": "imgs/actions/transition",
       "PropertyInspectorPath": "ui/pi.html",
-      "Controllers": [
-        "Keypad"
-      ],
+      "Controllers": ["Keypad"],
       "States": [
         {
           "Image": "imgs/keys/transition"
@@ -181,9 +165,7 @@
       "Tooltip": "Mute or unmute an OBS audio source.",
       "Icon": "imgs/actions/mute",
       "PropertyInspectorPath": "ui/pi.html",
-      "Controllers": [
-        "Keypad"
-      ],
+      "Controllers": ["Keypad"],
       "States": [
         {
           "Image": "imgs/keys/mute-off",
@@ -201,9 +183,7 @@
       "Tooltip": "Run a Stream Assist action: sound, desktop alerts, sample alerts, chat pop-out and more.",
       "Icon": "imgs/actions/assist",
       "PropertyInspectorPath": "ui/pi.html",
-      "Controllers": [
-        "Keypad"
-      ],
+      "Controllers": ["Keypad"],
       "States": [
         {
           "Image": "imgs/keys/assist"
