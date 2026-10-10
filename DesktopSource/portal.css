@@ -1664,3 +1664,9 @@ footer span {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* The stream layout panel keeps its own layers (canvas items, live video 1000, snap guides, Preview/Program labels
+   1100) inside itself, so menus, pop-ups and floating windows always draw above it. */
+#canvasPanel {
+  isolation: isolate;
+}
