@@ -30,6 +30,7 @@ let win, platforms, studio;
 let obs,
   bundledOBS = null,
   ownOBS = null,
+  appUpdate = null,
   obsControls,
   obsPrevious,
   obsCredentials,
@@ -104,7 +105,7 @@ app.whenReady().then(() => {
     height: 920,
     minWidth: 460,
     minHeight: 640,
-    title: 'UniversalCollab · 1.2.0-preview.1',
+    title: 'UniversalCollab · ' + app.getVersion(),
     backgroundColor: '#101017',
     autoHideMenuBar: true,
     webPreferences: {
@@ -127,6 +128,44 @@ app.whenReady().then(() => {
     clipboard
   });
   require('./collaboration-service.cjs').start({ app, ipcMain, guard, servers });
+  // App updates from GitHub Releases (app-update.cjs): checked shortly after start and every 6 hours when
+  // automatic checks are on, installed when the app closes or with Restart to update.
+  appUpdate = require('./app-update.cjs').create({
+    appDir: __dirname,
+    userData: app.getPath('userData'),
+    currentVersion: app.getVersion(),
+    electronVersion: process.versions.electron,
+    notify: state => {
+      if (win && !win.isDestroyed()) win.webContents.send('app-update-state', state);
+    }
+  });
+  ipcMain.handle('app-update', async (e, input = {}) => {
+    guard(e);
+    try {
+      if (input.op === 'status') return { ok: true, data: appUpdate.status() };
+      if (input.op === 'check') return { ok: true, data: await appUpdate.check() };
+      if (input.op === 'set-auto') return { ok: true, data: appUpdate.setAuto(input.auto) };
+      if (input.op === 'open-page') {
+        const page = appUpdate.status().latest?.page;
+        if (page) await shell.openExternal(page);
+        return { ok: true, data: appUpdate.status() };
+      }
+      if (input.op === 'restart') {
+        if (appUpdate.status().state !== 'ready') throw Error('No update is ready.');
+        app.relaunch();
+        app.quit();
+        return { ok: true, data: appUpdate.status() };
+      }
+      throw Error('Unknown request.');
+    } catch (err) {
+      return { ok: false, error: err.message || 'Update failed.' };
+    }
+  });
+  {
+    const auto = () => appUpdate.status().auto && void appUpdate.check();
+    setTimeout(auto, 20000);
+    setInterval(auto, 6 * 60 * 60 * 1000);
+  }
   // Recover from a crashed or frozen display process instead of leaving a blank window. Reasons are logged to userData/renderer-problems.log.
   {
     let crashes = 0,
@@ -908,5 +947,18 @@ app.on('before-quit', e => {
   }
   obs?.close();
   platforms?.dispose();
+});
+// Install a downloaded app update once everything else has closed.
+app.on('will-quit', () => {
+  try {
+    appUpdate?.apply();
+  } catch (e) {
+    try {
+      fs.appendFileSync(
+        path.join(app.getPath('userData'), 'app-update.log'),
+        new Date().toISOString() + ' ' + e.message + '\n'
+      );
+    } catch {}
+  }
 });
 app.on('window-all-closed', () => app.quit());

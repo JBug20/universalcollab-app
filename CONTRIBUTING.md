@@ -75,6 +75,38 @@ makensis uc-rc3-ui-release/installer.nsi
 
 Outputs appear next to this repo: `UniversalCollab-Linux-<version>.tar.gz` (Linux/Garuda) and the Windows Setup `.exe`. Hand them over as files; never commit or upload them to GitHub. The build also makes `UniversalCollab-Owner-Source-PRIVATE-*.zip`, which is never shared or uploaded.
 
+## "With OBS" installer (1.2.0)
+
+`build/build-with-obs.mjs` builds `UniversalCollab-Private-Setup-<version>-with-OBS.exe`. Its `--base` is the Windows app from an earlier "with OBS" release, provided privately. That app has `StreamRelay.exe` with its Electron runtime, `obs-studio`, and `resources/app`. Never download a different Electron or OBS instead.
+
+The build uses this repo's `DesktopSource` as `resources/app`. It takes these private files from the base:
+
+- `release-oauth.json` with the real client IDs;
+- the relay release;
+- `CollabAssistEngine.exe`.
+
+It needs NSIS (`makensis`).
+
+```
+node universalcollab-app/build/build-with-obs.mjs --base <earlier app folder> --out <output folder> --public-key <update public key>
+```
+
+The installer upgrades the earlier 1.2.0 setup in place. It keeps the user's settings and the included OBS's settings. Hand it over as a file; never commit or upload it.
+
+## App updates
+
+Installed apps check the GitHub Releases of the repository in `DesktopSource/release-update.json` (Help → Check for updates). Automatic checks run at start and every 6 hours.
+
+An app update replaces the app files only. It must be signed:
+
+- `node build/update-keys.mjs <private folder>` makes the signing key once. Keep `update-signing-key.pem` private: never commit, upload or share it. Every release must be signed with the same key.
+- Release builds get the public key through `--public-key`. The repo's `release-update.json` keeps `publicKey` blank. Without a key, the app only says that a new version exists.
+- `node build/make-app-update.mjs --key <update-signing-key.pem> --out <folder>` makes `UniversalCollab-app-<version>.zip`, `update-manifest.json` and `update-manifest.json.sig` from `DesktopSource`.
+
+To publish an update, JBug20 attaches those three files to a GitHub release tagged with the version, e.g. `1.2.0-preview.3`. Mark it as a pre-release for preview versions. The zip never contains `release-oauth.json`, `release-update.json`, the relay release or compiled programs, so installs keep their own copies.
+
+Updates are installed when the app closes. If the new version fails to load, the previous files are put back. A version that needs a new Electron or OBS is released with the full installer and no app update files; the app then links to the release page.
+
 ## Relay builds (private)
 
 The relay source is shared privately and lives in a folder named `universalcollab-relay` next to this repo. The same build makes `UniversalCollab-ServerUpdate-<version>.zip`, which Lovelesswolf uploads to his own server.

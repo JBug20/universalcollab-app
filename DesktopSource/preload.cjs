@@ -13,6 +13,13 @@ contextBridge.exposeInMainWorld('relayDesktop', {
   },
   remoteReply: result => ipcRenderer.send('remote-result', result),
   remoteState: state => ipcRenderer.send('remote-state', state),
+  // App updates (app-update.cjs / app-update.js).
+  appUpdate: input => ipcRenderer.invoke('app-update', input),
+  onAppUpdate: callback => {
+    const fn = (_event, data) => callback(data);
+    ipcRenderer.on('app-update-state', fn);
+    return () => ipcRenderer.removeListener('app-update-state', fn);
+  },
   collaboration: input => ipcRenderer.invoke('notify-collaboration', input),
   maintenance: async op => {
     const r = await ipcRenderer.invoke('app-maintenance', op);

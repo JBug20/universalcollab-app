@@ -77,6 +77,22 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
       remoteState: state => {
         window.remoteStateLast = state;
       },
+      // App updates: tests set window.appUpdateState and push changes through window.appUpdatePush.
+      appUpdate: async input => {
+        calls.push({ appUpdate: input.op, input });
+        window.appUpdateState ||= {
+          version: '1.2.0-preview.2',
+          repo: 'JBug20/universalcollab-app',
+          auto: true,
+          signed: true,
+          state: 'idle'
+        };
+        if (input.op === 'set-auto') window.appUpdateState.auto = input.auto;
+        return { ok: true, data: window.appUpdateState };
+      },
+      onAppUpdate: callback => {
+        window.appUpdatePush = callback;
+      },
       obs: async (op, input = {}) => {
         calls.push({ obs: op, input });
         if (op === 'state' || op === 'connect' || op === 'auto-connect') return { connected: true };

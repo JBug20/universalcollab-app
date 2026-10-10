@@ -4,4 +4,13 @@
 // loads the UniversalCollab app (main.cjs).
 if (process.platform === 'linux' && process.argv.includes('--uc-assist-engine'))
   require('./assist-linux/main.cjs');
-else require('./main.cjs');
+else
+  try {
+    require('./main.cjs');
+  } catch (e) {
+    // An app update that does not load: put the previous files back and start again (app-update.cjs).
+    if (!require('./app-update.cjs').rollback(__dirname)) throw e;
+    const { app } = require('electron');
+    app.relaunch();
+    app.exit(0);
+  }
