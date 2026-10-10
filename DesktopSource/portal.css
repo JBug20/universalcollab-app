@@ -1670,3 +1670,17 @@ footer span {
 #canvasPanel {
   isolation: isolate;
 }
+/* Twitch quality check (twitch-quality.js). */
+.quality-warning {
+  margin: 6px 0;
+  padding: 6px 8px;
+  border: 1px solid #f2c230;
+  border-radius: 6px;
+  background: rgba(242, 194, 48, 0.12);
+  color: #ffe08a;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.quality-warning[hidden] {
+  display: none;
+}
