@@ -116,7 +116,7 @@ exports.start = ({ app, ipcMain, guard, getWindow }) => {
           } else if (value.type === 'error' || value.type === 'notice') error = value.error;
           else if (value.type === 'focus') {
             const w = getWindow();
-            if (w) {
+            if (w && !w.isDestroyed()) {
               w.restore();
               w.show();
               w.focus();

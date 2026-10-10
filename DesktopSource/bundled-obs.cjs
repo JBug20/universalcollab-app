@@ -10,11 +10,14 @@ const fs = require('node:fs'),
   { spawn, execFile } = require('node:child_process');
 
 const PORT = 4466; // not OBS's default 4455, so a separately installed OBS can keep its own port
+// --disable-shutdown-check: no "run in Safe Mode?" question after an unclean exit. It would wait unseen in the tray,
+// and Safe Mode turns off the WebSocket server the app connects through.
 const ARGS = [
   '--portable',
   '--minimize-to-tray',
   '--disable-updater',
   '--disable-missing-files-check',
+  '--disable-shutdown-check',
   '--multi'
 ];
 

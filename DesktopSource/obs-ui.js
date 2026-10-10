@@ -1037,6 +1037,12 @@
     localStorage.setItem('uc-ui7-obs-retry', String(autoRetry));
     connection(online);
   };
+  // OBS open but not accepting connections for 20 seconds: usually its "run in Safe Mode?" question is waiting (often
+  // hidden in the tray), or it was started in Safe Mode, which turns its WebSocket server off.
+  const STUCK =
+    'OBS is open but not accepting connections. If OBS is asking whether to run in Safe Mode, choose Run Normally (open OBS from the system tray if you cannot see the question). If OBS is already in Safe Mode, close it and open it again normally.';
+  let failedSince = 0,
+    stuckShown = false;
   async function retry() {
     if (!bridge?.obs || online || retrying || working || !paired || !autoRetry || retryPaused) return;
     retrying = true;
@@ -1044,9 +1050,21 @@
       await call('connect', { retry: true, bundled: useBundled() });
       connection(true);
       say('OBS reconnected.');
+      failedSince = 0;
+      if (stuckShown && $('notice').textContent === STUCK) note('OBS connected.');
+      stuckShown = false;
       await poll();
     } catch {
       connection(false);
+      failedSince ||= Date.now();
+      if (!stuckShown && Date.now() - failedSince > 20000) {
+        const open = await call('obs-process', { bundled: useBundled() }).catch(() => null);
+        if (open?.running) {
+          stuckShown = true;
+          say(STUCK);
+          note(STUCK);
+        }
+      }
     } finally {
       retrying = false;
     }

@@ -129,6 +129,40 @@ const assert = require('node:assert/strict'),
     c = await stubborn.close({ timeout: 100, poll: 20 });
     assert.deepEqual(c, { closed: true, forced: true });
     assert(asked.some(([cmd, args]) => cmd === 'taskkill' && args.includes('/F')));
+    // After a forced close, OBS's crash markers are removed so it does not ask about Safe Mode next time.
+    const appData = path.join(dir, 'AppData');
+    const sentinel = path.join(appData, 'obs-studio', '.sentinel');
+    fs.mkdirSync(sentinel, { recursive: true });
+    fs.writeFileSync(path.join(sentinel, 'run_1234'), '');
+    fs.writeFileSync(path.join(sentinel, 'keep.txt'), '');
+    let forced = false;
+    const killed = own.create({
+      app: { getPath: () => dir },
+      dialog: {},
+      getWindow: () => null,
+      platform: 'win32',
+      env: { APPDATA: appData },
+      query: async (cmd, args) => {
+        if (cmd === 'taskkill' && args.includes('/F')) forced = true;
+        return cmd === 'powershell' && !forced ? '777' : '';
+      }
+    });
+    assert.deepEqual(await killed.close({ timeout: 100, poll: 20 }), { closed: true, forced: true });
+    assert.deepEqual(fs.readdirSync(sentinel), ['keep.txt'], 'crash markers removed, nothing else');
+    // Still running after the forced close: markers are left alone.
+    fs.writeFileSync(path.join(sentinel, 'run_5678'), '');
+    const still = own.create({
+      app: { getPath: () => dir },
+      dialog: {},
+      getWindow: () => null,
+      platform: 'win32',
+      env: { APPDATA: appData },
+      query: async cmd => (cmd === 'powershell' ? '777' : '')
+    });
+    await still.close({ timeout: 100, poll: 20 });
+    assert.ok(fs.readdirSync(sentinel).includes('run_5678'));
+    // The included OBS is started without the Safe Mode question too.
+    assert.ok(require('../DesktopSource/bundled-obs.cjs').ARGS.includes('--disable-shutdown-check'));
     // Not running: nothing to close.
     const idle = own.create({
       app: { getPath: () => dir },

@@ -51,7 +51,24 @@ async function running({ platform = process.platform, query = run } = {}) {
   return (await query('pgrep', ['-x', 'obs'])).trim() !== '';
 }
 
+// OBS's crash markers for a normal (not portable) install: %APPDATA%\obs-studio\.sentinel\run_*.
+function clearSentinels({ platform = process.platform, env = process.env } = {}) {
+  const base = platform === 'win32' ? env.APPDATA : env.HOME && path.join(env.HOME, '.config');
+  if (!base) return 0;
+  const dir = path.join(base, 'obs-studio', '.sentinel');
+  let removed = 0;
+  try {
+    for (const name of fs.readdirSync(dir))
+      if (name.startsWith('run_')) {
+        fs.rmSync(path.join(dir, name), { force: true });
+        removed++;
+      }
+  } catch {}
+  return removed;
+}
+
 exports.ARGS = ARGS;
+exports.clearSentinels = clearSentinels;
 exports.isOBS = isOBS;
 exports.find = find;
 exports.running = running;
@@ -61,7 +78,8 @@ exports.create = ({
   getWindow,
   spawnProcess = spawn,
   platform = process.platform,
-  query = run
+  query = run,
+  env = process.env
 }) => {
   const file = path.join(app.getPath('userData'), 'own-obs.json');
   let settings = { enabled: false, closeOnQuit: false, path: '' };
@@ -127,6 +145,10 @@ exports.create = ({
         if (!list.length) return { closed: true, forced: false };
       }
       await kill(true, list);
+      // A forced close leaves OBS's "still running" markers, so OBS would ask about Safe Mode the next time it is
+      // opened by hand (Safe Mode turns off the WebSocket server). It is not running now, so remove them.
+      await wait(500);
+      if (!(await pids(target)).length) clearSentinels({ platform, env });
       return { closed: true, forced: true };
     },
     async handle(op, input = {}) {

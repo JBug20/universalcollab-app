@@ -9,12 +9,16 @@ if (!app.requestSingleInstanceLock()) {
   app.exit(0);
 } else
   app.on('second-instance', () => {
-    if (win) {
+    if (win && !win.isDestroyed()) {
       win.restore();
       win.show();
       win.focus();
+    } else if (win) {
+      // Opened again while this copy is still closing (e.g. waiting for OBS to close): start again once it has.
+      relaunchAfterQuit = true;
     }
   });
+let relaunchAfterQuit = false;
 const localProfiles = require('./local-profile.cjs').createLocalProfileStore(app.getPath('userData'));
 
 const servers = require('./server-store.cjs').createServerStore(
@@ -359,6 +363,14 @@ app.whenReady().then(() => {
         bundledOBS ||= new (require('./bundled-obs.cjs').BundledOBS)();
         if (op === 'bundled-info') return { ok: true, data: bundledOBS.info() };
         // The user's own OBS: optional start with UniversalCollab, minimized to the tray (own-obs.cjs).
+        // Is OBS open (the included one, or any OBS on this PC)? Used to explain a connection that keeps failing.
+        if (op === 'obs-process')
+          return {
+            ok: true,
+            data: {
+              running: input.bundled ? !!bundledOBS?.running : await require('./own-obs.cjs').running()
+            }
+          };
         if (op.startsWith('own-obs-')) {
           ownOBS ||= require('./own-obs.cjs').create({ app, dialog, getWindow: () => win });
           const data = await ownOBS.handle(op, input);
@@ -950,6 +962,7 @@ app.on('before-quit', e => {
 });
 // Install a downloaded app update once everything else has closed.
 app.on('will-quit', () => {
+  if (relaunchAfterQuit) app.relaunch();
   try {
     appUpdate?.apply();
   } catch (e) {
