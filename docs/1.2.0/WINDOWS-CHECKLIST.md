@@ -51,6 +51,11 @@ You need:
   - [ ] Set OBS to an HEVC or AV1 encoder: it's listed under "Fix before going live". Set it back to H.264: it's ready.
   - [ ] Nothing in OBS or the relay changes just by checking.
 
+- [ ] **Themes** (Settings → Appearance):
+  - [ ] Try each theme. Text stays readable, warnings stay red/yellow/green, and the stream preview stays black.
+  - [ ] The chosen theme is still there after restarting the app.
+  - [ ] Dark purple puts everything back exactly.
+
 ## 4. Recording, clips and storage
 
 - [ ] Start Recording, then stop: the file is in OBS's recordings folder.

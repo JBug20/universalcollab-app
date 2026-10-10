@@ -13,6 +13,11 @@ contextBridge.exposeInMainWorld('relayDesktop', {
   },
   remoteReply: result => ipcRenderer.send('remote-result', result),
   remoteState: state => ipcRenderer.send('remote-state', state),
+  // Appearance themes (theme.js): the text of the app's own stylesheets, once, before the first paint.
+  themeStyles: () => {
+    const r = ipcRenderer.sendSync('theme-styles');
+    return r?.ok ? r.data : null;
+  },
   // Keyboard shortcuts (hotkeys.cjs / keyboard-shortcuts.js).
   hotkeys: input => ipcRenderer.invoke('hotkeys', input),
   onHotkey: callback => {

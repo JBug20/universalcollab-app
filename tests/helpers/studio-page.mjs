@@ -2,6 +2,7 @@
 // a connected relay, a connected OBS with two audio inputs, and setup already completed.
 // window.calls records every bridge call; window.emitOBS(event) sends an OBS event to the page.
 import { createRequire } from 'node:module';
+import fs from 'node:fs';
 const require = createRequire(import.meta.url),
   { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 export async function openStudio({ viewport = { width: 1500, height: 1000 } } = {}) {
@@ -13,6 +14,14 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
   const page = await browser.newPage({ viewport }),
     errors = [];
   page.on('pageerror', e => errors.push(e.message));
+  // The app's stylesheets, as main.cjs hands them to theme.js.
+  await page.addInitScript(
+    styles => (window.fakeThemeStyles = styles),
+    ['portal.css', 'studio-ui-v2.css', 'integrated-assist.css'].map(name => ({
+      name,
+      text: fs.readFileSync(new URL('../../DesktopSource/' + name, import.meta.url), 'utf8')
+    }))
+  );
   await page.addInitScript(() => {
     localStorage.setItem('uc-ui5-setup', 'true');
     window.calls = [];
@@ -77,6 +86,7 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
       remoteState: state => {
         window.remoteStateLast = state;
       },
+      themeStyles: () => window.fakeThemeStyles,
       // Keyboard shortcuts: tests press keys with window.pressHotkey({ action, name }).
       hotkeys: async input => {
         calls.push({ hotkeys: input.op, input });

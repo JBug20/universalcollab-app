@@ -150,6 +150,21 @@ app.whenReady().then(() => {
   });
   require('./collaboration-service.cjs').start({ app, ipcMain, guard, servers });
   require('./local-storage.cjs').start({ app, ipcMain, guard, getOBS: () => obs });
+  // Appearance themes (theme.js): the app's three stylesheets, read-only.
+  ipcMain.on('theme-styles', e => {
+    try {
+      guard(e);
+      e.returnValue = {
+        ok: true,
+        data: ['portal.css', 'studio-ui-v2.css', 'integrated-assist.css'].map(name => ({
+          name,
+          text: fs.readFileSync(path.join(__dirname, name), 'utf8')
+        }))
+      };
+    } catch {
+      e.returnValue = { ok: false };
+    }
+  });
   require('./hotkeys.cjs').start({ app, ipcMain, guard, getWindow: () => win, globalShortcut });
   // App updates from GitHub Releases (app-update.cjs): checked shortly after start and every 6 hours when
   // automatic checks are on, installed when the app closes or with Restart to update.
