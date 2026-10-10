@@ -134,7 +134,8 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
               fpsNumerator: 30,
               fpsDenominator: 1
             },
-            record: null
+            // Tests set window.fakeRecordDir for OBS's recordings folder.
+            record: window.fakeRecordDir ? { recordDirectory: window.fakeRecordDir } : null
           };
         return {};
       },

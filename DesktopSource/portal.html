@@ -7,7 +7,7 @@
       content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; media-src http://127.0.0.1:*; frame-src https: http:; base-uri 'none'; form-action 'none'"
       http-equiv="Content-Security-Policy"
     />
-    <title>UniversalCollab · 1.2.0-preview.3</title>
+    <title>UniversalCollab · 1.2.0-preview.4</title>
     <link href="portal.css" rel="stylesheet" />
     <link href="studio-ui-v2.css" rel="stylesheet" />
     <link href="integrated-assist.css" rel="stylesheet" />
@@ -434,9 +434,22 @@
                 ><label>FPS numerator<input id="obsFPSNum" max="240000" min="1" type="number" /></label
                 ><label>FPS denominator<input id="obsFPSDen" max="1001" min="1" type="number" /></label>
               </div>
-              <button id="obsVideoSave">Save OBS video settings</button
-              ><label>Recording folder<input id="obsRecordDirectory" maxlength="512" /></label
-              ><button id="obsRecordDirectorySave">Save recording folder</button>
+              <button id="obsVideoSave">Save OBS video settings</button>
+              <div class="record-folder" id="obsRecordFolder">
+                <label
+                  >Recordings and clips are saved in<input
+                    id="obsRecordDirectory"
+                    maxlength="512"
+                    placeholder="D:\Recordings"
+                    spellcheck="false"
+                /></label>
+                <div class="record-folder-actions">
+                  <button id="obsRecordDirectoryBrowse" type="button">Choose folder…</button
+                  ><button id="obsRecordDirectorySave" type="button">Save typed folder</button
+                  ><button id="obsRecordDirectoryOpen" type="button">Open folder</button>
+                </div>
+                <p class="hint" id="obsRecordFolderInfo"></p>
+              </div>
               <p class="hint">
                 Stop all OBS outputs before changing video settings. Encoder and plugin-specific options
                 remain in OBS.
@@ -506,7 +519,7 @@
       </dialog>
       <div aria-live="polite" id="notice" role="status"></div>
       <footer>
-        UNIVERSALCOLLAB 1.2.0-preview.3
+        UNIVERSALCOLLAB 1.2.0-preview.4
         <span>Credentials hidden by default · Copying puts real values on your clipboard</span>
       </footer>
       <div hidden="" id="platformWorkspace">
@@ -734,7 +747,7 @@
       </div>
       <section class="welcome server-dialog" hidden="" id="welcome">
         <div class="intro">
-          <span class="eyebrow">CONTROL ROOM / 1.2.0-preview.3</span>
+          <span class="eyebrow">CONTROL ROOM / 1.2.0-preview.4</span>
           <h1>Keep your stream<br /><em>in good company.</em></h1>
           <p>
             Your own destination. Shared moments.<br />Collaborate on your terms, even when a connection

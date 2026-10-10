@@ -456,6 +456,31 @@ app.whenReady().then(() => {
           shell.showItemInFolder(file);
           return { ok: true, data: { shown: true, path: file } };
         }
+        // Recordings folder (record-folder.cjs): checked on this PC before OBS is told to use it.
+        if (op === 'record-directory' || op === 'record-dir-browse') {
+          let directory = input.directory;
+          if (op === 'record-dir-browse') {
+            const current =
+              (await obsControls.handle('settings')).record?.recordDirectory || app.getPath('videos');
+            const r = await dialog.showOpenDialog(win, {
+              title: 'Choose where recordings and clips are saved',
+              defaultPath: current,
+              properties: ['openDirectory', 'createDirectory', 'promptToCreate']
+            });
+            if (r.canceled || !r.filePaths[0]) return { ok: true, data: { canceled: true } };
+            directory = r.filePaths[0];
+          }
+          directory = require('./record-folder.cjs').check(directory);
+          await obsControls.handle('record-directory', { directory });
+          return { ok: true, data: { directory } };
+        }
+        if (op === 'record-dir-open') {
+          const dir = (await obsControls.handle('settings')).record?.recordDirectory;
+          if (!dir || !fs.existsSync(dir)) throw Error('The recordings folder does not exist yet.');
+          const failed = await shell.openPath(dir);
+          if (failed) throw Error(failed);
+          return { ok: true, data: { directory: dir } };
+        }
         if (!['configure', 'start'].includes(op))
           return { ok: true, data: await obsControls.handle(op, input) };
         const saved = servers.load(),

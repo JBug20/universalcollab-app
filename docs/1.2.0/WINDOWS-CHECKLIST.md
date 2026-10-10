@@ -1,4 +1,4 @@
-# Windows test checklist: 1.2.0-preview.2 and .3
+# Windows test checklist: 1.2.0-preview.2 to .4
 
 Tick each box on a Windows PC with the "with OBS" installer. Everything here was tested in a simulated setup (fake OBS, relay and Stream Deck), not yet on real Windows. Write down anything that doesn't match, with a screenshot.
 
@@ -50,6 +50,13 @@ You need:
 
 - [ ] Start Recording, then stop: the file is in OBS's recordings folder.
 - [ ] **Clip** saves the last 60 seconds; Show file opens it.
+- [ ] **Recordings folder** (Tools → Recordings folder, or Settings → OBS):
+  - [ ] Choose folder… picks a folder on another drive. The next recording and the next clip are saved there.
+  - [ ] Open folder opens it in Explorer.
+  - [ ] Typing a folder that doesn't exist yet creates it.
+  - [ ] A folder you can't write to (e.g. `C:\Windows`) is refused with the reason.
+  - [ ] Changing it while recording asks you to stop recording first.
+  - [ ] "This PC" in the status bar then shows that drive.
 - [ ] The status bar shows **This PC <free> free**, and the details show the drive and OBS's recordings folder. Try with OBS recording to a drive other than C: if you have one.
 - [ ] **My storage** shows your relay allowance (needs the per-user storage relay change).
 - [ ] Optional: fill a USB stick or a small drive below 10 GB and set OBS to record there. "This PC" turns yellow and the notice line warns once.

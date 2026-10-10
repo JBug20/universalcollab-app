@@ -589,7 +589,9 @@
     const s = await call('settings');
     for (const [k, id] of Object.entries(videoMap)) $(id).value = s.video[k];
     $('obsRecordDirectory').value = s.record?.recordDirectory || '';
-    $('obsRecordDirectorySave').disabled = !s.record;
+    for (const id of ['obsRecordDirectorySave', 'obsRecordDirectoryBrowse', 'obsRecordDirectoryOpen'])
+      $(id).disabled = !s.record;
+    void recordFolderInfo();
     $('obsVideoFields').hidden = false;
     $('obsSettingsState').textContent = 'Connected to OBS. Changes apply to its current profile.';
   }
@@ -607,11 +609,38 @@
       await loadSettings();
       say('OBS video settings saved.');
     });
+  // Recordings folder: where OBS saves recordings and clips (record-folder.cjs checks it before OBS uses it).
+  async function recordFolderInfo() {
+    const info = $('obsRecordFolderInfo');
+    const r = await window.relayDesktop?.diskSpace?.().catch(() => null);
+    info.textContent = r?.ok
+      ? (r.data.freeBytes / 1073741824).toFixed(1) +
+        ' GB free on ' +
+        r.data.drive +
+        '. Applies to the next recording or clip; recordings already saved stay where they are.'
+      : 'Applies to the next recording or clip; recordings already saved stay where they are.';
+  }
+  async function recordFolderSaved(r) {
+    if (r?.canceled) return;
+    $('obsRecordDirectory').value = r.directory;
+    say('Recordings and clips will now be saved in ' + r.directory + '.');
+    note('Recordings folder: ' + r.directory);
+    await recordFolderInfo();
+  }
   $('obsRecordDirectorySave').onclick = () =>
-    run(async () => {
-      await call('record-directory', { directory: $('obsRecordDirectory').value });
-      say('OBS recording folder saved.');
-    });
+    run(async () =>
+      recordFolderSaved(await call('record-directory', { directory: $('obsRecordDirectory').value }))
+    );
+  $('obsRecordDirectoryBrowse').onclick = () =>
+    run(async () => recordFolderSaved(await call('record-dir-browse')));
+  $('obsRecordDirectoryOpen').onclick = () => run(async () => void (await call('record-dir-open')));
+  // Tools → Recordings folder (after Settings → OBS is open): bring the folder setting into view.
+  window.openRecordingsFolderSettings = () => {
+    setTimeout(() => {
+      $('obsRecordFolder').scrollIntoView({ block: 'center' });
+      $('obsRecordDirectoryBrowse').focus();
+    }, 50);
+  };
   $('obsPreviewEnabled').checked = pref.enabled;
   $('obsPreviewRate').value = String(pref.rate);
   $('obsPreviewWidth').value = String(pref.width);

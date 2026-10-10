@@ -124,6 +124,13 @@
       ['Collaboration centre', () => window.openAssistCollaboration?.()],
       ['Stream Deck', () => window.openStreamDeckSettings?.()],
       ['OBS Connection', settings('obs')],
+      [
+        'Recordings folder',
+        () => {
+          settings('obs')();
+          window.openRecordingsFolderSettings?.();
+        }
+      ],
       ['Platform connections', settings('connections')],
       ['Relay connection', settings('relay')],
       ['Fallback & output', settings('output')],
@@ -186,7 +193,7 @@
   );
   info(
     'aboutApp',
-    'UniversalCollab · 1.2.0-preview.3',
+    'UniversalCollab · 1.2.0-preview.4',
     'Self-hosted collaboration and streaming workspace. OBS preview is local, without audio, and does not show the final relay composite.'
   );
   const prop = make('dialog');

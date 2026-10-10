@@ -1708,3 +1708,19 @@ footer span {
   top: 0;
   z-index: 2;
 }
+/* Recordings folder (obs-ui.js, record-folder.cjs). */
+.record-folder {
+  margin: 10px 0;
+}
+.record-folder input {
+  width: 100%;
+}
+.record-folder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.record-folder-actions button {
+  margin: 0;
+}
