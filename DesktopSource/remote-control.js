@@ -47,6 +47,9 @@
         if (!window.relayScenes) throw Error('Relay scenes are unavailable.');
         await window.relayScenes.switch(args.name);
         return 'Relay scene: ' + args.name;
+      case 'afk':
+        if (!window.afkMode) throw Error('AFK is unavailable.');
+        return window.afkMode.toggle();
       case 'assist': {
         const r = await bridge.assist({ op: 'action', action: args.action });
         if (!r?.ok) throw Error(r?.error || 'Stream Assist did not respond.');
@@ -56,6 +59,8 @@
         throw Error('Unknown action.');
     }
   }
+  // Keyboard shortcuts run their actions through the same code (keyboard-shortcuts.js).
+  window.runControlAction = run;
   bridge.onRemoteCommand(async ({ id, action, args }) => {
     try {
       const message = await run(action, args || {});
@@ -70,6 +75,7 @@
     return {
       obs,
       studioMode: !!window.studioMode?.enabled,
+      afk: !!window.afkMode?.active,
       relay: { online: relayOnline(), live: relayOnline() && !!view?.status?.broadcast },
       relayScenes: window.relayScenes?.list() || [],
       assist: { running: assistRunning }

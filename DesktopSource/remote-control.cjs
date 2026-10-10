@@ -15,6 +15,7 @@ const ACTIONS = new Set([
   'record',
   'clip',
   'end-relay',
+  'afk',
   'obs-scene',
   'relay-scene',
   'studio-mode',

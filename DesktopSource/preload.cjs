@@ -13,6 +13,13 @@ contextBridge.exposeInMainWorld('relayDesktop', {
   },
   remoteReply: result => ipcRenderer.send('remote-result', result),
   remoteState: state => ipcRenderer.send('remote-state', state),
+  // Keyboard shortcuts (hotkeys.cjs / keyboard-shortcuts.js).
+  hotkeys: input => ipcRenderer.invoke('hotkeys', input),
+  onHotkey: callback => {
+    const fn = (_event, data) => callback(data);
+    ipcRenderer.on('hotkey', fn);
+    return () => ipcRenderer.removeListener('hotkey', fn);
+  },
   // Free space on this PC's recording drive (local-storage.cjs).
   diskSpace: () => ipcRenderer.invoke('local-storage'),
   // App updates (app-update.cjs / app-update.js).

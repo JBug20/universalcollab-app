@@ -123,6 +123,7 @@
     Tools: [
       ['Collaboration centre', () => window.openAssistCollaboration?.()],
       ['Stream Deck', () => window.openStreamDeckSettings?.()],
+      ['Keyboard shortcuts', () => window.openKeyboardShortcuts?.()],
       ['OBS Connection', settings('obs')],
       [
         'Recordings folder',

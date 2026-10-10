@@ -77,6 +77,33 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
       remoteState: state => {
         window.remoteStateLast = state;
       },
+      // Keyboard shortcuts: tests press keys with window.pressHotkey({ action, name }).
+      hotkeys: async input => {
+        calls.push({ hotkeys: input.op, input });
+        window.hotkeyState ||= {
+          enabled: false,
+          keys: {
+            clip: 'Ctrl+Alt+C',
+            record: 'Ctrl+Alt+R',
+            afk: 'Ctrl+Alt+A',
+            'studio-mode': '',
+            transition: 'Ctrl+Alt+T',
+            mute: 'Ctrl+Alt+M'
+          },
+          muteSource: '',
+          failed: [],
+          actions: ['clip', 'record', 'afk', 'studio-mode', 'transition', 'mute']
+        };
+        if (input.op === 'set') {
+          if ('enabled' in input) window.hotkeyState.enabled = input.enabled;
+          if (input.keys) Object.assign(window.hotkeyState.keys, input.keys);
+          if ('muteSource' in input) window.hotkeyState.muteSource = input.muteSource;
+        }
+        return { ok: true, data: window.hotkeyState };
+      },
+      onHotkey: callback => {
+        window.pressHotkey = callback;
+      },
       // Free space on this PC: tests set window.fakeDisk.
       diskSpace: async () =>
         window.fakeDisk ? { ok: true, data: window.fakeDisk } : { ok: false, error: 'n/a' },
@@ -154,6 +181,9 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
         if (q.route.endsWith('/health') && window.fakeHealth) return window.fakeHealth;
         if (q.route.endsWith('/settings')) settings = { ...settings, ...q.body };
         if (q.route.endsWith('/end')) live = false;
+        // Manual fallback ("Show fallback now", AFK).
+        if (q.route.endsWith('/force-fallback')) window.forcedFallback = true;
+        if (q.route.endsWith('/restore-primary')) window.forcedFallback = false;
         // 1.2.0 media-sources routes: frames for text, picture and browser sources.
         if (q.route.endsWith('/media-frame')) return { ok: true, accepted: (q.body?.frames || []).length };
         return {
@@ -179,6 +209,8 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
             state: live ? 'live' : 'ready',
             broadcast: live,
             held: false,
+            forcedFallback: !!window.forcedFallback,
+            source: window.forcedFallback ? 'fallback' : 'primary',
             pictureInPicture: true,
             collabFallback: true,
             width: 1920,

@@ -1724,3 +1724,49 @@ footer span {
 .record-folder-actions button {
   margin: 0;
 }
+/* Keyboard shortcuts and AFK (keyboard-shortcuts.js). */
+.afk-banner {
+  position: fixed;
+  z-index: 60;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px 6px 14px;
+  border-radius: 999px;
+  background: #8a5a00;
+  border: 1px solid #f2c230;
+  color: #fff6d6;
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+.afk-banner[hidden] {
+  display: none;
+}
+.afk-banner button {
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+.hotkey-rows {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+}
+.hotkey-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.hotkey-key {
+  min-width: 150px;
+  margin: 0;
+  font-family: ui-monospace, Consolas, monospace;
+}
+.hotkey-key.in-use {
+  border-color: #ff5d5d;
+  color: #ffb0b0;
+}

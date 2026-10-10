@@ -1,4 +1,14 @@
-const { app, BrowserWindow, ipcMain, clipboard, safeStorage, session, shell, dialog } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  clipboard,
+  safeStorage,
+  session,
+  shell,
+  dialog,
+  globalShortcut
+} = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -140,6 +150,7 @@ app.whenReady().then(() => {
   });
   require('./collaboration-service.cjs').start({ app, ipcMain, guard, servers });
   require('./local-storage.cjs').start({ app, ipcMain, guard, getOBS: () => obs });
+  require('./hotkeys.cjs').start({ app, ipcMain, guard, getWindow: () => win, globalShortcut });
   // App updates from GitHub Releases (app-update.cjs): checked shortly after start and every 6 hours when
   // automatic checks are on, installed when the app closes or with Restart to update.
   appUpdate = require('./app-update.cjs').create({

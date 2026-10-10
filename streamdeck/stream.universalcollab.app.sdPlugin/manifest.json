@@ -1,9 +1,9 @@
 {
   "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
   "Name": "UniversalCollab",
-  "Version": "1.2.0.0",
+  "Version": "1.2.1.0",
   "Author": "UniversalCollab",
-  "Description": "Control UniversalCollab from Stream Deck: stream, recording, clips, OBS and relay scenes, Studio Mode, audio and Stream Assist.",
+  "Description": "Control UniversalCollab from Stream Deck: stream, recording, clips, OBS and relay scenes, Studio Mode, AFK, audio and Stream Assist.",
   "URL": "https://github.com/JBug20/universalcollab-app",
   "UUID": "stream.universalcollab.app",
   "SDKVersion": 2,
@@ -156,6 +156,24 @@
       "States": [
         {
           "Image": "imgs/keys/transition"
+        }
+      ]
+    },
+    {
+      "UUID": "stream.universalcollab.app.afk",
+      "Name": "AFK",
+      "Tooltip": "Switch viewers to your fallback collaborator's stream while you're away, and back.",
+      "Icon": "imgs/actions/afk",
+      "PropertyInspectorPath": "ui/pi.html",
+      "Controllers": ["Keypad"],
+      "States": [
+        {
+          "Image": "imgs/keys/afk-off",
+          "Name": "Here"
+        },
+        {
+          "Image": "imgs/keys/afk-on",
+          "Name": "AFK"
         }
       ]
     },

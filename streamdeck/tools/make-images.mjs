@@ -25,6 +25,7 @@ const GLYPHS = {
   mute: `<rect x="9" y="3" width="6" height="11" rx="3" ${line}/><path ${line} d="M6 11a6 6 0 0 0 12 0M12 17v3.5M8.5 20.5h7"/>`,
   muted: `<rect x="9" y="3" width="6" height="11" rx="3" ${line}/><path ${line} d="M6 11a6 6 0 0 0 12 0M12 17v3.5M8.5 20.5h7"/><path fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" d="M4 4l16 16"/>`,
   assist: `<path ${line} d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 20.5a2 2 0 0 0 4 0"/>`,
+  afk: `<path ${line} d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5zM16 10.5h1.5a2.5 2.5 0 0 1 0 5H16M8 3.5c-.8 1 .8 2-.1 3M11.5 3.5c-.8 1 .8 2-.1 3"/>`,
   collab: `<circle cx="9" cy="8" r="3.2" ${line}/><path ${line} d="M3.5 19a5.5 5.5 0 0 1 11 0M15.5 5.2a3.2 3.2 0 0 1 0 5.6M17 13.6a5.5 5.5 0 0 1 3.5 5.4"/>`
 };
 const OFF = { bg: '#262033', fg: '#d9d0ec' };
@@ -46,7 +47,9 @@ const KEYS = [
   ['transition', 'transition', OFF.bg, OFF.fg],
   ['mute-off', 'mute', OFF.bg, OFF.fg],
   ['mute-on', 'muted', '#c92a3a', '#ffffff'],
-  ['assist', 'assist', OFF.bg, OFF.fg]
+  ['assist', 'assist', OFF.bg, OFF.fg],
+  ['afk-off', 'afk', OFF.bg, OFF.fg],
+  ['afk-on', 'afk', '#8a5a00', '#fff6d6']
 ];
 const ACTIONS = [
   'stream',
@@ -58,7 +61,8 @@ const ACTIONS = [
   'studiomode',
   'transition',
   'mute',
-  'assist'
+  'assist',
+  'afk'
 ];
 
 const svg = (glyph, size, { bg, fg, pad }) =>

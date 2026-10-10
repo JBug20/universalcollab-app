@@ -30,6 +30,10 @@ const until = async (fn, what, ms = 4000) => {
   );
   assert.equal(keyState('mute', { input: 'Mic' }, { obs: { inputs: [{ name: 'Mic', muted: true }] } }), 1);
   assert.equal(keyState('clip', {}, { obs: {} }), null);
+  // AFK key: switches to the fallback collaborator and back; lit while AFK.
+  assert.deepEqual(commandFor('afk', {}, {}), { action: 'afk' });
+  assert.equal(keyState('afk', {}, { afk: true }), 1);
+  assert.equal(keyState('afk', {}, { afk: false }), 0);
 
   // UniversalCollab side: the real control module, a fake window answering commands.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uc-deck-'));

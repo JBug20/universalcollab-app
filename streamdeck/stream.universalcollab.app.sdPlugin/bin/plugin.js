@@ -33,6 +33,8 @@ function commandFor(kind, settings, state) {
       return { action: 'studio-mode' };
     case 'transition':
       return { action: 'transition' };
+    case 'afk':
+      return { action: 'afk' };
     case 'obsscene':
       return settings?.scene
         ? { action: 'obs-scene', args: { name: settings.scene } }
@@ -67,6 +69,8 @@ function keyState(kind, settings, state) {
       return state.relay?.live ? 1 : 0;
     case 'studiomode':
       return state.studioMode ? 1 : 0;
+    case 'afk':
+      return state.afk ? 1 : 0;
     case 'obsscene': {
       const active = state.studioMode && obs.preview ? obs.preview : obs.current;
       return settings?.scene && settings.scene === active ? 1 : 0;
