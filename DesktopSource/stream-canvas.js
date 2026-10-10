@@ -1642,7 +1642,16 @@
   function placeCorner(corner) {
     const i = chosen();
     if (!i || !editable(i)) return;
-    if (corner === 'center') {
+    if (corner === 'reset') {
+      // Back to where a new item starts: the main feed fills the frame; others are centred at their starting size
+      // (text, picture and browser sources keep their own size).
+      if (i.kind === 'main') Object.assign(i, { x: 0, y: 0, width: 1, height: 1 });
+      else {
+        if (!isMedia(i))
+          Object.assign(i, { width: i.kind === 'chat' ? 0.3 : 0.25, height: i.kind === 'chat' ? 0.6 : 0.25 });
+        Object.assign(i, { x: 0.5, y: 0.5 });
+      }
+    } else if (corner === 'center') {
       i.x = 0.5;
       i.y = 0.5;
     } else {

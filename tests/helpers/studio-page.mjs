@@ -238,8 +238,21 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
             height: 1080,
             fps: 30
           },
-          peers: [{ id: 'bob', online: true }],
-          requests: [{ owner: 'alice', peer: 'bob', kind: 'fallback', status: 'approved' }]
+          peers: [
+            { id: 'bob', online: true },
+            { id: 'cat', online: true },
+            { id: 'dan', online: true }
+          ],
+          requests: [
+            { owner: 'alice', peer: 'bob', kind: 'fallback', status: 'approved' },
+            // Picture-in-picture approvals, for layout tests.
+            ...['bob', 'cat', 'dan'].map(peer => ({
+              owner: 'alice',
+              peer,
+              kind: 'video',
+              status: 'approved'
+            }))
+          ]
         };
       }
     };

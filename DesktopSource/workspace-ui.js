@@ -629,7 +629,8 @@
         ['top-right', 'Top right quarter'],
         ['bottom-left', 'Bottom left quarter'],
         ['bottom-right', 'Bottom right quarter'],
-        ['center', 'Centre']
+        ['center', 'Centre'],
+        ['reset', 'Reset position & size']
       ].map(([c, label]) => [label, () => window.streamCanvas.placeCorner(c), fixed]),
       ['Make 2×2 split', () => window.streamCanvas.split()],
       ['Remove', () => $('canvasRemove').click(), fixed || sel.kind === 'main']
