@@ -1,15 +1,23 @@
 Unicode true
+; VERSION and VIVERSION come from DesktopSource/package.json (build/package-rc2.py adds them when it copies
+; this script); the defaults below are only for building it by hand.
+!ifndef VERSION
+!define VERSION "0.0.0-dev"
+!endif
+!ifndef VIVERSION
+!define VIVERSION "0.0.0.0"
+!endif
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 Name "UniversalCollab"
-OutFile "UniversalCollab-Setup-1.0.0-rc.8.exe"
+OutFile "UniversalCollab-Setup-${VERSION}.exe"
 InstallDir "$LOCALAPPDATA\Programs\StreamRelay"
 InstallDirRegKey HKCU "Software\StreamRelay" "InstallDir"
 RequestExecutionLevel user
 SetCompressor zlib
-VIProductVersion "1.0.0.8"
+VIProductVersion "${VIVERSION}"
 VIAddVersionKey "ProductName" "UniversalCollab"
-VIAddVersionKey "FileVersion" "1.0.0-rc.8"
+VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "FileDescription" "UniversalCollab setup"
 VIAddVersionKey "LegalCopyright" "MIT License"
 !insertmacro MUI_PAGE_WELCOME
@@ -43,7 +51,7 @@ Section
  CreateShortcut "$SMPROGRAMS\UniversalCollab\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
  WriteRegStr HKCU "Software\StreamRelay" "InstallDir" "$INSTDIR"
  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\StreamRelay" "DisplayName" "UniversalCollab"
- WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\StreamRelay" "DisplayVersion" "1.0.0-rc.8"
+ WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\StreamRelay" "DisplayVersion" "${VERSION}"
  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\StreamRelay" "UninstallString" '"$INSTDIR\Uninstall.exe"'
 SectionEnd
 Section "Uninstall"

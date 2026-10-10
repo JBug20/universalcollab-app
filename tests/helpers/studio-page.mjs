@@ -154,6 +154,8 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
         if (q.route.endsWith('/health') && window.fakeHealth) return window.fakeHealth;
         if (q.route.endsWith('/settings')) settings = { ...settings, ...q.body };
         if (q.route.endsWith('/end')) live = false;
+        // 1.2.0 media-sources routes: frames for text, picture and browser sources.
+        if (q.route.endsWith('/media-frame')) return { ok: true, accepted: (q.body?.frames || []).length };
         return {
           capabilities: {
             production: 1,
@@ -167,7 +169,10 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
             manualFallback: true,
             fallbackTimeout: true,
             povLabels: true,
-            streamHealth: true
+            streamHealth: true,
+            // 1.2.0 relay: text, picture and browser sources (media-sources API).
+            mediaSourcesApi: 1,
+            mediaSources: true
           },
           me: { id: 'alice', settings, destinationConfigured: true },
           status: {
