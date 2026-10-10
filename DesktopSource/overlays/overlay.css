@@ -1,0 +1,97 @@
+/* UniversalCollab stream overlays (End credits and Alerts). Transparent, for OBS browser sources. */
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  color: #fff;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  text-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.85),
+    0 0 2px rgba(0, 0, 0, 0.9);
+}
+/* End credits: a column of names rolling up the screen. */
+#roll {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  text-align: center;
+  will-change: transform;
+}
+#roll h1 {
+  margin: 0 0 0.2em;
+  font-size: 7vh;
+  font-weight: 800;
+}
+#roll .subtitle {
+  margin: 0 0 6vh;
+  font-size: 3.4vh;
+  opacity: 0.9;
+}
+#roll h2 {
+  margin: 6vh 0 1.5vh;
+  font-size: 4.2vh;
+  font-weight: 700;
+  color: #d9c6ff;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+#roll .name {
+  font-size: 3.6vh;
+  line-height: 1.5;
+}
+#roll .end {
+  height: 40vh;
+}
+/* Alerts: one card at a time, sliding in at the top centre. */
+#stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 6vh;
+}
+.alert-card {
+  min-width: 40vw;
+  max-width: 80vw;
+  padding: 2.4vh 4vh;
+  border-radius: 2vh;
+  background: rgba(20, 16, 32, 0.82);
+  border: 0.4vh solid #ae86fb;
+  text-align: center;
+  animation: alert-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.alert-card.out {
+  animation: alert-out 0.4s ease-in both;
+}
+.alert-card .title {
+  font-size: 3vh;
+  font-weight: 700;
+  color: #d9c6ff;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.alert-card .name {
+  font-size: 6vh;
+  font-weight: 800;
+  line-height: 1.15;
+}
+.alert-card .detail {
+  font-size: 2.8vh;
+  opacity: 0.92;
+}
+@keyframes alert-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6vh) scale(0.9);
+  }
+}
+@keyframes alert-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4vh);
+  }
+}

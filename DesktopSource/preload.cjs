@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('relayDesktop', {
     const r = ipcRenderer.sendSync('theme-styles');
     return r?.ok ? r.data : null;
   },
+  // End credits and alerts overlays for OBS (overlays.cjs / end-credits.js).
+  overlays: input => ipcRenderer.invoke('overlays', input),
   // Keyboard shortcuts (hotkeys.cjs / keyboard-shortcuts.js).
   hotkeys: input => ipcRenderer.invoke('hotkeys', input),
   onHotkey: callback => {

@@ -94,6 +94,17 @@ You need:
 - [ ] Assist shows Kick connected; alerts and chat sending work.
 - [ ] Revoke the app in Kick → Settings → Connections. Within 5 minutes Assist shows "waiting for sign-in". Reconnect works. (Already passed.)
 
+## 6b. End credits and alerts (Tools → End credits & alerts)
+
+- [ ] Copy credits link. In OBS: Sources → + → Browser → paste it as the URL, 1920 × 1080. The credits roll with your title.
+- [ ] Copy alerts link and add it the same way. Send a test alert: the card shows on stream with a chime.
+- [ ] To hear the chime on stream, tick "Control audio via OBS" on the browser source.
+- [ ] During a stream with Stream Assist running:
+  - [ ] Real follows, subs, tips, raids and chatters appear in the credits under their headings, each name once.
+  - [ ] Each real event (except chat) pops up on the Alerts overlay.
+- [ ] Starting a new relay broadcast starts a new list.
+- [ ] Optional: add the credits link to the relay layout as a browser source; it shows in the relay picture.
+
 ## 7. Automatic updates (needs JBug20 to publish 1.2.0-preview.3)
 
 JBug20 attaches the three update files to a GitHub **pre-release** tagged `1.2.0-preview.3`:

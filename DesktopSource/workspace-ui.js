@@ -125,6 +125,7 @@
       ['Stream Deck', () => window.openStreamDeckSettings?.()],
       ['Keyboard shortcuts', () => window.openKeyboardShortcuts?.()],
       ['Check stream readiness', () => window.openReadiness?.()],
+      ['End credits & alerts', () => window.openEndCredits?.()],
       ['OBS Connection', settings('obs')],
       [
         'Recordings folder',

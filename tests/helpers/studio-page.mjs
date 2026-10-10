@@ -87,6 +87,20 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
         window.remoteStateLast = state;
       },
       themeStyles: () => window.fakeThemeStyles,
+      // End credits and alerts overlays: tests read window.overlayUpdates.
+      overlays: async input => {
+        calls.push({ overlays: input.op, input });
+        if (input.op === 'update') (window.overlayUpdates ||= []).push(input);
+        return {
+          ok: true,
+          data: {
+            urls: {
+              credits: 'http://127.0.0.1:18752/o/t/credits',
+              alerts: 'http://127.0.0.1:18752/o/t/alerts'
+            }
+          }
+        };
+      },
       // Keyboard shortcuts: tests press keys with window.pressHotkey({ action, name }).
       hotkeys: async input => {
         calls.push({ hotkeys: input.op, input });

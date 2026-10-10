@@ -165,6 +165,7 @@ app.whenReady().then(() => {
       e.returnValue = { ok: false };
     }
   });
+  require('./overlays.cjs').start({ app, ipcMain, guard, clipboard });
   require('./hotkeys.cjs').start({ app, ipcMain, guard, getWindow: () => win, globalShortcut });
   // App updates from GitHub Releases (app-update.cjs): checked shortly after start and every 6 hours when
   // automatic checks are on, installed when the app closes or with Restart to update.
