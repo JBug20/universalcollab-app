@@ -57,6 +57,17 @@ You need:
   - [ ] A folder you can't write to (e.g. `C:\Windows`) is refused with the reason.
   - [ ] Changing it while recording asks you to stop recording first.
   - [ ] "This PC" in the status bar then shows that drive.
+- [ ] **Auto-record** (Settings → OBS, under the recordings folder):
+  - [ ] With "Start recording when I start streaming" on, Start Stream also starts a recording, and Stop Stream stops it.
+  - [ ] A recording you started yourself keeps going when the stream stops.
+- [ ] **Keyboard shortcuts** (Tools → Keyboard shortcuts):
+  - [ ] Turn them on. Ctrl+Alt+C saves a clip and Ctrl+Alt+R starts/stops recording, even while a full-screen game has focus.
+  - [ ] A shortcut another program uses (e.g. one set in Discord) shows in red.
+  - [ ] **AFK** (Ctrl+Alt+A, during a live relay broadcast with a collaborator chosen in End Relay ⚙ → fallback):
+    - [ ] Viewers see the collaborator's stream, and the AFK banner shows.
+    - [ ] Pressing it again, or I'm back, returns your stream.
+    - [ ] Check what viewers see and hear on each platform.
+  - [ ] Stream Deck AFK key (install the new 1.2.1 plugin) does the same and lights up while AFK.
 - [ ] The status bar shows **This PC <free> free**, and the details show the drive and OBS's recordings folder. Try with OBS recording to a drive other than C: if you have one.
 - [ ] **My storage** shows your relay allowance (needs the per-user storage relay change).
 - [ ] Optional: fill a USB stick or a small drive below 10 GB and set OBS to record there. "This PC" turns yellow and the notice line warns once.

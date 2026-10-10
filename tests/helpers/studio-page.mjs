@@ -139,7 +139,7 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
             inputs: mixer.map(m => ({ inputName: m.inputName })),
             mixer,
             stream: { outputActive: window.obsStreaming },
-            record: { outputActive: false },
+            record: { outputActive: !!window.obsRecording },
             available: []
           };
         if (op === 'start') {
@@ -148,6 +148,14 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
         }
         if (op === 'stream-stop') {
           window.obsStreaming = false;
+          return {};
+        }
+        if (op === 'record-start') {
+          window.obsRecording = true;
+          return {};
+        }
+        if (op === 'record-stop') {
+          window.obsRecording = false;
           return {};
         }
         if (op === 'preview') return { image: 'data:image/jpeg;base64,AAAA' };

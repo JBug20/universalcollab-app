@@ -79,6 +79,41 @@
   }
   // Shared by the buttons and Stream Deck (window.streamControls below). `ask` shows the confirmations
   // the buttons use; a Stream Deck key confirms with a second press instead.
+  // Auto-record (Settings → OBS): start a recording with the stream, and optionally stop it with the stream. Only a
+  // recording started this way is stopped automatically. Skipped when this PC is almost out of space.
+  const AUTO_KEY = 'uc-auto-record';
+  let autoRecord = { start: false, stop: true },
+    autoStarted = false;
+  try {
+    autoRecord = { ...autoRecord, ...JSON.parse(localStorage.getItem(AUTO_KEY) || '{}') };
+  } catch {}
+  const saveAuto = () => {
+    try {
+      localStorage.setItem(AUTO_KEY, JSON.stringify(autoRecord));
+    } catch {}
+  };
+  async function recordWithStream() {
+    if (!autoRecord.start || state?.record?.outputActive) return '';
+    const disk = await window.relayDesktop?.diskSpace?.().catch(() => null);
+    if (disk?.ok && disk.data.freeBytes < 2e9) {
+      note(
+        'Not recording automatically: only ' +
+          Math.round(disk.data.freeBytes / 1048576) +
+          ' MB free on ' +
+          disk.data.drive +
+          '. Free up space or choose another recordings folder.'
+      );
+      return '';
+    }
+    try {
+      await call('record-start');
+      autoStarted = true;
+      return ' Recording started.';
+    } catch (e) {
+      note('The stream started, but recording did not: ' + e.message);
+      return '';
+    }
+  }
   async function startStream() {
     if (!online) throw Error('Connect OBS in Settings → OBS first.');
     if (state?.stream?.outputActive) return 'Already live.';
@@ -89,7 +124,12 @@
     // Start the replay buffer with the stream so the first Clip already has footage (skipped if it is off in OBS).
     call('replay-start').catch(() => {});
     await poll();
-    return 'Stream started.';
+    const recording = await recordWithStream();
+    if (recording) {
+      say('Stream started in OBS.' + recording);
+      await poll();
+    }
+    return 'Stream started.' + recording;
   }
   async function stopStream(ask) {
     if (!state?.stream?.outputActive) return 'Not live.';
@@ -101,12 +141,20 @@
     )
       return;
     await call('stream-stop');
-    say('OBS stream stopped.');
+    let stopped = '';
+    if (autoStarted && autoRecord.stop && state?.record?.outputActive) {
+      await call('record-stop').catch(() => {});
+      stopped = ' Recording stopped.';
+    }
+    autoStarted = false;
+    say('OBS stream stopped.' + stopped);
     await poll();
-    return 'Stream stopped.';
+    return 'Stream stopped.' + stopped;
   }
   async function toggleRecord(ask) {
     if (!online) throw Error('Connect OBS in Settings → OBS first.');
+    // A recording stopped or started by hand is yours: it is not stopped with the stream.
+    autoStarted = false;
     if (state?.record?.outputActive) {
       if (ask && !confirm('Stop the local OBS recording?')) return;
       await call('record-stop');
@@ -644,6 +692,18 @@
     );
   $('obsRecordDirectoryBrowse').onclick = () =>
     run(async () => recordFolderSaved(await call('record-dir-browse')));
+  $('obsAutoRecord').checked = autoRecord.start;
+  $('obsAutoRecordStop').checked = autoRecord.stop;
+  $('obsAutoRecordStop').disabled = !autoRecord.start;
+  $('obsAutoRecord').onchange = () => {
+    autoRecord.start = $('obsAutoRecord').checked;
+    $('obsAutoRecordStop').disabled = !autoRecord.start;
+    saveAuto();
+  };
+  $('obsAutoRecordStop').onchange = () => {
+    autoRecord.stop = $('obsAutoRecordStop').checked;
+    saveAuto();
+  };
   $('obsRecordDirectoryOpen').onclick = () => run(async () => void (await call('record-dir-open')));
   // Tools → Recordings folder (after Settings → OBS is open): bring the folder setting into view with the OBS
   // settings freshly loaded.
