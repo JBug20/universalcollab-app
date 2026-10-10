@@ -255,6 +255,9 @@
       if (value) {
         schedulePreview();
         void autoConfigure();
+        // However OBS connected (OBS window, automatic reconnect, included OBS), load its video and recording
+        // settings so Settings → OBS shows them.
+        void settingsOnConnect();
       }
       updateMeters();
     }
@@ -584,6 +587,14 @@
     fpsNumerator: 'obsFPSNum',
     fpsDenominator: 'obsFPSDen'
   };
+  async function settingsOnConnect() {
+    try {
+      await loadSettings();
+    } catch (e) {
+      $('obsSettingsState').textContent =
+        'Could not read the OBS settings: ' + (e?.message || 'no answer') + ' Choose Refresh OBS settings.';
+    }
+  }
   async function loadSettings() {
     if (!online) return;
     const s = await call('settings');
@@ -634,8 +645,13 @@
   $('obsRecordDirectoryBrowse').onclick = () =>
     run(async () => recordFolderSaved(await call('record-dir-browse')));
   $('obsRecordDirectoryOpen').onclick = () => run(async () => void (await call('record-dir-open')));
-  // Tools → Recordings folder (after Settings → OBS is open): bring the folder setting into view.
-  window.openRecordingsFolderSettings = () => {
+  // Tools → Recordings folder (after Settings → OBS is open): bring the folder setting into view with the OBS
+  // settings freshly loaded.
+  window.openRecordingsFolderSettings = async () => {
+    // Read again each time: the folder may have been changed in OBS itself.
+    if (online) await settingsOnConnect();
+    if (!online)
+      $('obsSettingsState').textContent = 'Connect OBS to choose where recordings and clips are saved.';
     setTimeout(() => {
       $('obsRecordFolder').scrollIntoView({ block: 'center' });
       $('obsRecordDirectoryBrowse').focus();

@@ -34,8 +34,11 @@ try {
       return real(op, input);
     };
   });
-  await page.waitForFunction(() => window.obsConnected === true && window.connectOBSAutomatically);
-  await page.evaluate(() => window.connectOBSAutomatically());
+  // OBS connected by itself at start (not through the OBS window), as in the installed app.
+  await page.waitForFunction(() => window.obsConnected === true);
+  // Settings → OBS shows the OBS settings without pressing Refresh.
+  await page.waitForFunction(() => !document.getElementById('obsVideoFields').hidden);
+  assert.match(await page.locator('#obsSettingsState').textContent(), /Connected to OBS/);
   // Tools → Recordings folder.
   await page.evaluate(() => {
     const menu = [...document.querySelectorAll('.app-menu')].find(
