@@ -236,7 +236,12 @@ function create({
     );
     let best = null;
     for (const r of Array.isArray(list) ? list : []) {
-      const version = String(r?.tag_name || '').replace(/^v/, '');
+      // Tags are read without regard to case or a leading "v": 1.2.0-Preview.4 and v1.2.0-preview.4 both mean
+      // 1.2.0-preview.4 (a capital P would otherwise sort before every lowercase preview).
+      const version = String(r?.tag_name || '')
+        .trim()
+        .replace(/^v/i, '')
+        .toLowerCase();
       if (r.draft || (r.prerelease && channel === 'stable') || !VERSION.test(version)) continue;
       if (!best || compareVersions(version, best.version) > 0) best = { version, release: r };
     }
@@ -246,7 +251,7 @@ function create({
     const page = /^https:\/\/github\.com\//.test(r.html_url || '') ? r.html_url : '';
     const latest = { version: best.version, notes: String(r.body || '').slice(0, 2000), page };
     const ready = staged();
-    if (ready && ready.version === best.version) return set({ state: 'ready', latest });
+    if (ready && ready.version.toLowerCase() === best.version) return set({ state: 'ready', latest });
     const asset = name => (r.assets || []).find(a => a?.name === name)?.browser_download_url;
     if (!asset(MANIFEST) || !asset(MANIFEST + '.sig'))
       return set({
@@ -259,7 +264,7 @@ function create({
     const bytes = await fetchBytes(assetUrl(asset(MANIFEST)), MAX_MANIFEST);
     const sig = (await fetchBytes(assetUrl(asset(MANIFEST + '.sig')), 1024)).toString('utf8');
     const m = verifyManifest(bytes, sig, key);
-    if (m.version !== best.version) throw Error('The update does not match its release.');
+    if (m.version.toLowerCase() !== best.version) throw Error('The update does not match its release.');
     if (m.electron > parseInt(electronVersion, 10))
       return set({
         state: 'installer',

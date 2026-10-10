@@ -140,5 +140,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url
   fs.writeFileSync(path.join(out, MANIFEST + '.sig'), r.signature);
   console.log(`Update ${r.version}: ${r.file} (${r.zip.length} bytes), ${MANIFEST}, ${MANIFEST}.sig in ${out}`);
   console.log(`Signed for public key ${r.publicKey}`);
-  console.log(`Attach the three files to a GitHub release tagged ${r.version}.`);
+  console.log(`Attach the three files to a GitHub release tagged exactly ${r.version} (lowercase).`);
 }

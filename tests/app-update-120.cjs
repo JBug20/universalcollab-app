@@ -156,6 +156,15 @@ const assert = require('node:assert/strict'),
     assert.equal(fs.existsSync(path.join(install, 'sub', 'added.js')), false);
     assert.equal(up.rollback(install), false, 'nothing left to roll back');
 
+    // A tag typed with a capital letter or a leading "v" is still found (1.2.0-Preview.2 was missed before).
+    releases[1].tag_name = 'v1.2.0-Preview.2';
+    fs.rmSync(path.join(userData, 'app-update'), { recursive: true, force: true });
+    s = await make().check();
+    assert.equal(s.state, 'ready', s.error);
+    assert.equal(s.latest.version, '1.2.0-preview.2');
+    make().apply();
+    up.rollback(install);
+    reset();
     // Up to date.
     s = await make({ currentVersion: '1.2.0-preview.2' }).check();
     assert.equal(s.state, 'latest');
