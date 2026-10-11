@@ -78,24 +78,32 @@ function fakeOBS({ kinds = ['source_record_filter'], kindList = true } = {}) {
 
 (async () => {
   // What Record records.
-  assert.deepEqual(recording({}), { scene: '', program: true });
+  assert.deepEqual(recording({}), { scene: '', program: true, audio: 1 });
   assert.deepEqual(recording({ recordScene: 'Recording', recordWhat: 'scene' }), {
     scene: 'Recording',
-    program: false
+    program: false,
+    audio: 1
   });
   assert.deepEqual(recording({ recordScene: 'Recording', recordWhat: 'both' }), {
     scene: 'Recording',
-    program: true
+    program: true,
+    audio: 1
   });
   assert.deepEqual(
     recording({ recordScene: '', recordWhat: 'scene' }),
-    { scene: '', program: true },
+    { scene: '', program: true, audio: 1 },
     'no scene'
   );
   assert.deepEqual(recording({ recordScene: 'Recording', recordWhat: 'program' }), {
     scene: '',
-    program: true
+    program: true,
+    audio: 1
   });
+  // The recording scene's sound: OBS audio Track 1 (what is streamed) unless chosen otherwise.
+  assert.equal(recording({ recordAudio: 3 }).audio, 3);
+  assert.equal(recording({ recordAudio: 0 }).audio, 0);
+  assert.equal(recording({ recordAudio: 9 }).audio, 1, 'out of range');
+  assert.equal(recording({ recordAudio: '2' }).audio, 1, 'not a number');
 
   // Recording scene only: the filter is made on the scene, records into OBS's recordings folder; OBS's own
   // recording does not start.
@@ -108,6 +116,10 @@ function fakeOBS({ kinds = ['source_record_filter'], kindList = true } = {}) {
     assert.equal(f.filterKind, 'source_record_filter');
     assert.equal(f.filterSettings.record_mode, 1);
     assert.equal(f.filterSettings.path, 'D:\\Recordings');
+    // Sound: OBS audio Track 1 (Desktop Audio and Mic/Aux from Settings → Audio are on it, as on the stream).
+    assert.equal(f.filterSettings.different_audio, true);
+    assert.equal(f.filterSettings.audio_track, 1);
+    assert.equal(f.filterSettings.audio_source, '');
     assert.equal(f.filterEnabled, true);
     assert.equal(o.isRecording(), false, 'normal recording untouched');
     assert.equal(r.outputActive, true);
@@ -191,6 +203,23 @@ function fakeOBS({ kinds = ['source_record_filter'], kindList = true } = {}) {
       /not a Source Record filter/
     );
     assert.deepEqual(o.filters.get('Recording').filterSettings, {});
+  }
+
+  // Another track, or only the scene's own sources; an older filter (made without sound settings) gets them.
+  {
+    const o = fakeOBS();
+    o.filters.set('Recording', {
+      filterKind: 'source_record_filter',
+      filterEnabled: true,
+      filterSettings: { record_mode: 0 }
+    });
+    const c = new OBSControls(o.link);
+    await c.handle('record-start', { recordScene: 'Recording', recordWhat: 'scene', recordAudio: 3 });
+    assert.equal(o.filters.get('Recording').filterSettings.audio_track, 3);
+    assert.equal(o.filters.get('Recording').filterSettings.different_audio, true);
+    await c.handle('record-stop', { recordScene: 'Recording', recordWhat: 'scene' });
+    await c.handle('record-start', { recordScene: 'Recording', recordWhat: 'scene', recordAudio: 0 });
+    assert.equal(o.filters.get('Recording').filterSettings.different_audio, false);
   }
 
   // Readiness and the settings info.

@@ -35,17 +35,29 @@ try {
   await page.waitForFunction(() => /records "Recording" on its own/.test(obsRecordSceneInfo.textContent));
   assert.deepEqual(JSON.parse(await page.evaluate(() => localStorage.getItem('uc-record-scene'))), {
     scene: 'Recording',
-    what: 'scene'
+    what: 'scene',
+    audio: 1
   });
+  // Sound: the same as the stream (OBS audio Track 1) unless chosen otherwise.
+  assert.equal(await page.locator('#obsRecordAudio').inputValue(), '1');
+  assert.match(await info(), /same sound as the stream \(OBS audio Track 1\)/);
+  await page.locator('#obsRecordAudio').selectOption('0');
+  await page.waitForFunction(() =>
+    /only the sound of the sources inside/.test(obsRecordSceneInfo.textContent)
+  );
+  await page.locator('#obsRecordAudio').selectOption('2');
+  await page.waitForFunction(() => /OBS audio Track 2/.test(obsRecordSceneInfo.textContent));
 
   // Start Recording sends the choice and says what it records; the settings are locked meanwhile.
   assert.equal(await sc('record'), 'Recording "Recording" started.');
   const start = (await obsCalls('record-start')).at(-1);
   assert.equal(start.input.recordScene, 'Recording');
   assert.equal(start.input.recordWhat, 'scene');
+  assert.equal(start.input.recordAudio, 2);
   assert.equal((await obsCalls('snapshot')).at(-1).input.recordScene, 'Recording');
   await page.waitForFunction(() => document.getElementById('obsRecordSceneName').disabled);
   assert.equal(await page.locator('#obsRecordWhat').isDisabled(), true);
+  assert.equal(await page.locator('#obsRecordAudio').isDisabled(), true);
   assert.equal(await sc('record'), 'Recording stopped.');
   await page.waitForFunction(() => !document.getElementById('obsRecordSceneName').disabled);
 

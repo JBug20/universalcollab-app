@@ -82,6 +82,7 @@ You need:
   - [ ] Without the plugin: it says Source Record is not installed, and **Get Source Record** opens its page. Install it with OBS closed, start OBS, then **Check again** says it is installed.
   - [ ] Make a second scene in OBS (e.g. "Recording" without alerts or chat). Choose **The recording scene only** and that scene.
   - [ ] Stream the other scene and press Start Recording (button, Stream Deck or Ctrl+Alt+R). The status bar shows REC. Stop Recording: the file in the recordings folder ends in "Recording scene" and shows the recording scene, not the stream.
+  - [ ] The recording-scene file has sound: your mic and desktop audio, the same as the stream (Recording sound → Same as the stream). Try another track or "Only sources inside the recording scene" too.
   - [ ] **Both, as two files** saves the normal recording and the recording-scene file.
   - [ ] The choices are greyed out while recording.
   - [ ] Auto-record with the recording scene chosen records the recording scene.

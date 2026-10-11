@@ -27,11 +27,16 @@ const SCENE_FILTER = 'UniversalCollab recording',
 const SOURCE_RECORD_MISSING =
   'The Source Record plugin is not installed in OBS, so the recording scene cannot be recorded. Install it (Settings → OBS → Recording scene → Get Source Record), restart OBS, then try again.';
 const RECORD_WHAT = ['program', 'scene', 'both'];
-// What Record records: the normal OBS recording (what's on stream), the recording scene, or both.
+// What Record records: the normal OBS recording (what's on stream), the recording scene, or both. `audio` is the
+// recording scene's sound: an OBS audio track (1–6; Track 1 is what is streamed by default), or 0 for only the sound
+// of the sources inside the scene. Source Record's own default is the latter, which leaves out OBS's global
+// Desktop Audio and Mic/Aux (Settings → Audio), so recordings were silent for most setups.
 function recording(i) {
   const scene = typeof i?.recordScene === 'string' && i.recordScene.length <= 512 ? i.recordScene : '';
   const what = scene && RECORD_WHAT.includes(i?.recordWhat) ? i.recordWhat : 'program';
-  return { scene: what === 'program' ? '' : scene, program: what !== 'scene' };
+  const audio =
+    Number.isInteger(i?.recordAudio) && i.recordAudio >= 0 && i.recordAudio <= 6 ? i.recordAudio : 1;
+  return { scene: what === 'program' ? '' : scene, program: what !== 'scene', audio };
 }
 class OBSControls {
   constructor(link) {
@@ -193,7 +198,7 @@ class OBSControls {
     if (active && this.sceneRec?.scene !== scene) this.sceneRec = { scene, since: Date.now() };
     return { scene, active, since: active ? this.sceneRec.since : 0 };
   }
-  async sceneStart(scene) {
+  async sceneStart(scene, audio = 1) {
     const { scenes } = await this.call('GetSceneList');
     if (!scenes.some(s => s.sceneName === scene))
       throw Error(
@@ -206,6 +211,9 @@ class OBSControls {
     const filterSettings = {
       record_mode: 1,
       filename_formatting: '%CCYY-%MM-%DD %hh-%mm-%ss Recording scene',
+      ...(audio
+        ? { different_audio: true, audio_track: audio, audio_source: '' }
+        : { different_audio: false }),
       ...(directory ? { path: directory } : {})
     };
     const f = await this.sceneFilter(scene);
@@ -265,7 +273,7 @@ class OBSControls {
   }
   async recordStart(i) {
     const rec = recording(i);
-    if (rec.scene) await this.sceneStart(rec.scene);
+    if (rec.scene) await this.sceneStart(rec.scene, rec.audio);
     if (rec.program)
       try {
         if (!(await this.call('GetRecordStatus')).outputActive) await this.call('StartRecord');

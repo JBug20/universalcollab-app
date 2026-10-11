@@ -60,13 +60,17 @@
   // Recording scene (Settings → OBS): what Start Recording records, sent with the calls that read or change the
   // recording, so OBS's recording state includes the recording scene (obs-controls.cjs, Source Record plugin).
   const REC_KEY = 'uc-record-scene';
-  let recScene = { scene: '', what: 'program' };
+  let recScene = { scene: '', what: 'program', audio: 1 };
   try {
     recScene = { ...recScene, ...JSON.parse(localStorage.getItem(REC_KEY) || '{}') };
   } catch {}
   let recScenesSig = '';
   const REC_OPS = ['snapshot', 'record-start', 'record-stop', 'scene-record-info'];
-  const recInput = () => ({ recordScene: recScene.scene, recordWhat: recScene.what });
+  const recInput = () => ({
+    recordScene: recScene.scene,
+    recordWhat: recScene.what,
+    recordAudio: recScene.audio
+  });
   const call = (op, input = {}) => {
     if (!bridge?.obs) throw Error('OBS controls require the desktop app.');
     const rec = REC_OPS.includes(op) ? recInput() : {};
@@ -921,8 +925,9 @@
     const names = (state?.scenes || []).map(x => x.sceneName);
     const select = $('obsRecordSceneName');
     const busy = !!state?.record?.outputActive;
-    select.disabled = $('obsRecordWhat').disabled = busy;
+    select.disabled = $('obsRecordWhat').disabled = $('obsRecordAudio').disabled = busy;
     $('obsRecordWhat').value = recScene.what;
+    $('obsRecordAudio').value = String(recScene.audio);
     const sig = JSON.stringify([names, recScene.scene]);
     if (sig === recScenesSig) return;
     recScenesSig = sig;
@@ -974,7 +979,15 @@
           scene +
           '"' +
           (what === 'both' ? ' and what is on stream, as two files,' : ' on its own,') +
-          " in the recordings folder, with OBS's audio (Track 1). The stream keeps sending the scene that is live.";
+          ' in the recordings folder, ' +
+          (recScene.audio === 0
+            ? "with only the sound of the sources inside that scene (not OBS's Desktop Audio or Mic/Aux from Settings → Audio)."
+            : recScene.audio === 1
+              ? 'with the same sound as the stream (OBS audio Track 1).'
+              : 'with OBS audio Track ' +
+                recScene.audio +
+                ' (in OBS: Edit → Advanced Audio Properties chooses which sources are on each track).') +
+          ' The stream keeps sending the scene that is live.';
     }
     info.textContent = text;
     info.classList.toggle('bad', bad);
@@ -986,6 +999,11 @@
   };
   $('obsRecordSceneName').onchange = () => {
     recScene.scene = $('obsRecordSceneName').value;
+    saveRecScene();
+    void recordSceneInfo();
+  };
+  $('obsRecordAudio').onchange = () => {
+    recScene.audio = Number($('obsRecordAudio').value);
     saveRecScene();
     void recordSceneInfo();
   };

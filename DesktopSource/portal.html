@@ -7,7 +7,7 @@
       content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; media-src http://127.0.0.1:*; frame-src https: http:; base-uri 'none'; form-action 'none'"
       http-equiv="Content-Security-Policy"
     />
-    <title>UniversalCollab · 1.2.0-preview.11</title>
+    <title>UniversalCollab · 1.2.0-preview.12</title>
     <link href="portal.css" rel="stylesheet" />
     <link href="studio-ui-v2.css" rel="stylesheet" />
     <link href="integrated-assist.css" rel="stylesheet" />
@@ -473,6 +473,17 @@
                   </select></label
                 >
                 <label>Recording scene<select id="obsRecordSceneName"></select></label>
+                <label
+                  >Recording sound<select id="obsRecordAudio">
+                    <option value="1">Same as the stream (OBS audio Track 1)</option>
+                    <option value="2">OBS audio Track 2</option>
+                    <option value="3">OBS audio Track 3</option>
+                    <option value="4">OBS audio Track 4</option>
+                    <option value="5">OBS audio Track 5</option>
+                    <option value="6">OBS audio Track 6</option>
+                    <option value="0">Only sources inside the recording scene</option>
+                  </select></label
+                >
                 <p class="hint" id="obsRecordSceneInfo" role="status"></p>
                 <div class="record-folder-actions">
                   <button id="obsSourceRecordGet" type="button">Get Source Record</button
@@ -548,7 +559,7 @@
       </dialog>
       <div aria-live="polite" id="notice" role="status"></div>
       <footer>
-        UNIVERSALCOLLAB 1.2.0-preview.11
+        UNIVERSALCOLLAB 1.2.0-preview.12
         <span>Credentials hidden by default · Copying puts real values on your clipboard</span>
       </footer>
       <div hidden="" id="platformWorkspace">
@@ -776,7 +787,7 @@
       </div>
       <section class="welcome server-dialog" hidden="" id="welcome">
         <div class="intro">
-          <span class="eyebrow">CONTROL ROOM / 1.2.0-preview.11</span>
+          <span class="eyebrow">CONTROL ROOM / 1.2.0-preview.12</span>
           <h1>Keep your stream<br /><em>in good company.</em></h1>
           <p>
             Your own destination. Shared moments.<br />Collaborate on your terms, even when a connection
