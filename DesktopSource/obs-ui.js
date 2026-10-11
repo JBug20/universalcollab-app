@@ -66,13 +66,18 @@
   let obsSource = localStorage.getItem('uc-obs-source');
   const useBundled = () => bundled.available && obsSource !== 'own';
   async function run(fn) {
-    if (working) return;
+    if (working) {
+      note('UniversalCollab is still finishing the last OBS action. Try again in a moment.');
+      return;
+    }
     working = true;
     buttons();
     try {
       await fn();
     } catch (e) {
       say(e.message);
+      // Also in the notice line: the OBS settings window, where say() writes, is usually closed.
+      note(e.message);
     } finally {
       working = false;
       buttons();
@@ -182,10 +187,22 @@
   clipNote.setAttribute('role', 'status');
   clipNote.hidden = true;
   async function saveClip() {
-    if (!online) throw Error('Connect OBS in Settings → OBS first.');
-    const r = await call('clip');
-    clipNote.replaceChildren();
     clipNote.hidden = false;
+    clipNote.replaceChildren('Saving clip…');
+    let r;
+    try {
+      if (!online) throw Error('Connect OBS in Settings → OBS first.');
+      r = await call('clip');
+    } catch (e) {
+      // Shown where the button is, not only in the OBS settings window.
+      let text = 'Clip failed: ' + (e?.message || 'OBS did not answer.');
+      // The included OBS runs in the tray: say how to reach its settings.
+      if (/replay buffer/i.test(text) && useBundled())
+        text += ' The included OBS: Settings → OBS → Open OBS window.';
+      clipNote.replaceChildren(text);
+      throw Object.assign(Error(text.replace(/^Clip failed: /, '')), { cause: e });
+    }
+    clipNote.replaceChildren();
     if (r.started) {
       clipNote.textContent = `Replay buffer started. Press Clip again to save the last ${r.seconds || 'few'} seconds.`;
       return 'Replay buffer started.';

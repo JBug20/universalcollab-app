@@ -16,6 +16,8 @@ try {
       }
       if (op === 'clip') {
         calls.push({ obs: op, input });
+        if (window.clipError) throw Error(window.clipError);
+        if (window.clipSlow) await new Promise(r => setTimeout(r, 1500));
         if (!active) return window.relayDesktop.obs('replay-start');
         n++;
         return {
@@ -60,6 +62,25 @@ try {
     [...document.querySelectorAll('#streamsPanel button')].map(b => b.id)
   );
   assert.equal(order.indexOf('obsClip'), order.indexOf('obsRecord') + 1, order.join());
+  // While it saves, it says so; a second click meanwhile is not silently ignored.
+  await page.evaluate(() => (window.clipSlow = true));
+  await page.locator('#obsClip').click();
+  assert.equal(await page.locator('#obsClipNote').textContent(), 'Saving clip…');
+  await page.evaluate(() => document.getElementById('obsClip').onclick());
+  assert.match(await page.locator('#notice').textContent(), /still finishing the last OBS action/);
+  await page.waitForFunction(() => /Clip saved/.test(document.getElementById('obsClipNote').textContent));
+  await page.evaluate(() => (window.clipSlow = false));
+  // A failure is shown under the button and in the notice line, not only in the OBS settings window.
+  await page.evaluate(
+    () =>
+      (window.clipError =
+        'Turn on the replay buffer in OBS (Settings → Output → Replay Buffer → Enable Replay Buffer), then press Clip again.')
+  );
+  await page.locator('#obsClip').click();
+  await page.waitForFunction(() =>
+    /Clip failed: Turn on the replay buffer/.test(document.getElementById('obsClipNote').textContent)
+  );
+  assert.match(await page.locator('#notice').textContent(), /Turn on the replay buffer/);
   assert.deepEqual(errors, []);
   console.log('PASS clip UI: starts the replay buffer, saves clips, Show file sends the saved path.');
 } finally {
