@@ -166,6 +166,8 @@ app.whenReady().then(() => {
     }
   });
   require('./overlays.cjs').start({ app, ipcMain, guard, clipboard });
+  // Go-live announcements to Discord (announce.cjs / announce.js).
+  require('./announce.cjs').start({ app, ipcMain, guard, safeStorage });
   require('./hotkeys.cjs').start({ app, ipcMain, guard, getWindow: () => win, globalShortcut });
   // App updates from GitHub Releases (app-update.cjs): checked shortly after start and every 6 hours when
   // automatic checks are on, installed when the app closes or with Restart to update.

@@ -150,6 +150,18 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
       onAppUpdate: callback => {
         window.appUpdatePush = callback;
       },
+      // Go-live announcements: tests set window.fakeDiscord ({ id }) or window.announceFail (an error text).
+      announce: async input => {
+        calls.push({ announce: input.op, input });
+        if (input.op === 'save-discord')
+          window.fakeDiscord = { configured: true, id: '123456789', thread: false };
+        if (input.op === 'remove-discord') window.fakeDiscord = null;
+        if (input.op === 'post' && window.announceFail) return { ok: false, error: window.announceFail };
+        return {
+          ok: true,
+          data: input.op === 'post' ? { posted: true } : { discord: window.fakeDiscord || null }
+        };
+      },
       obs: async (op, input = {}) => {
         calls.push({ obs: op, input });
         if (op === 'state' || op === 'connect' || op === 'auto-connect') return { connected: true };

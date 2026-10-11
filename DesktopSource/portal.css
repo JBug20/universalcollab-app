@@ -1876,3 +1876,25 @@ footer span {
 .prepare-why {
   color: #ffd76a;
 }
+/* Go-live announcements (announce.js). */
+#announceWindow,
+#announcePreview {
+  width: min(640px, calc(100vw - 32px));
+}
+#announceWindow textarea,
+#announcePreview textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  background: #13121c;
+  color: var(--text);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 10px;
+  font: inherit;
+  resize: vertical;
+}
+#announceStatus.bad {
+  color: #ffb4a8;
+}

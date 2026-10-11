@@ -117,6 +117,17 @@ You need:
 - [ ] Starting a new relay broadcast starts a new list.
 - [ ] Optional: add the credits link to the relay layout as a browser source; it shows in the relay picture.
 
+## 6c. Go-live announcements (Tools → Go-live announcements)
+
+- [ ] In Discord: Server Settings → Integrations → Webhooks → New Webhook → pick a channel → Copy Webhook URL. Paste it and Save webhook: it says "connected", and the link is not shown again.
+- [ ] Send test post: the message appears in that channel.
+- [ ] Add your Twitch/YouTube/Kick links. The Preview line shows the message with them.
+- [ ] Start a relay broadcast: the "You are live: post on Discord?" window appears once. Edit the text, Post to Discord: the edited text is posted.
+- [ ] Ping → @here or a role (Role ID from Server Settings → Roles → ⋯ → Copy Role ID): the post pings only that.
+- [ ] Next broadcast: Skip posts nothing.
+- [ ] "Also post when the broadcast ends" on: End Relay posts the end message.
+- [ ] Delete the webhook in Discord, then post: the app says the webhook no longer exists.
+
 ## 7. Automatic updates (needs JBug20 to publish 1.2.0-preview.3)
 
 JBug20 attaches the three update files to a GitHub **pre-release** tagged `1.2.0-preview.3`:

@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('relayDesktop', {
   },
   // End credits and alerts overlays for OBS (overlays.cjs / end-credits.js).
   overlays: input => ipcRenderer.invoke('overlays', input),
+  // Go-live announcements (announce.cjs / announce.js).
+  announce: input => ipcRenderer.invoke('announce', input),
   // Keyboard shortcuts (hotkeys.cjs / keyboard-shortcuts.js).
   hotkeys: input => ipcRenderer.invoke('hotkeys', input),
   onHotkey: callback => {
