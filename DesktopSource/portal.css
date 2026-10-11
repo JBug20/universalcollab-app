@@ -1217,6 +1217,10 @@ footer span {
   display: flex;
   align-items: center;
   margin-left: auto;
+  /* May shrink: server-health.js hides the least important parts until the rest fits. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
   height: 26px;
   padding: 0;
   background: none;
@@ -1838,4 +1842,12 @@ footer span {
   height: 22px;
   border-radius: 5px;
   border: 1px solid;
+}
+/* Parts hidden to fit the status bar (server-health.js fit()). */
+.status-seg.squeezed {
+  display: none;
+}
+/* A message in the status bar keeps some room even when the bar is full. */
+.status-bar #notice:not(:empty) {
+  min-width: min(240px, 25%);
 }

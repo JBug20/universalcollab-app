@@ -251,9 +251,27 @@
     alerts.el.classList.toggle('crit', critical);
     alerts.el.classList.toggle('warn', !critical && warnings.length > 0);
     alerts.el.title = warnings.map(w => w.text).join('\n');
+    fit();
     if (details.open) paintDetails();
   }
 
+  // When everything does not fit (e.g. live with timers running), hide the least important parts first instead of
+  // cutting off the end. Timers, LIVE, warnings and storage that is running low always stay. All of it is still in
+  // the details window.
+  const SQUEEZE = [upload, memory, disk, relay, cpu, local, outputs];
+  function fit() {
+    for (const s of SQUEEZE) s.el.classList.remove('squeezed');
+    for (const s of SQUEEZE) {
+      if (segments.scrollWidth <= segments.clientWidth + 1) break;
+      if (s.el.hidden || s.el.classList.contains('warn') || s.el.classList.contains('crit')) continue;
+      if (s === relay && !live.el.classList.contains('on')) continue;
+      s.el.classList.add('squeezed');
+    }
+    segments.title = SQUEEZE.some(s => s.el.classList.contains('squeezed'))
+      ? 'Server health details (some items are hidden to fit; click to see everything)'
+      : 'Server health details';
+  }
+  window.addEventListener('resize', fit);
   function paintDetails() {
     body.replaceChildren();
     const pcRow = () => {
