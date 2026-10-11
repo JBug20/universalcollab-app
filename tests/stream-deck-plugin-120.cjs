@@ -112,7 +112,14 @@ const until = async (fn, what, ms = 4000) => {
     assert.match(fromPlugin.find(m => m.event === 'sendToPropertyInspector').payload.status, /pairing token/);
 
     // Wrong token: the panel says so.
-    toPlugin({ event: 'didReceiveGlobalSettings', payload: { settings: { token: 'wrong', port: appPort } } });
+    // Pairing as the key settings panel does it: Save connection sends the token straight to the plugin (Stream
+    // Deck does not pass the panel's own global-settings change on to the plugin).
+    toPlugin({
+      event: 'sendToPlugin',
+      action: A + 'record',
+      context: 'rec',
+      payload: { type: 'pair', token: 'wrong-token-1234567890', port: appPort }
+    });
     await wait(300);
     fromPlugin.length = 0;
     toPlugin({ event: 'sendToPlugin', action: A + 'record', context: 'rec', payload: { type: 'getInfo' } });
@@ -123,7 +130,17 @@ const until = async (fn, what, ms = 4000) => {
     );
 
     // Right token: keys appear and light up from the app's state.
-    toPlugin({ event: 'didReceiveGlobalSettings', payload: { settings: { token: clip, port: appPort } } });
+    toPlugin({
+      event: 'sendToPlugin',
+      action: A + 'record',
+      context: 'rec',
+      payload: { type: 'pair', token: '  ' + clip + '\n', port: appPort }
+    });
+    // The plugin stores it in Stream Deck's settings itself, so it is kept after a restart.
+    await until(
+      () => fromPlugin.some(m => m.event === 'setGlobalSettings' && m.payload?.token === clip),
+      'token saved by the plugin'
+    );
     for (const [action, context, settings] of [
       ['record', 'rec', {}],
       ['stream', 'live', {}],

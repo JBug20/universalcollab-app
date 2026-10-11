@@ -239,8 +239,22 @@ function run(args) {
         keys.set(m.context, { kind, settings: m.payload?.settings || {} });
         press(m.context);
         break;
-      case 'propertyInspectorDidAppear':
       case 'sendToPlugin':
+        // Save connection in a key's settings: the token comes straight here (Stream Deck does not pass the panel's
+        // own global-settings change on to the plugin). Stored in Stream Deck's settings so it survives a restart.
+        if (m.payload?.type === 'pair') {
+          const token = typeof m.payload.token === 'string' ? m.payload.token.trim() : '';
+          const port = Number(m.payload.port);
+          global = {
+            ...global,
+            ...(Number.isInteger(port) && port > 1023 && port < 65536 ? { port } : {}),
+            ...(token && token.length <= 200 ? { token } : {})
+          };
+          toSD({ event: 'setGlobalSettings', context: pluginUUID, payload: global });
+          connectApp();
+        }
+      // falls through: answer with the current status
+      case 'propertyInspectorDidAppear':
         toSD({ event: 'sendToPropertyInspector', action: m.action, context: m.context, payload: info() });
         break;
     }

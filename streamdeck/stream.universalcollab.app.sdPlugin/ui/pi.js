@@ -92,7 +92,8 @@ function connectElgatoStreamDeckSocket(port, propertyInspectorUUID, registerEven
     const token = $('token').value.trim();
     const port = Number($('port').value) || 18750;
     global = { ...global, port, ...(token ? { token } : {}) };
-    send('setGlobalSettings', global);
+    // Straight to the plugin, which saves it and connects (see plugin.js, 'pair').
+    send('sendToPlugin', { type: 'pair', token, port }, { action });
     $('token').value = '';
     $('status').textContent = 'Saved. Connecting…';
     setTimeout(() => send('sendToPlugin', { type: 'getInfo' }, { action }), 1500);

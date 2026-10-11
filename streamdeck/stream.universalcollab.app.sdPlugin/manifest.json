@@ -1,7 +1,7 @@
 {
   "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
   "Name": "UniversalCollab",
-  "Version": "1.2.1.0",
+  "Version": "1.2.2.0",
   "Author": "UniversalCollab",
   "Description": "Control UniversalCollab from Stream Deck: stream, recording, clips, OBS and relay scenes, Studio Mode, AFK, audio and Stream Assist.",
   "URL": "https://github.com/JBug20/universalcollab-app",
