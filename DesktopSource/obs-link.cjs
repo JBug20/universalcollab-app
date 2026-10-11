@@ -116,10 +116,14 @@ class OBSLink {
             m.d.requestStatus.result
               ? p.resolve(m.d.responseData || {})
               : p.reject(
-                  Error(
-                    'OBS rejected ' +
-                      p.type +
-                      '. Check that streaming is stopped and the selected OBS profile supports this action.'
+                  // OBS's reason (code and comment) travels with the error for callers that can do better.
+                  Object.assign(
+                    Error(
+                      'OBS rejected ' +
+                        p.type +
+                        '. Check that streaming is stopped and the selected OBS profile supports this action.'
+                    ),
+                    { obsCode: m.d.requestStatus.code, obsComment: String(m.d.requestStatus.comment || '') }
                   )
                 );
           }

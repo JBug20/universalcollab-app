@@ -26,7 +26,15 @@ const assert = require('node:assert/strict'),
               'GetProfileParameter'
             ]
           };
-        if (t === 'GetReplayBufferStatus') return { outputActive: active };
+        if (t === 'GetReplayBufferStatus') {
+          // Real OBS: with the replay buffer switched off in the profile, it refuses even the status request.
+          if (!enabled)
+            throw Object.assign(Error('OBS rejected GetReplayBufferStatus.'), {
+              obsCode: 604,
+              obsComment: 'Replay buffer is not available.'
+            });
+          return { outputActive: active };
+        }
         if (t === 'StartReplayBuffer') {
           if (!enabled) throw Error('OutputDisabled');
           active = true;
@@ -68,7 +76,11 @@ const assert = require('node:assert/strict'),
 
   // Replay buffer turned off in OBS: a clear message on how to turn it on.
   ({ obs } = fake({ enabled: false }));
-  await assert.rejects(obs.handle('clip'), /Settings → Output → Replay Buffer/);
+  await assert.rejects(
+    obs.handle('clip'),
+    /switched off in this OBS profile.*Settings → Output → Replay Buffer/
+  );
+  assert.deepEqual(await obs.handle('replay-status'), { supported: true, enabled: false, active: false });
 
   // OBS without a replay buffer.
   ({ obs } = fake({ available: ['GetReplayBufferStatus'] }));

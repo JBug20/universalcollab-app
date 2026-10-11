@@ -12,6 +12,10 @@ const bool = v => {
   if (typeof v !== 'boolean') throw Error('Invalid checkbox value.');
   return v;
 };
+// Clip needs OBS's replay buffer, which is switched on per OBS profile. OBS applies the change when nothing is
+// streaming or recording.
+const REPLAY_OFF =
+  "OBS's replay buffer is switched off in this OBS profile. Stop streaming and recording, then in OBS: Settings → Output → Replay Buffer → tick Enable Replay Buffer → OK. Press Clip again after that.";
 class OBSControls {
   constructor(link) {
     this.link = link;
@@ -77,7 +81,13 @@ class OBSControls {
   async replayStatus() {
     if (!this.available?.has('GetReplayBufferStatus') || !this.available.has('SaveReplayBuffer'))
       return { supported: false };
-    const active = !!(await this.call('GetReplayBufferStatus')).outputActive;
+    // OBS refuses GetReplayBufferStatus when the replay buffer is turned off in the current profile.
+    let active;
+    try {
+      active = !!(await this.call('GetReplayBufferStatus')).outputActive;
+    } catch {
+      return { supported: true, enabled: false, active: false };
+    }
     let seconds = null;
     if (this.available.has('GetProfileParameter'))
       try {
@@ -99,9 +109,7 @@ class OBSControls {
     try {
       await this.call('StartReplayBuffer');
     } catch {
-      throw Error(
-        'Turn on the replay buffer in OBS (Settings → Output → Replay Buffer → Enable Replay Buffer), then press Clip again.'
-      );
+      throw Error(REPLAY_OFF);
     }
     return { ...s, active: true, started: true };
   }
@@ -116,6 +124,7 @@ class OBSControls {
   async clip() {
     const s = await this.replayStatus();
     // A buffer that has only just started holds nothing yet, so the first press starts it.
+    if (s.enabled === false) throw Error(REPLAY_OFF);
     if (!s.active) return this.replayStart();
     const before = await this.lastReplay();
     await this.call('SaveReplayBuffer');
@@ -164,7 +173,11 @@ class OBSControls {
       video,
       streaming: !!stream?.outputActive,
       recording: !!record?.outputActive,
-      replay: replay && { supported: !!replay.supported, enabled: replayEnabled, active: !!replay.active }
+      replay: replay && {
+        supported: !!replay.supported,
+        enabled: replayEnabled && replay.enabled !== false,
+        active: !!replay.active
+      }
     };
   }
   async handle(op, i = {}) {
