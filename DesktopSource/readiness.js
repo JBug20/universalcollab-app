@@ -73,6 +73,26 @@
           'Recordings cannot be saved: ' + rf.error + ' Choose another folder in Tools → Recordings folder.'
         );
       else if (rf?.ok) add('ok', 'Recordings and clips are saved in ' + rf.folder + '.');
+      // Recording scene (Settings → OBS): Source Record must be in OBS and the scene must exist.
+      const sr = d.sceneRecord;
+      if (sr) {
+        const level = f.autoRecord ? 'block' : 'warn';
+        if (!sr.exists)
+          add(
+            level,
+            `The recording scene "${sr.scene}" is not in OBS. Choose it again in Settings → OBS → Recording scene.`
+          );
+        else if (sr.installed === false)
+          add(
+            level,
+            'The recording scene cannot be recorded: install the Source Record plugin (Settings → OBS → Recording scene → Get Source Record).'
+          );
+        else
+          add(
+            'ok',
+            `Start Recording records the scene "${sr.scene}"${sr.program ? ' and what is on stream' : ''}.`
+          );
+      }
     }
     if (f.pc) {
       const p = f.pc;
@@ -143,7 +163,11 @@
       const obs = { connected: !!window.obsConnected };
       if (obs.connected)
         try {
-          obs.readiness = await bridge.obs('readiness');
+          let rec = {};
+          try {
+            rec = JSON.parse(localStorage.getItem('uc-record-scene') || '{}');
+          } catch {}
+          obs.readiness = await bridge.obs('readiness', { recordScene: rec.scene, recordWhat: rec.what });
         } catch (e) {
           obs.error = e?.message || 'no answer';
         }

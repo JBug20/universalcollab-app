@@ -17,11 +17,29 @@ const bool = v => {
 // streaming or recording.
 const REPLAY_OFF =
   "OBS's replay buffer is switched off in this OBS profile. Stop streaming and recording, then in OBS: Settings → Output → Replay Buffer → tick Enable Replay Buffer → OK. Press Clip again after that.";
+// Recording scene (1.2.0): with the Source Record plugin (exeldro, obsproject.com) a scene can be recorded on its
+// own while another scene is streamed. UniversalCollab puts one Source Record filter, "UniversalCollab recording",
+// on the chosen scene and starts or stops it by switching its record mode between Always and None (the same thing
+// the plugin's own record_start / record_stop do). The file goes to OBS's recordings folder.
+const SCENE_FILTER = 'UniversalCollab recording',
+  SOURCE_RECORD = 'source_record_filter',
+  SOURCE_RECORD_PAGE = 'https://obsproject.com/forum/resources/source-record.1285/';
+const SOURCE_RECORD_MISSING =
+  'The Source Record plugin is not installed in OBS, so the recording scene cannot be recorded. Install it (Settings → OBS → Recording scene → Get Source Record), restart OBS, then try again.';
+const RECORD_WHAT = ['program', 'scene', 'both'];
+// What Record records: the normal OBS recording (what's on stream), the recording scene, or both.
+function recording(i) {
+  const scene = typeof i?.recordScene === 'string' && i.recordScene.length <= 512 ? i.recordScene : '';
+  const what = scene && RECORD_WHAT.includes(i?.recordWhat) ? i.recordWhat : 'program';
+  return { scene: what === 'program' ? '' : scene, program: what !== 'scene' };
+}
 class OBSControls {
   constructor(link) {
     this.link = link;
     this.available = null;
     this.ownVirtualCam = false;
+    // The recording scene being recorded: { scene, since }.
+    this.sceneRec = null;
   }
   async call(type, data = {}) {
     if (this.available && !this.available.has(type))
@@ -140,9 +158,147 @@ class OBSControls {
     }
     return { ...s, saved: true, path: '' };
   }
+  // Source Record installed in this OBS: true, false, or null when this OBS cannot say (obs-websocket before 5.4).
+  async sourceRecordInstalled() {
+    if (!this.available.has('GetSourceFilterKindList')) return null;
+    try {
+      return (await this.call('GetSourceFilterKindList')).sourceFilterKinds.includes(SOURCE_RECORD);
+    } catch {
+      return null;
+    }
+  }
+  async sceneFilter(scene) {
+    try {
+      return await this.link.request('GetSourceFilter', { sourceName: scene, filterName: SCENE_FILTER });
+    } catch (e) {
+      if (e.obsCode === 600) return null;
+      throw e;
+    }
+  }
+  // Is the recording scene recording? { scene, active, since }.
+  async sceneStatus(scene) {
+    if (!scene) return null;
+    let f = null;
+    try {
+      f = await this.sceneFilter(scene);
+    } catch {}
+    const active = !!(
+      f &&
+      f.filterKind === SOURCE_RECORD &&
+      f.filterEnabled &&
+      f.filterSettings?.record_mode === 1
+    );
+    if (!active && this.sceneRec?.scene === scene) this.sceneRec = null;
+    // Started outside this run of the app (or before a restart): count from when it was first seen.
+    if (active && this.sceneRec?.scene !== scene) this.sceneRec = { scene, since: Date.now() };
+    return { scene, active, since: active ? this.sceneRec.since : 0 };
+  }
+  async sceneStart(scene) {
+    const { scenes } = await this.call('GetSceneList');
+    if (!scenes.some(s => s.sceneName === scene))
+      throw Error(
+        'OBS has no scene called "' + scene + '". Choose the recording scene again in Settings → OBS.'
+      );
+    if ((await this.sourceRecordInstalled()) === false) throw Error(SOURCE_RECORD_MISSING);
+    const directory = this.available.has('GetRecordDirectory')
+      ? (await this.call('GetRecordDirectory')).recordDirectory
+      : '';
+    const filterSettings = {
+      record_mode: 1,
+      filename_formatting: '%CCYY-%MM-%DD %hh-%mm-%ss Recording scene',
+      ...(directory ? { path: directory } : {})
+    };
+    const f = await this.sceneFilter(scene);
+    if (f && f.filterKind !== SOURCE_RECORD)
+      throw Error('The filter "' + SCENE_FILTER + '" on "' + scene + '" is not a Source Record filter.');
+    if (!f)
+      try {
+        await this.call('CreateSourceFilter', {
+          sourceName: scene,
+          filterName: SCENE_FILTER,
+          filterKind: SOURCE_RECORD,
+          filterSettings
+        });
+      } catch (e) {
+        if (e.obsCode === 607) throw Error(SOURCE_RECORD_MISSING);
+        throw e;
+      }
+    else
+      await this.call('SetSourceFilterSettings', {
+        sourceName: scene,
+        filterName: SCENE_FILTER,
+        filterSettings,
+        overlay: true
+      });
+    await this.call('SetSourceFilterEnabled', {
+      sourceName: scene,
+      filterName: SCENE_FILTER,
+      filterEnabled: true
+    });
+    this.sceneRec = { scene, since: Date.now() };
+  }
+  async sceneStop(scene) {
+    if (!scene || !(await this.sceneFilter(scene))) return;
+    await this.call('SetSourceFilterSettings', {
+      sourceName: scene,
+      filterName: SCENE_FILTER,
+      filterSettings: { record_mode: 0 },
+      overlay: true
+    });
+    this.sceneRec = null;
+  }
+  // The recording state the window shows: OBS's own recording and the recording scene together. The timer counts
+  // the OBS recording when there is one, else the recording scene.
+  async recordState(i) {
+    const program = await this.call('GetRecordStatus');
+    const rec = recording(i);
+    const scene = await this.sceneStatus(rec.scene || this.sceneRec?.scene || '');
+    if (!scene?.active) return { ...program, programActive: !!program.outputActive, scene };
+    return {
+      ...program,
+      outputActive: true,
+      outputDuration: program.outputActive ? program.outputDuration : Date.now() - scene.since,
+      outputPaused: program.outputActive ? program.outputPaused : false,
+      programActive: !!program.outputActive,
+      scene
+    };
+  }
+  async recordStart(i) {
+    const rec = recording(i);
+    if (rec.scene) await this.sceneStart(rec.scene);
+    if (rec.program)
+      try {
+        if (!(await this.call('GetRecordStatus')).outputActive) await this.call('StartRecord');
+      } catch (e) {
+        if (rec.scene) await this.sceneStop(rec.scene).catch(() => {});
+        throw e;
+      }
+    return this.recordState(i);
+  }
+  // Stops everything that is recording: OBS's recording and the recording scene (also one chosen before).
+  async recordStop(i) {
+    const rec = recording(i);
+    const errors = [];
+    for (const scene of new Set([rec.scene, this.sceneRec?.scene].filter(Boolean)))
+      await this.sceneStop(scene).catch(e => errors.push(e));
+    if ((await this.call('GetRecordStatus')).outputActive) await this.call('StopRecord');
+    if (errors.length) throw errors[0];
+    return this.recordState(i);
+  }
+  // Settings → OBS → Recording scene: is Source Record there, and is the chosen scene recording.
+  async sceneRecordInfo(i) {
+    const scene = typeof i.recordScene === 'string' ? i.recordScene : '';
+    const installed = await this.sourceRecordInstalled();
+    const f = scene ? await this.sceneFilter(scene).catch(() => null) : null;
+    return {
+      installed: installed ?? (f?.filterKind === SOURCE_RECORD ? true : null),
+      page: SOURCE_RECORD_PAGE,
+      ...(scene ? await this.sceneStatus(scene) : {})
+    };
+  }
   // Pre-stream readiness (readiness.js): read-only. The encoders come from the OBS profile (Simple or Advanced
   // output mode); the relay needs H.264 video and AAC audio.
-  async readiness() {
+  async readiness(i = {}) {
     const param = async (parameterCategory, parameterName) => {
       try {
         return (
@@ -167,9 +323,21 @@ class OBSControls {
       safe(this.call('GetRecordStatus')),
       safe(this.replayStatus())
     ]);
+    const rec = recording(i);
+    let sceneRecord = null;
+    if (rec.scene) {
+      const { scenes } = await this.call('GetSceneList').catch(() => ({ scenes: [] }));
+      sceneRecord = {
+        scene: rec.scene,
+        exists: scenes.some(s => s.sceneName === rec.scene),
+        installed: await this.sourceRecordInstalled(),
+        program: rec.program
+      };
+    }
     return {
       mode,
       encoder,
+      sceneRecord,
       audioEncoder,
       video,
       streaming: !!stream?.outputActive,
@@ -253,7 +421,7 @@ class OBSControls {
         inputs: inputs.inputs,
         mixer,
         stream,
-        record,
+        record: await this.recordState(i).catch(() => record),
         virtualCam,
         available: [...this.available]
       };
@@ -312,12 +480,13 @@ class OBSControls {
         throw Error('Stop recording before changing its folder.');
       return this.call('SetRecordDirectory', { recordDirectory: name(i.directory) });
     }
-    if (op === 'readiness') return this.readiness();
+    if (op === 'readiness') return this.readiness(i);
+    if (op === 'scene-record-info') return this.sceneRecordInfo(i);
     if (op === 'replay-status') return this.replayStatus();
     if (op === 'replay-start') return this.replayStart();
     if (op === 'clip') return this.clip();
-    if (op === 'record-start') return this.call('StartRecord');
-    if (op === 'record-stop') return this.call('StopRecord');
+    if (op === 'record-start') return this.recordStart(i);
+    if (op === 'record-stop') return this.recordStop(i);
     if (op === 'stream-stop') return this.call('StopStream');
     if (op === 'studio-mode') {
       await this.call('SetStudioModeEnabled', { studioModeEnabled: bool(i.enabled) });
@@ -411,4 +580,4 @@ class OBSControls {
     throw Error('Unknown OBS control.');
   }
 }
-module.exports = { OBSControls };
+module.exports = { OBSControls, SCENE_FILTER, SOURCE_RECORD_PAGE, recording };

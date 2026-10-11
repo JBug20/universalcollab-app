@@ -1728,6 +1728,12 @@ footer span {
 .record-folder-actions button {
   margin: 0;
 }
+.record-folder select {
+  width: 100%;
+}
+#obsRecordSceneInfo.bad {
+  color: #ffb4a8;
+}
 /* Keyboard shortcuts and AFK (keyboard-shortcuts.js). */
 .afk-banner {
   position: fixed;

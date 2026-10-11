@@ -514,9 +514,14 @@ app.whenReady().then(() => {
         }
         // Pre-stream readiness: read-only.
         if (op === 'readiness') {
-          const data = await obsControls.handle('readiness');
+          const data = await obsControls.handle('readiness', input);
           const dir = (await obsControls.handle('settings').catch(() => null))?.record?.recordDirectory;
           return { ok: true, data: { ...data, recordFolder: require('./record-folder.cjs').status(dir) } };
+        }
+        // Settings → OBS → Recording scene → Get Source Record: the plugin's page on obsproject.com.
+        if (op === 'source-record-page') {
+          await shell.openExternal(require('./obs-controls.cjs').SOURCE_RECORD_PAGE);
+          return { ok: true, data: {} };
         }
         if (op === 'record-dir-open') {
           const dir = (await obsControls.handle('settings')).record?.recordDirectory;
@@ -1013,7 +1018,7 @@ app.on('before-quit', e => {
             obs.request('GetStreamStatus'),
             obs.request('GetRecordStatus')
           ]);
-          busy = !!(st.outputActive || rec.outputActive);
+          busy = !!(st.outputActive || rec.outputActive || obsControls?.sceneRec);
         } catch {}
       if (busy) {
         const { response } = await dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
@@ -1029,7 +1034,12 @@ app.on('before-quit', e => {
         });
         if (response === 1) return app.quit();
         await Promise.race([
-          Promise.all([obs.request('StopStream').catch(() => {}), obs.request('StopRecord').catch(() => {})]),
+          Promise.all([
+            obs.request('StopStream').catch(() => {}),
+            obs.request('StopRecord').catch(() => {}),
+            // The recording scene (Source Record), so its file is finished too.
+            obsControls?.sceneStop(obsControls.sceneRec?.scene).catch(() => {})
+          ]),
           new Promise(r => setTimeout(r, 3000))
         ]);
       }

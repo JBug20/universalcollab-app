@@ -57,9 +57,20 @@
     status.textContent = text;
     $('obsFeedback').textContent = text;
   };
+  // Recording scene (Settings → OBS): what Start Recording records, sent with the calls that read or change the
+  // recording, so OBS's recording state includes the recording scene (obs-controls.cjs, Source Record plugin).
+  const REC_KEY = 'uc-record-scene';
+  let recScene = { scene: '', what: 'program' };
+  try {
+    recScene = { ...recScene, ...JSON.parse(localStorage.getItem(REC_KEY) || '{}') };
+  } catch {}
+  let recScenesSig = '';
+  const REC_OPS = ['snapshot', 'record-start', 'record-stop', 'scene-record-info'];
+  const recInput = () => ({ recordScene: recScene.scene, recordWhat: recScene.what });
   const call = (op, input = {}) => {
     if (!bridge?.obs) throw Error('OBS controls require the desktop app.');
-    return bridge.obs(op, { ...input, serverKey: selected()?.key });
+    const rec = REC_OPS.includes(op) ? recInput() : {};
+    return bridge.obs(op, { ...rec, ...input, serverKey: selected()?.key });
   };
   // "With OBS" builds include OBS. Settings → OBS chooses between it and the user's own OBS.
   let bundled = { available: false };
@@ -169,6 +180,11 @@
     }
     await call('record-start');
     await poll();
+    const scene = state?.record?.scene;
+    if (scene?.active)
+      return state.record.programActive
+        ? 'Recording started (also recording "' + scene.scene + '").'
+        : 'Recording "' + scene.scene + '" started.';
     return 'Recording started.';
   }
   const start = btn('Start Stream', startStream);
@@ -594,6 +610,7 @@
           editScene = state.sceneName;
           // Stream and recording timers for the status bar (durations count on locally between polls).
           window.obsOutputs = { stream: state.stream, record: state.record, at: Date.now() };
+          fillRecordScenes();
           if (state.available?.includes?.('SetStudioModeEnabled'))
             window.studioMode?.fromOBS(!!state.studioMode);
           paint();
@@ -827,6 +844,7 @@
     for (const id of ['obsRecordDirectorySave', 'obsRecordDirectoryBrowse', 'obsRecordDirectoryOpen'])
       $(id).disabled = !s.record;
     void recordFolderInfo();
+    void recordSceneInfo();
     $('obsVideoFields').hidden = false;
     $('obsSettingsState').textContent = 'Connected to OBS. Changes apply to its current profile.';
   }
@@ -893,6 +911,86 @@
       $('obsRecordDirectoryBrowse').focus();
     }, 50);
   };
+  // Recording scene: which scene Source Record records, and whether the plugin is in OBS.
+  const saveRecScene = () => {
+    try {
+      localStorage.setItem(REC_KEY, JSON.stringify(recScene));
+    } catch {}
+  };
+  function fillRecordScenes() {
+    const names = (state?.scenes || []).map(x => x.sceneName);
+    const select = $('obsRecordSceneName');
+    const busy = !!state?.record?.outputActive;
+    select.disabled = $('obsRecordWhat').disabled = busy;
+    $('obsRecordWhat').value = recScene.what;
+    const sig = JSON.stringify([names, recScene.scene]);
+    if (sig === recScenesSig) return;
+    recScenesSig = sig;
+    const options = names.map(n => new Option(n, n));
+    if (recScene.scene && !names.includes(recScene.scene))
+      options.unshift(new Option(recScene.scene + ' (not in OBS now)', recScene.scene));
+    select.replaceChildren(
+      new Option(names.length ? 'Choose a scene…' : 'Connect OBS to list scenes', ''),
+      ...options
+    );
+    select.value = recScene.scene;
+  }
+  async function recordSceneInfo() {
+    fillRecordScenes();
+    const info = $('obsRecordSceneInfo'),
+      get = $('obsSourceRecordGet');
+    const scene = recScene.scene,
+      what = recScene.what;
+    let text = '',
+      bad = false,
+      r = null;
+    if (online)
+      try {
+        r = await call('scene-record-info');
+      } catch (e) {
+        text = 'Could not check Source Record: ' + e.message;
+        bad = true;
+      }
+    get.hidden = r?.installed === true;
+    if (!online) text = 'Connect OBS to set up a recording scene.';
+    else if (r?.installed === false) {
+      text =
+        'Source Record is not installed in OBS. Choose Get Source Record, download the installer for your OBS version, close OBS, run the installer, then start OBS again and choose Check again.';
+      bad = what !== 'program';
+    } else if (r) {
+      const plugin =
+        r.installed === true
+          ? 'Source Record is installed. '
+          : "This OBS can't tell UniversalCollab whether Source Record is installed (OBS 30.2 or newer can); Start Recording says so if it is missing. ";
+      if (what === 'program') text = plugin + 'Start Recording records what is on stream, as usual.';
+      else if (!scene) {
+        text = plugin + 'Choose the scene to record.';
+        bad = true;
+      } else
+        text =
+          plugin +
+          (r.active ? 'Recording "' + scene + '" now. ' : '') +
+          'Start Recording records "' +
+          scene +
+          '"' +
+          (what === 'both' ? ' and what is on stream, as two files,' : ' on its own,') +
+          " in the recordings folder, with OBS's audio (Track 1). The stream keeps sending the scene that is live.";
+    }
+    info.textContent = text;
+    info.classList.toggle('bad', bad);
+  }
+  $('obsRecordWhat').onchange = () => {
+    recScene.what = $('obsRecordWhat').value;
+    saveRecScene();
+    void recordSceneInfo();
+  };
+  $('obsRecordSceneName').onchange = () => {
+    recScene.scene = $('obsRecordSceneName').value;
+    saveRecScene();
+    void recordSceneInfo();
+  };
+  $('obsRecordSceneCheck').onclick = () => run(recordSceneInfo);
+  $('obsSourceRecordGet').onclick = () => run(async () => void (await call('source-record-page')));
   $('obsPreviewEnabled').checked = pref.enabled;
   $('obsPreviewRate').value = String(pref.rate);
   $('obsPreviewWidth').value = String(pref.width);

@@ -7,7 +7,7 @@
       content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; media-src http://127.0.0.1:*; frame-src https: http:; base-uri 'none'; form-action 'none'"
       http-equiv="Content-Security-Policy"
     />
-    <title>UniversalCollab · 1.2.0-preview.10</title>
+    <title>UniversalCollab · 1.2.0-preview.11</title>
     <link href="portal.css" rel="stylesheet" />
     <link href="studio-ui-v2.css" rel="stylesheet" />
     <link href="integrated-assist.css" rel="stylesheet" />
@@ -459,6 +459,26 @@
                   streaming</label
                 >
               </div>
+              <div class="record-folder" id="obsRecordScene">
+                <h3>Recording scene</h3>
+                <p class="hint">
+                  Record one OBS scene while you stream another, for example a clean scene without alerts or
+                  chat. Needs the free Source Record plugin in OBS.
+                </p>
+                <label
+                  >Start Recording records<select id="obsRecordWhat">
+                    <option value="program">What's on stream (normal OBS recording)</option>
+                    <option value="scene">The recording scene only</option>
+                    <option value="both">Both, as two files</option>
+                  </select></label
+                >
+                <label>Recording scene<select id="obsRecordSceneName"></select></label>
+                <p class="hint" id="obsRecordSceneInfo" role="status"></p>
+                <div class="record-folder-actions">
+                  <button id="obsSourceRecordGet" type="button">Get Source Record</button
+                  ><button id="obsRecordSceneCheck" type="button">Check again</button>
+                </div>
+              </div>
               <p class="hint">
                 Stop all OBS outputs before changing video settings. Encoder and plugin-specific options
                 remain in OBS.
@@ -528,7 +548,7 @@
       </dialog>
       <div aria-live="polite" id="notice" role="status"></div>
       <footer>
-        UNIVERSALCOLLAB 1.2.0-preview.10
+        UNIVERSALCOLLAB 1.2.0-preview.11
         <span>Credentials hidden by default · Copying puts real values on your clipboard</span>
       </footer>
       <div hidden="" id="platformWorkspace">
@@ -756,7 +776,7 @@
       </div>
       <section class="welcome server-dialog" hidden="" id="welcome">
         <div class="intro">
-          <span class="eyebrow">CONTROL ROOM / 1.2.0-preview.10</span>
+          <span class="eyebrow">CONTROL ROOM / 1.2.0-preview.11</span>
           <h1>Keep your stream<br /><em>in good company.</em></h1>
           <p>
             Your own destination. Shared moments.<br />Collaborate on your terms, even when a connection

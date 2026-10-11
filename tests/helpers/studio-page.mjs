@@ -156,14 +156,21 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
         if (op === 'snapshot')
           return {
             connected: true,
-            scenes: [{ sceneName: 'Main' }],
+            scenes: (window.fakeScenes || ['Main']).map(sceneName => ({ sceneName })),
             current: 'Main',
             sceneName: 'Main',
             items: [],
             inputs: mixer.map(m => ({ inputName: m.inputName })),
             mixer,
             stream: { outputActive: window.obsStreaming },
-            record: { outputActive: !!window.obsRecording },
+            record: {
+              outputActive: !!window.obsRecording,
+              programActive: !!window.obsRecording && window.obsRecordingWhat !== 'scene',
+              scene:
+                window.obsRecording && input.recordScene && window.obsRecordingWhat !== 'program'
+                  ? { scene: input.recordScene, active: true, since: Date.now() }
+                  : null
+            },
             available: []
           };
         if (op === 'start') {
@@ -189,8 +196,17 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
           );
         if (op === 'record-start') {
           window.obsRecording = true;
+          window.obsRecordingWhat = input.recordScene ? input.recordWhat || 'program' : 'program';
           return {};
         }
+        // Recording scene (Source Record): tests set window.fakeSourceRecord.
+        if (op === 'scene-record-info')
+          return {
+            installed: true,
+            page: 'https://obsproject.com/forum/resources/source-record.1285/',
+            ...(window.fakeSourceRecord || {}),
+            ...(input.recordScene ? { scene: input.recordScene, active: !!window.obsRecording } : {})
+          };
         if (op === 'record-stop') {
           window.obsRecording = false;
           return {};

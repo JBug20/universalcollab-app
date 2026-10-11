@@ -78,6 +78,14 @@ You need:
     - [ ] Pressing it again, or I'm back, returns your stream.
     - [ ] Check what viewers see and hear on each platform.
   - [ ] Stream Deck AFK key (install the new 1.2.1 plugin) does the same and lights up while AFK.
+- [ ] **Recording scene** (Settings → OBS → Recording scene; needs the Source Record plugin):
+  - [ ] Without the plugin: it says Source Record is not installed, and **Get Source Record** opens its page. Install it with OBS closed, start OBS, then **Check again** says it is installed.
+  - [ ] Make a second scene in OBS (e.g. "Recording" without alerts or chat). Choose **The recording scene only** and that scene.
+  - [ ] Stream the other scene and press Start Recording (button, Stream Deck or Ctrl+Alt+R). The status bar shows REC. Stop Recording: the file in the recordings folder ends in "Recording scene" and shows the recording scene, not the stream.
+  - [ ] **Both, as two files** saves the normal recording and the recording-scene file.
+  - [ ] The choices are greyed out while recording.
+  - [ ] Auto-record with the recording scene chosen records the recording scene.
+  - [ ] Quit UniversalCollab while recording the recording scene: it asks first, and the file plays afterwards.
 - [ ] The status bar shows **This PC <free> free**, and the details show the drive and OBS's recordings folder. Try with OBS recording to a drive other than C: if you have one.
 - [ ] **My storage** shows your relay allowance (needs the per-user storage relay change).
 - [ ] Optional: fill a USB stick or a small drive below 10 GB and set OBS to record there. "This PC" turns yellow and the notice line warns once.
