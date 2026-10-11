@@ -1,7 +1,7 @@
 {
   "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
   "Name": "UniversalCollab",
-  "Version": "1.2.2.0",
+  "Version": "1.2.3.0",
   "Author": "UniversalCollab",
   "Description": "Control UniversalCollab from Stream Deck: stream, recording, clips, OBS and relay scenes, Studio Mode, AFK, audio and Stream Assist.",
   "URL": "https://github.com/JBug20/universalcollab-app",
@@ -41,7 +41,8 @@
           "Image": "imgs/keys/stream-on",
           "Name": "Live"
         }
-      ]
+      ],
+      "DisableAutomaticStates": true
     },
     {
       "UUID": "stream.universalcollab.app.record",
@@ -59,7 +60,8 @@
           "Image": "imgs/keys/record-on",
           "Name": "Recording"
         }
-      ]
+      ],
+      "DisableAutomaticStates": true
     },
     {
       "UUID": "stream.universalcollab.app.clip",
@@ -90,7 +92,8 @@
           "Image": "imgs/keys/endrelay-on",
           "Name": "Broadcasting"
         }
-      ]
+      ],
+      "DisableAutomaticStates": true
     },
     {
       "UUID": "stream.universalcollab.app.obsscene",
@@ -108,7 +111,8 @@
           "Image": "imgs/keys/obsscene-on",
           "Name": "This scene"
         }
-      ]
+      ],
+      "DisableAutomaticStates": true
     },
     {
       "UUID": "stream.universalcollab.app.relayscene",
@@ -126,7 +130,8 @@
           "Image": "imgs/keys/relayscene-on",
           "Name": "This scene"
         }
-      ]
+      ],
+      "DisableAutomaticStates": true
     },
     {
       "UUID": "stream.universalcollab.app.studiomode",
@@ -144,7 +149,8 @@
           "Image": "imgs/keys/studiomode-on",
           "Name": "On"
         }
-      ]
+      ],
+      "DisableAutomaticStates": true
     },
     {
       "UUID": "stream.universalcollab.app.transition",
@@ -175,7 +181,8 @@
           "Image": "imgs/keys/afk-on",
           "Name": "AFK"
         }
-      ]
+      ],
+      "DisableAutomaticStates": true
     },
     {
       "UUID": "stream.universalcollab.app.mute",
@@ -193,7 +200,8 @@
           "Image": "imgs/keys/mute-on",
           "Name": "Muted"
         }
-      ]
+      ],
+      "DisableAutomaticStates": true
     },
     {
       "UUID": "stream.universalcollab.app.assist",
