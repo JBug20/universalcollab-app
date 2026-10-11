@@ -87,7 +87,10 @@ You need:
 - [ ] Install `UniversalCollab.streamDeckPlugin`.
 - [ ] In Tools → Stream Deck: Enable, then Copy pairing token, then paste the token into a key.
 - [ ] Start / Stop Stream, Record, Clip, OBS Scene, Relay Scene, Studio Mode, Transition, Mute and Stream Assist keys work and light up.
-- [ ] Stop Stream and End Relay need a second press within 3 seconds.
+- [ ] Stop Stream and End Relay need a second press within 3 seconds; the first press shows "Press again" on the key.
+- [ ] **Live key (plugin 1.2.4):** while live, a press (and the second press) ends the whole broadcast: OBS stops and the relay broadcast ends. The notice line says "Stream Deck · Stop Stream: …".
+  - [ ] In the key's settings, "When stopping → Stop OBS only" stops OBS but leaves the relay on your fallback.
+  - [ ] Untick "Needs a second press to stop": one press stops.
 
 ## 6. Stream Assist and Kick receiver
 
