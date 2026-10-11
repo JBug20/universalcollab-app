@@ -31,7 +31,8 @@
   let draftPending = false,
     state = null,
     online = false,
-    polling = false,
+    polling = null,
+    lastPoll = 0,
     working = false,
     editScene = '',
     selectedSource = null,
@@ -217,6 +218,8 @@
     working = true;
     buttons();
     try {
+      // The window may be hidden behind a game: read OBS's real state before deciding (e.g. live or not).
+      await poll(true);
       return await fn();
     } finally {
       working = false;
@@ -546,14 +549,30 @@
     }
     transform();
   }
-  async function poll() {
-    if (polling || !bridge?.obs || document.hidden) return;
-    polling = true;
+  // Reads OBS's state. Skipped while the window is hidden, except every 5 seconds, so Stream Deck keys and
+  // shortcuts still see whether OBS is live or recording. `fresh` (Stream Deck, shortcuts) waits for any read in
+  // progress and reads again, so the decision is made on OBS's real state, not one from before the window hid.
+  async function poll(fresh = false) {
+    if (!bridge?.obs) return;
+    if (polling) {
+      if (!fresh) return;
+      await polling.catch(() => {});
+    }
+    if (document.hidden && !fresh && Date.now() - lastPoll < 5000) return;
+    polling = pollNow(fresh);
+    try {
+      await polling;
+    } finally {
+      polling = null;
+    }
+  }
+  async function pollNow(fresh) {
+    lastPoll = Date.now();
     try {
       const r = await call('state');
       connection(!!r.connected);
       if (online) {
-        if (!$('studioPage').hidden) {
+        if (!$('studioPage').hidden || document.hidden || fresh) {
           state = await call('snapshot', { ...(editScene ? { sceneName: editScene } : {}) });
           editScene = state.sceneName;
           // Stream and recording timers for the status bar (durations count on locally between polls).
@@ -568,7 +587,6 @@
       say(e.message);
       editScene = '';
     } finally {
-      polling = false;
       updateMeters();
     }
   }
