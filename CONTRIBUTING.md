@@ -91,6 +91,8 @@ It needs NSIS (`makensis`).
 node universalcollab-app/build/build-with-obs.mjs --base <earlier app folder> --out <output folder> --public-key <update public key>
 ```
 
+Add `--source-record <zip>` to include the Source Record OBS plugin (by Exeldro, GPL-2.0) in the included OBS, for Settings → OBS → Recording scene. Use the official Windows x64 zip from its [OBS forum page](https://obsproject.com/forum/resources/source-record.1285/), in a version that supports the included OBS; never a self-built or modified copy. The build checks it is a 64-bit Windows plugin, copies `source-record.dll` and its `data` folder into `obs-studio`, and adds its licence and source link to `OBS-STUDIO-NOTICE.txt`.
+
 The installer upgrades the earlier 1.2.0 setup in place. It keeps the user's settings and the included OBS's settings. Hand it over as a file; never commit or upload it.
 
 ## App updates
