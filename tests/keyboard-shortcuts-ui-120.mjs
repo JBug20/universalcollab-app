@@ -79,7 +79,8 @@ try {
   assert.equal(await win.locator('[data-action=clip]').textContent(), 'Press keys…');
   await page.keyboard.press('Control+Alt+KeyK');
   await page.waitForFunction(() => window.hotkeyState.keys.clip === 'Ctrl+Alt+K');
-  await page.waitForFunction(() => calls.at(-1).hotkeys === 'resume');
+  // The last shortcut call is the resume (other calls, like the regular OBS check, may come after it).
+  await page.waitForFunction(() => calls.filter(c => c.hotkeys).at(-1).hotkeys === 'resume');
   assert.equal(await win.locator('[data-action=clip]').textContent(), 'Ctrl+Alt+K');
   // Backspace clears; Esc cancels without closing the window.
   await win.locator('[data-action=transition]').click();
