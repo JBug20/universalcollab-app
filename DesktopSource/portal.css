@@ -1898,3 +1898,208 @@ footer span {
 #announceStatus.bad {
   color: #ffb4a8;
 }
+/* OBS scene editor (obs-editor.js): OBS's red boxes over the scene's picture. */
+dialog.obs-editor {
+  width: min(1500px, calc(100vw - 24px));
+  max-width: none;
+  max-height: calc(100vh - 24px);
+  padding: 12px 16px;
+}
+.obs-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.obs-editor-head h2 {
+  margin: 0 auto 0 0;
+}
+.obs-editor-head select {
+  width: auto;
+  min-width: 180px;
+  max-width: 40%;
+}
+.obs-editor-head button {
+  margin: 0;
+}
+.obs-editor-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  gap: 14px;
+  align-items: start;
+}
+.obs-editor-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+  outline: none;
+}
+.obs-editor-stage:focus-visible {
+  box-shadow: 0 0 0 2px #ae86fb;
+}
+.obs-editor-stage img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+}
+.obs-editor-boxes {
+  position: absolute;
+  inset: 0;
+}
+.obs-ebox {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  cursor: move;
+}
+.obs-ebox:hover {
+  border-color: rgba(255, 80, 80, 0.7);
+}
+.obs-ebox.selected {
+  border: 2px solid #ff3b3b;
+}
+.obs-ebox.locked {
+  cursor: default;
+}
+.obs-ebox.selected.locked {
+  border-style: dashed;
+}
+.obs-ehandle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -6px 0 0 -6px;
+  background: #ff3b3b;
+  border: 1px solid #fff;
+  box-sizing: border-box;
+}
+.obs-ehandle.nw,
+.obs-ehandle.w,
+.obs-ehandle.sw {
+  left: 0;
+}
+.obs-ehandle.n,
+.obs-ehandle.s {
+  left: 50%;
+}
+.obs-ehandle.ne,
+.obs-ehandle.e,
+.obs-ehandle.se {
+  left: 100%;
+}
+.obs-ehandle.nw,
+.obs-ehandle.n,
+.obs-ehandle.ne {
+  top: 0;
+}
+.obs-ehandle.w,
+.obs-ehandle.e {
+  top: 50%;
+}
+.obs-ehandle.sw,
+.obs-ehandle.s,
+.obs-ehandle.se {
+  top: 100%;
+}
+.obs-ehandle.nw,
+.obs-ehandle.se {
+  cursor: nwse-resize;
+}
+.obs-ehandle.ne,
+.obs-ehandle.sw {
+  cursor: nesw-resize;
+}
+.obs-ehandle.n,
+.obs-ehandle.s {
+  cursor: ns-resize;
+}
+.obs-ehandle.e,
+.obs-ehandle.w {
+  cursor: ew-resize;
+}
+.obs-eguide {
+  position: absolute;
+  background: #ffdd55;
+  pointer-events: none;
+}
+.obs-eguide.x {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.obs-eguide.y {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+.obs-editor-list {
+  display: grid;
+  gap: 4px;
+  max-height: 45vh;
+  overflow: auto;
+}
+.obs-editor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 4px;
+}
+.obs-editor-row button {
+  margin: 0;
+  padding: 4px 8px;
+}
+.obs-editor-row button:first-child {
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.obs-editor-row button[aria-pressed='true'] {
+  outline: 2px solid #ff3b3b;
+}
+.obs-editor-info {
+  font-size: 13px;
+  min-height: 3em;
+}
+.obs-editor-menu {
+  position: fixed;
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  z-index: 5;
+  display: grid;
+  min-width: 220px;
+  padding: 4px;
+  background: #1d1a28;
+  border: 1px solid #464050;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.obs-editor-menu button {
+  margin: 0;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 6px 10px;
+}
+.obs-editor-menu button:hover:not([disabled]),
+.obs-editor-menu button:focus-visible {
+  background: #302741;
+}
+.obs-editor-menu hr {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid #464050;
+  margin: 4px 0;
+}
+@media (max-width: 900px) {
+  .obs-editor-main {
+    grid-template-columns: 1fr;
+  }
+}

@@ -56,6 +56,16 @@ You need:
   - [ ] The chosen theme is still there after restarting the app.
   - [ ] Dark purple puts everything back exactly.
 
+- [ ] **Edit OBS scene on screen** (OBS sources → Edit on screen…, or Tools → Edit OBS scene on screen):
+  - [ ] The scene's picture shows with a box around each visible source, in the same places as in OBS.
+  - [ ] Drag a source: it moves in OBS too. Near an edge, the centre or another source it snaps (yellow line); hold Ctrl to place freely.
+  - [ ] Drag a corner handle: it keeps its shape. Hold Shift: it stretches. Edge handles stretch one side.
+  - [ ] Alt+drag a handle: it crops, like Alt in OBS.
+  - [ ] Right-click: Fit to screen, Stretch, Centre, Rotate 90°, Flip, Reset, Bring forward, Send backward, Hide and Lock all match OBS.
+  - [ ] Arrow keys nudge 1 px (Shift: 10 px); Ctrl+Z undoes the last change.
+  - [ ] Lock a source (🔓 → 🔒): it can't be moved here or in OBS. Rotated sources move but are not resized by handles.
+  - [ ] Edit a scene that is not live (e.g. BRB): the stream does not change.
+
 ## 4. Recording, clips and storage
 
 - [ ] Start Recording, then stop: the file is in OBS's recordings folder.

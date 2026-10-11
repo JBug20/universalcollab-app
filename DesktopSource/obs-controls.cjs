@@ -27,6 +27,51 @@ const SCENE_FILTER = 'UniversalCollab recording',
 const SOURCE_RECORD_MISSING =
   'The Source Record plugin is not installed in OBS, so the recording scene cannot be recorded. Install it (Settings → OBS → Recording scene → Get Source Record), restart OBS, then try again.';
 const RECORD_WHAT = ['program', 'scene', 'both'];
+// OBS scene editor (obs-editor.js): the transform fields it may change, checked before they go to OBS.
+const BOUNDS = [
+  'OBS_BOUNDS_NONE',
+  'OBS_BOUNDS_STRETCH',
+  'OBS_BOUNDS_SCALE_INNER',
+  'OBS_BOUNDS_SCALE_OUTER',
+  'OBS_BOUNDS_SCALE_TO_WIDTH',
+  'OBS_BOUNDS_SCALE_TO_HEIGHT',
+  'OBS_BOUNDS_MAX_ONLY'
+];
+const ALIGN = new Set([0, 1, 2, 4, 5, 6, 8, 9, 10]);
+function itemTransform(t) {
+  if (!t || typeof t !== 'object') throw Error('Invalid source position.');
+  const out = {};
+  const n = (k, min, max) => {
+    if (t[k] === undefined) return;
+    if (typeof t[k] !== 'number' || !Number.isFinite(t[k]) || t[k] < min || t[k] > max)
+      throw Error('OBS value is outside its allowed range.');
+    out[k] = t[k];
+  };
+  n('positionX', -100000, 100000);
+  n('positionY', -100000, 100000);
+  n('rotation', -360, 360);
+  for (const k of ['scaleX', 'scaleY']) {
+    n(k, -1000, 1000);
+    if (k in out && Math.abs(out[k]) < 0.0001) throw Error('A source cannot be made that small.');
+  }
+  for (const k of ['cropLeft', 'cropRight', 'cropTop', 'cropBottom']) {
+    n(k, 0, 16384);
+    if (k in out) out[k] = Math.round(out[k]);
+  }
+  n('boundsWidth', 1, 100000);
+  n('boundsHeight', 1, 100000);
+  for (const k of ['alignment', 'boundsAlignment'])
+    if (t[k] !== undefined) {
+      if (!ALIGN.has(t[k])) throw Error('Invalid alignment.');
+      out[k] = t[k];
+    }
+  if (t.boundsType !== undefined) {
+    if (!BOUNDS.includes(t.boundsType)) throw Error('Invalid bounding box.');
+    out.boundsType = t.boundsType;
+  }
+  if (!Object.keys(out).length) throw Error('Nothing to change.');
+  return out;
+}
 // What Record records: the normal OBS recording (what's on stream), the recording scene, or both. `audio` is the
 // recording scene's sound: an OBS audio track (1–6; Track 1 is what is streamed by default), or 0 for only the sound
 // of the sources inside the scene. Source Record's own default is the latter, which leaves out OBS's global
@@ -543,6 +588,38 @@ class OBSControls {
       }
       return { inputName, kind, ...(await this.choices(inputName, i.type)) };
     }
+    // OBS scene editor: the scene's sources with their full transforms, the canvas size, and the scene's picture.
+    if (op === 'editor-state') {
+      const sceneName = name(i.sceneName);
+      const [{ sceneItems }, video] = await Promise.all([
+        this.call('GetSceneItemList', { sceneName }),
+        this.call('GetVideoSettings')
+      ]);
+      return { sceneName, items: sceneItems, base: { width: video.baseWidth, height: video.baseHeight } };
+    }
+    if (op === 'scene-image') {
+      const r = await this.call('GetSourceScreenshot', {
+        sourceName: name(i.sceneName),
+        imageFormat: 'jpeg',
+        imageWidth: num(i.width, 160, 1920),
+        imageCompressionQuality: 70
+      });
+      if (
+        typeof r.imageData !== 'string' ||
+        r.imageData.length > 4 * 1024 * 1024 ||
+        !r.imageData.startsWith('data:image/jpeg;base64,')
+      )
+        throw Error('The OBS scene picture is unavailable.');
+      return { image: r.imageData };
+    }
+    if (op === 'item-transform') {
+      const data = { sceneName: name(i.sceneName), sceneItemId: num(i.id, 0, 2147483647) };
+      if (!Number.isInteger(data.sceneItemId)) throw Error('Invalid source.');
+      const sceneItemTransform = itemTransform(i.transform);
+      if ((await this.call('GetSceneItemLocked', data)).sceneItemLocked)
+        throw Error('This source is locked. Unlock it to move or resize it.');
+      return this.call('SetSceneItemTransform', { ...data, sceneItemTransform });
+    }
     if (op === 'source-choices') return this.choices(name(i.inputName), i.type);
     if (op === 'source-choose') {
       if (!sources.CHOOSABLE.has(i.property)) throw Error('That setting cannot be changed here.');
@@ -588,4 +665,4 @@ class OBSControls {
     throw Error('Unknown OBS control.');
   }
 }
-module.exports = { OBSControls, SCENE_FILTER, SOURCE_RECORD_PAGE, recording };
+module.exports = { OBSControls, SCENE_FILTER, SOURCE_RECORD_PAGE, recording, itemTransform };

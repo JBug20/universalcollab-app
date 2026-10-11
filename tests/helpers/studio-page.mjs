@@ -224,6 +224,19 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
           return {};
         }
         if (op === 'preview') return { image: 'data:image/jpeg;base64,AAAA' };
+        // OBS scene editor: tests set window.fakeEditor = { base, items } for the scene being edited.
+        const fe = window.fakeEditor;
+        const feItem = () => fe?.items.find(i => i.sceneItemId === input.id);
+        if (op === 'editor-state')
+          return { sceneName: input.sceneName, base: fe.base, items: structuredClone(fe.items) };
+        if (op === 'scene-image') return { image: 'data:image/jpeg;base64,AAAA' };
+        if (op === 'item-transform') {
+          if (feItem().sceneItemLocked) throw Error('This source is locked. Unlock it to move or resize it.');
+          Object.assign(feItem().sceneItemTransform, input.transform);
+          return {};
+        }
+        if (fe && op === 'source-lock') feItem().sceneItemLocked = input.locked;
+        if (fe && op === 'source-visible') feItem().sceneItemEnabled = input.enabled;
         if (op === 'settings')
           return {
             video: {
