@@ -22,6 +22,12 @@
       case 'stream-start':
         return sc.start();
       case 'stream-stop':
+        // The Live key ends the whole broadcast (OBS and the relay) unless the key is set to stop OBS only.
+        if (args.endRelay && relayOnline() && view?.status?.broadcast) {
+          if (!(await window.endRelayBroadcast()))
+            throw Error('The relay is busy or not connected. Press again in a moment.');
+          return 'Broadcast ended (OBS and relay).';
+        }
         return sc.stop();
       case 'record':
         return sc.record();
@@ -33,7 +39,8 @@
         return sc.mute(args.name);
       case 'end-relay':
         if (!relayOnline() || !view?.status?.broadcast) throw Error('No relay broadcast is running.');
-        await window.endRelayBroadcast();
+        if (!(await window.endRelayBroadcast()))
+          throw Error('The relay is busy or not connected. Press again in a moment.');
         return 'Relay broadcast ended.';
       case 'studio-mode':
         if (!window.studioMode) throw Error('Studio Mode is unavailable.');
@@ -61,12 +68,31 @@
   }
   // Keyboard shortcuts run their actions through the same code (keyboard-shortcuts.js).
   window.runControlAction = run;
+  // Each Stream Deck press is reported in the notice line, so you can see what happened.
+  const LABELS = {
+    'stream-start': 'Start Stream',
+    'stream-stop': 'Stop Stream',
+    record: 'Recording',
+    clip: 'Clip',
+    'end-relay': 'End Relay',
+    afk: 'AFK',
+    'obs-scene': 'OBS scene',
+    'relay-scene': 'Relay scene',
+    'studio-mode': 'Studio Mode',
+    transition: 'Transition',
+    mute: 'Mute',
+    assist: 'Stream Assist'
+  };
   bridge.onRemoteCommand(async ({ id, action, args }) => {
+    const label = 'Stream Deck · ' + (LABELS[action] || action);
     try {
       const message = await run(action, args || {});
-      bridge.remoteReply({ id, ok: true, message: typeof message === 'string' ? message : '' });
+      const text = typeof message === 'string' ? message : '';
+      bridge.remoteReply({ id, ok: true, message: text });
+      note(label + (text ? ': ' + text : ': done.'));
     } catch (e) {
       bridge.remoteReply({ id, ok: false, error: e?.message || 'Action failed.' });
+      note(label + ' failed: ' + (e?.message || 'Action failed.'));
     }
   });
 
@@ -109,15 +135,15 @@
     'Pick the scene, audio source or Stream Assist action in the key settings where asked.'
   ])
     steps.append(el('li', t));
-  const note = el(
+  const privacyNote = el(
     'p',
     'Stream Deck control only accepts connections from this PC. Anyone with the pairing token on this PC can control your stream, so keep it private; Reset pairing token disconnects every paired key. Stop Stream and End Relay keys need a second press within 3 seconds.'
   );
-  note.className = 'hint';
+  privacyNote.className = 'hint';
   const row = el('div');
   row.className = 'assist-actions';
   row.append(toggle, copy, reset, close);
-  dialog.append(el('h2', 'Stream Deck'), steps, status, row, note);
+  dialog.append(el('h2', 'Stream Deck'), steps, status, row, privacyNote);
   document.body.append(dialog);
   let info = null;
   function paint() {

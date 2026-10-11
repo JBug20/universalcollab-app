@@ -725,13 +725,17 @@ const stopEverything = $('end');
 stopEverything.textContent = 'End relay broadcast';
 // Ends the relay broadcast (including fallback) and stops OBS streaming. The End Relay button asks
 // first and passes confirmed=true, so the question only appears once.
+// Returns true when the stop requests were sent; false when it could not run (not connected, busy, cancelled).
 async function endEverything(confirmed = false) {
-  if (busy || !connected) return;
+  if (!connected) return false;
+  // Another relay request is finishing: wait briefly instead of silently doing nothing.
+  for (let i = 0; busy && i < 20; i++) await new Promise(r => setTimeout(r, 250));
+  if (busy) return false;
   if (
     !confirmed &&
     !confirm('Stop OBS streaming and end the relay broadcast, including fallback, for all your destinations?')
   )
-    return;
+    return false;
   busy = true;
   stopEverything.disabled = true;
   const errors = [];
@@ -753,11 +757,13 @@ async function endEverything(confirmed = false) {
         ? errors.join(' ')
         : 'Stop requests accepted for OBS and the relay, including fallback. Check the stream status as shutdown completes.'
     );
+    if (errors.length) throw Error(errors.join(' '));
+    return true;
   } finally {
     busy = false;
     stopEverything.disabled = false;
     serverMenu();
   }
 }
-stopEverything.onclick = () => endEverything(false);
+stopEverything.onclick = () => endEverything(false).catch(() => {});
 window.endRelayBroadcast = () => endEverything(true);

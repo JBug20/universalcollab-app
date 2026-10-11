@@ -2,6 +2,16 @@
 // Key settings for the UniversalCollab Stream Deck plugin. Stream Deck calls connectElgatoStreamDeckSocket.
 // The scene / audio source / Stream Assist lists come from the plugin, which gets them from UniversalCollab.
 const CHOICES = {
+  stream: {
+    key: 'stopMode',
+    label: 'When stopping',
+    fallback: 'all',
+    list: () => [
+      ['all', 'End the whole broadcast (OBS and relay)'],
+      ['obs', 'Stop OBS only (relay keeps your fallback live)']
+    ],
+    empty: ''
+  },
   obsscene: {
     key: 'scene',
     label: 'OBS scene',
@@ -47,12 +57,16 @@ function fill(info) {
   status.className = 'status ' + (info.connected ? 'ok' : 'bad');
   $('port').value = global.port || '';
   if (!info.hasToken) $('pairing').open = true;
+  // Stop keys: whether a second press is needed (on unless turned off).
+  const stops = kind === 'stream' || kind === 'endrelay';
+  $('confirmRow').hidden = $('confirmHint').hidden = !stops;
+  $('confirmStop').checked = settings.confirmStop !== false;
   if (!c) return;
   $('choiceRow').hidden = false;
   $('choiceLabel').textContent = c.label;
   const select = $('choice');
   const options = (c.list(info) || []).map(o => (Array.isArray(o) ? o : [o, o]));
-  const current = settings[c.key] || '';
+  const current = settings[c.key] || c.fallback || '';
   // Keep a saved choice that the app does not list right now (OBS closed, other relay).
   if (current && !options.some(([v]) => v === current))
     options.unshift([current, current + ' (not found now)']);
@@ -86,6 +100,10 @@ function connectElgatoStreamDeckSocket(port, propertyInspectorUUID, registerEven
   $('choice').onchange = () => {
     const c = CHOICES[action.slice('stream.universalcollab.app.'.length)];
     settings[c.key] = $('choice').value;
+    send('setSettings', settings);
+  };
+  $('confirmStop').onchange = () => {
+    settings.confirmStop = $('confirmStop').checked;
     send('setSettings', settings);
   };
   $('save').onclick = () => {

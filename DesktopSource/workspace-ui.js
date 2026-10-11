@@ -196,7 +196,7 @@
   );
   info(
     'aboutApp',
-    'UniversalCollab · 1.2.0-preview.9',
+    'UniversalCollab · 1.2.0-preview.10',
     'Self-hosted collaboration and streaming workspace. OBS preview is local, without audio, and does not show the final relay composite.'
   );
   const prop = make('dialog');
@@ -729,7 +729,12 @@
         'End the relay broadcast and stop OBS streaming now? Every destination will see the stream end.'
       )
     )
-      window.endRelayBroadcast ? window.endRelayBroadcast() : $('end').click();
+      window.endRelayBroadcast
+        ? window.endRelayBroadcast().then(
+            done => done || note('End Relay could not run: the relay is busy or not connected. Try again.'),
+            () => {}
+          )
+        : $('end').click();
   });
   endRelay.id = 'endRelay';
   endRelay.className = 'danger';

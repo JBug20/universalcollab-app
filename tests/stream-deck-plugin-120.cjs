@@ -18,10 +18,26 @@ const until = async (fn, what, ms = 4000) => {
 (async () => {
   // Pure rules first.
   assert.equal(commandFor('stream', {}, { obs: { live: false } }).action, 'stream-start');
+  // Stopping ends the whole broadcast (OBS and relay) by default; "Stop OBS only" if the key is set to that.
   assert.deepEqual(commandFor('stream', {}, { obs: { live: true } }), {
+    action: 'stream-stop',
+    args: { endRelay: true },
+    confirm: true
+  });
+  assert.deepEqual(commandFor('stream', { stopMode: 'obs' }, { obs: { live: true } }), {
     action: 'stream-stop',
     confirm: true
   });
+  // "Needs a second press to stop" can be turned off per key.
+  assert.equal(commandFor('stream', { confirmStop: false }, { obs: { live: true } }).confirm, false);
+  assert.equal(commandFor('endrelay', { confirmStop: false }, null).confirm, false);
+  assert.equal(commandFor('endrelay', {}, null).confirm, true);
+  // Live while the relay broadcasts, even after OBS stopped sending.
+  assert.equal(
+    commandFor('stream', {}, { obs: { live: false }, relay: { live: true } }).action,
+    'stream-stop'
+  );
+  assert.equal(keyState('stream', {}, { obs: { live: false }, relay: { live: true } }), 1);
   assert(commandFor('obsscene', {}, null).missing);
   assert.equal(commandFor('assist', { assistAction: 'shutdown' }, null).missing.length > 0, true);
   assert.equal(

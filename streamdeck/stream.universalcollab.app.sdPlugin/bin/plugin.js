@@ -21,14 +21,22 @@ const ASSIST_ACTIONS = {
 // What a key press sends to the app, given the key's action, its settings and the app's state.
 function commandFor(kind, settings, state) {
   switch (kind) {
-    case 'stream':
-      return { action: state?.obs?.live ? 'stream-stop' : 'stream-start', confirm: !!state?.obs?.live };
+    case 'stream': {
+      // Live while OBS streams or the relay broadcasts. Stopping ends the whole broadcast (OBS and relay) unless the
+      // key is set to stop OBS only. A second press confirms, unless the key's settings turn that off.
+      const live = !!(state?.obs?.live || state?.relay?.live);
+      if (!live) return { action: 'stream-start' };
+      const confirm = settings?.confirmStop !== false;
+      return settings?.stopMode === 'obs'
+        ? { action: 'stream-stop', confirm }
+        : { action: 'stream-stop', args: { endRelay: true }, confirm };
+    }
     case 'record':
       return { action: 'record' };
     case 'clip':
       return { action: 'clip' };
     case 'endrelay':
-      return { action: 'end-relay', confirm: true };
+      return { action: 'end-relay', confirm: settings?.confirmStop !== false };
     case 'studiomode':
       return { action: 'studio-mode' };
     case 'transition':
@@ -62,7 +70,7 @@ function keyState(kind, settings, state) {
   const obs = state.obs || {};
   switch (kind) {
     case 'stream':
-      return obs.live ? 1 : 0;
+      return obs.live || state.relay?.live ? 1 : 0;
     case 'record':
       return obs.recording ? 1 : 0;
     case 'endrelay':

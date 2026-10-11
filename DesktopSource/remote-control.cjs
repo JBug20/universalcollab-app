@@ -44,6 +44,7 @@ function validCommand(m) {
     if (typeof name !== 'string' || !name.trim() || name.length > 256) return null;
     args.name = name;
   }
+  if (m.action === 'stream-stop' && m.args?.endRelay === true) args.endRelay = true;
   if (m.action === 'assist') {
     if (!ASSIST_ACTIONS.has(m.args?.action)) return null;
     args.action = m.args.action;

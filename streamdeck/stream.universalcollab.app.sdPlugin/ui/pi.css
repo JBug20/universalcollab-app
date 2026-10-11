@@ -53,3 +53,16 @@ summary {
 .status.bad {
   color: #f0b24a;
 }
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #d8d8d8;
+}
+.check input {
+  width: auto;
+  margin: 0;
+}
+[hidden] {
+  display: none !important;
+}
