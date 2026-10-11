@@ -581,6 +581,28 @@
       }
     }
     $('prepareStream').disabled = doing || !capable || active || uncertain;
+    // Say why Create & prepare is greyed out, next to it.
+    {
+      let why = $('prepareWhy');
+      if (!why) {
+        why = document.createElement('p');
+        why.id = 'prepareWhy';
+        why.className = 'hint prepare-why';
+        $('prepareStream').parentElement.after(why);
+      }
+      why.textContent = doing
+        ? ''
+        : !connected
+          ? 'Connect to a relay first (Settings → Relay), then Create & prepare.'
+          : uncertain
+            ? 'Waiting for the relay to answer…'
+            : active
+              ? 'A broadcast is running. End the relay broadcast (End Relay) before preparing a new stream.'
+              : !capable
+                ? 'This relay needs an update before it can prepare streams.'
+                : '';
+      why.hidden = !why.textContent;
+    }
     for (const input of $('productionForm').querySelectorAll('input,select,textarea')) input.disabled = doing;
     for (const input of $('productionDestinations').querySelectorAll('input'))
       input.disabled =

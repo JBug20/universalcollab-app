@@ -644,6 +644,147 @@
         selectedSource = null;
         await poll();
       });
+  // Add OBS source → Create a new source (obs-sources.cjs): webcam, screen, window, game, microphone, desktop audio,
+  // image, video file, text or web page, then pick which camera / screen / window / microphone from OBS's own list.
+  {
+    const box = node('section');
+    box.id = 'obsNewSource';
+    box.className = 'obs-new-source';
+    const type = node('select');
+    type.id = 'obsNewSourceType';
+    type.setAttribute('aria-label', 'Kind of source');
+    const label = (text, input) => {
+      const l = node('label', text);
+      l.append(input);
+      return l;
+    };
+    const nameInput = node('input');
+    nameInput.id = 'obsNewSourceName';
+    nameInput.maxLength = 256;
+    const textInput = node('textarea');
+    textInput.id = 'obsNewSourceText';
+    textInput.rows = 2;
+    textInput.maxLength = 2000;
+    const urlInput = node('input');
+    urlInput.id = 'obsNewSourceUrl';
+    urlInput.type = 'url';
+    urlInput.placeholder = 'https://…';
+    const widthInput = node('input'),
+      heightInput = node('input');
+    widthInput.id = 'obsNewSourceWidth';
+    heightInput.id = 'obsNewSourceHeight';
+    for (const [i, v] of [
+      [widthInput, '1920'],
+      [heightInput, '1080']
+    ]) {
+      i.type = 'number';
+      i.min = '1';
+      i.value = v;
+    }
+    let file = '';
+    const fileInfo = node('span', 'No file chosen');
+    const pick = btn('Choose file…', async () => {
+      const r = await call('source-pick-file', { type: type.value });
+      if (r.canceled) return;
+      file = r.file;
+      fileInfo.textContent = file.split(/[\\/]/).pop();
+      if (!nameInput.value || nameInput.dataset.auto === 'true') {
+        nameInput.value = fileInfo.textContent.replace(/\.[^.]+$/, '');
+        nameInput.dataset.auto = 'true';
+      }
+    });
+    pick.id = 'obsNewSourceFile';
+    const fields = {
+      text: [label('Text', textInput)],
+      browser: [label('Web address', urlInput), label('Width', widthInput), label('Height', heightInput)],
+      image: [pick, fileInfo],
+      media: [pick, fileInfo]
+    };
+    const extra = node('div');
+    extra.className = 'obs-new-source-fields';
+    const chooseRow = node('div');
+    chooseRow.hidden = true;
+    const choose = node('select');
+    choose.id = 'obsNewSourceChoice';
+    const chooseLabel = node('label', 'Use');
+    chooseLabel.append(choose);
+    chooseRow.append(chooseLabel);
+    const create = btn('Create source', async () => {
+      if (!editScene) throw Error('Choose the OBS scene to add it to first.');
+      const r = await call('source-create', {
+        sceneName: editScene,
+        type: type.value,
+        name: nameInput.value,
+        text: textInput.value,
+        url: urlInput.value,
+        width: Number(widthInput.value),
+        height: Number(heightInput.value),
+        file
+      });
+      say('Added ' + r.inputName + ' to ' + editScene + '.');
+      chooseRow.hidden = !r.property;
+      if (r.property) {
+        choose.replaceChildren(...r.items.map(i => new Option(i.name, String(i.value))));
+        if (r.current !== null && r.current !== undefined) choose.value = String(r.current);
+        choose.dataset.input = r.inputName;
+        choose.dataset.property = r.property;
+        choose.dataset.numeric = String(typeof r.items[0]?.value === 'number');
+        chooseLabel.firstChild.textContent = 'Use ';
+      }
+      nameInput.value = '';
+      file = '';
+      fileInfo.textContent = 'No file chosen';
+      await poll(true);
+    });
+    create.id = 'obsNewSourceCreate';
+    choose.onchange = () =>
+      run(async () => {
+        const value = choose.dataset.numeric === 'true' ? Number(choose.value) : choose.value;
+        await call('source-choose', {
+          inputName: choose.dataset.input,
+          property: choose.dataset.property,
+          value
+        });
+        say(choose.dataset.input + ': ' + choose.selectedOptions[0]?.textContent);
+      });
+    function showFields() {
+      extra.replaceChildren(...(fields[type.value] || []));
+      const t = [...type.options].find(o => o.value === type.value);
+      if (!nameInput.value || nameInput.dataset.auto === 'true') {
+        nameInput.value = t ? t.textContent.replace(/ \(.*\)$/, '') : '';
+        nameInput.dataset.auto = 'true';
+      }
+    }
+    nameInput.oninput = () => (nameInput.dataset.auto = 'false');
+    type.onchange = () => {
+      file = '';
+      fileInfo.textContent = 'No file chosen';
+      chooseRow.hidden = true;
+      showFields();
+    };
+    box.append(
+      node('h3', 'Create a new source'),
+      label('Kind', type),
+      label('Name', nameInput),
+      extra,
+      create,
+      chooseRow
+    );
+    $('obsSourceAdd').after(box);
+    // Which kinds this OBS has: read when OBS connects and each time the Add OBS source window opens.
+    async function loadTypes() {
+      if (!online) return;
+      const r = await call('source-types').catch(() => []);
+      const types = Array.isArray(r) ? r : [];
+      const keep = type.value;
+      type.replaceChildren(...types.map(t => new Option(t.label, t.type)));
+      if (types.some(t => t.type === keep)) type.value = keep;
+      box.hidden = !types.length;
+      showFields();
+    }
+    window.addEventListener('obs-connection', loadTypes);
+    window.refreshObsSourceTypes = loadTypes;
+  }
   $('obsSourceAdd').onclick = () =>
     run(async () => {
       await call('source-add', { sceneName: editScene, sourceName: $('obsExistingSource').value });

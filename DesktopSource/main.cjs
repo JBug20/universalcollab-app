@@ -501,6 +501,17 @@ app.whenReady().then(() => {
           await obsControls.handle('record-directory', { directory });
           return { ok: true, data: { directory } };
         }
+        // New image or media source (obs-sources.cjs): the file is chosen in the Windows file picker.
+        if (op === 'source-pick-file') {
+          const t = require('./obs-sources.cjs').TYPES[input.type];
+          if (!t?.file) throw Error('That kind of source has no file.');
+          const r = await dialog.showOpenDialog(win, {
+            title: 'Choose the ' + t.label.toLowerCase(),
+            properties: ['openFile'],
+            filters: [{ name: t.label, extensions: t.file }]
+          });
+          return { ok: true, data: r.canceled ? { canceled: true } : { file: r.filePaths[0] } };
+        }
         // Pre-stream readiness: read-only.
         if (op === 'readiness') {
           const data = await obsControls.handle('readiness');

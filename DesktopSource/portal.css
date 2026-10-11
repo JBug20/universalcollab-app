@@ -1851,3 +1851,22 @@ footer span {
 .status-bar #notice:not(:empty) {
   min-width: min(240px, 25%);
 }
+/* Add OBS source → Create a new source (obs-ui.js, obs-sources.cjs). */
+.obs-new-source {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--edge);
+}
+.obs-new-source h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.obs-new-source-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+}
+.prepare-why {
+  color: #ffd76a;
+}

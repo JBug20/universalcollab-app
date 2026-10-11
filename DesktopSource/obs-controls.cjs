@@ -1,4 +1,5 @@
 'use strict';
+const sources = require('./obs-sources.cjs');
 const name = v => {
   if (typeof v !== 'string' || !v.trim() || v.length > 512) throw Error('Choose a valid OBS name.');
   return v;
@@ -180,6 +181,32 @@ class OBSControls {
       }
     };
   }
+  // The device list of a new source (cameras, screens, windows, microphones), from OBS itself.
+  async choices(inputName, type) {
+    const t = sources.TYPES[type];
+    if (!t || !this.available.has('GetInputPropertiesListPropertyItems'))
+      return { property: null, items: [] };
+    for (const propertyName of t.choose) {
+      try {
+        const { propertyItems } = await this.call('GetInputPropertiesListPropertyItems', {
+          inputName,
+          propertyName
+        });
+        if (propertyItems?.length) {
+          const { inputSettings } = await this.call('GetInputSettings', { inputName }).catch(() => ({}));
+          return {
+            property: propertyName,
+            current: inputSettings?.[propertyName] ?? null,
+            items: propertyItems
+              .filter(p => p.itemEnabled !== false)
+              .slice(0, 200)
+              .map(p => ({ name: String(p.itemName || p.itemValue), value: p.itemValue }))
+          };
+        }
+      } catch {}
+    }
+    return { property: null, items: [] };
+  }
   async handle(op, i = {}) {
     if (!this.link.ready) throw Error('Connect OBS first.');
     if (!this.available) await this.init();
@@ -306,6 +333,47 @@ class OBSControls {
       const s = await this.call('GetSceneList');
       if (s.scenes.length <= 1) throw Error('Keep at least one OBS scene.');
       return this.call('RemoveScene', { sceneName: name(i.sceneName) });
+    }
+    // New sources (obs-sources.cjs).
+    if (op === 'source-types') {
+      if (!this.available.has('GetInputKindList')) return [];
+      const { inputKinds } = await this.call('GetInputKindList', { unversioned: false });
+      return sources.available(inputKinds).map(({ type, label }) => ({ type, label }));
+    }
+    if (op === 'source-create') {
+      const t = sources.TYPES[i.type];
+      if (!t) throw Error('Choose what kind of source to add.');
+      const { inputKinds } = await this.call('GetInputKindList', { unversioned: false });
+      const kind = sources.available(inputKinds).find(a => a.type === i.type)?.kind;
+      if (!kind) throw Error('This OBS cannot make that kind of source.');
+      const inputName = sources.sourceName(i.name);
+      const settings = sources.settingsFor(i.type, {
+        ...i,
+        file: t.file ? sources.file(i.type, i.file) : undefined
+      });
+      try {
+        await this.call('CreateInput', {
+          sceneName: name(i.sceneName),
+          inputName,
+          inputKind: kind,
+          inputSettings: settings,
+          sceneItemEnabled: true
+        });
+      } catch (e) {
+        if (e.obsCode === 601)
+          throw Error('OBS already has a source called "' + inputName + '". Choose another name.');
+        throw e;
+      }
+      return { inputName, kind, ...(await this.choices(inputName, i.type)) };
+    }
+    if (op === 'source-choices') return this.choices(name(i.inputName), i.type);
+    if (op === 'source-choose') {
+      if (!sources.CHOOSABLE.has(i.property)) throw Error('That setting cannot be changed here.');
+      if (!['string', 'number'].includes(typeof i.value)) throw Error('Invalid choice.');
+      return this.call('SetInputSettings', {
+        inputName: name(i.inputName),
+        inputSettings: { [i.property]: i.value }
+      });
     }
     if (op === 'source-add')
       return this.call('CreateSceneItem', {

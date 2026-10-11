@@ -601,8 +601,18 @@
   obsBar.append(
     btn('+', 'Add OBS scene', () => sceneAction('New', true)),
     btn('−', 'Delete OBS scene', () => sceneAction('Delete', true)),
-    btn('⋯', 'More OBS scene actions', e => contextMenu(e, [['Rename', () => sceneAction('Rename', true)]]))
+    btn('⋯', 'More OBS scene actions', e =>
+      contextMenu(e, [
+        ['Add source to this scene…', addObsSource],
+        ['Rename', () => sceneAction('Rename', true)]
+      ])
+    )
   );
+  // Add OBS source (existing or new) for the scene being edited; also from the OBS scenes panel.
+  function addObsSource() {
+    open('obsSourceAddWindow');
+    void window.refreshObsSourceTypes?.();
+  }
   $('obsScenes').oncontextmenu = e => {
     const b = e.target.closest('button');
     if (b) {
@@ -611,6 +621,7 @@
     }
     contextMenu(e, [
       ['Add scene', () => sceneAction('New', true)],
+      ['Add source to this scene…', addObsSource],
       ['Rename', () => sceneAction('Rename', true)],
       ['Delete', () => sceneAction('Delete', true)]
     ]);
@@ -657,9 +668,9 @@
   const obsProps = dialog('obsSourceProperties', 'OBS source properties');
   obsProps.append($('obsTransform'));
   const obsAdd = dialog('obsSourceAddWindow', 'Add OBS source');
-  obsAdd.append($('obsExistingSource').parentElement, $('obsSourceAdd'));
+  obsAdd.append($('obsExistingSource').parentElement, $('obsSourceAdd'), $('obsNewSource'));
   bar($('obsSourcesPanel')).append(
-    btn('+', 'Add existing OBS source', () => open('obsSourceAddWindow')),
+    btn('+', 'Add OBS source (existing or new)', addObsSource),
     btn('⚙', 'OBS source properties', () => open('obsSourceProperties'))
   );
   $('obsSources').oncontextmenu = e => {
