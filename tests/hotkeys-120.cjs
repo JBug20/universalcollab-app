@@ -52,7 +52,14 @@ try {
   assert.equal(r.data.keys.afk, 'Ctrl+Alt+A');
 
   r = call({ op: 'set', enabled: true });
-  assert.deepEqual([...registered.keys()].sort(), ['Ctrl+Alt+A', 'Ctrl+Alt+C', 'Ctrl+Alt+M', 'Ctrl+Alt+R']);
+  assert.deepEqual([...registered.keys()].sort(), [
+    'Ctrl+Alt+A',
+    'Ctrl+Alt+C',
+    'Ctrl+Alt+K',
+    'Ctrl+Alt+M',
+    'Ctrl+Alt+P',
+    'Ctrl+Alt+R'
+  ]);
   assert.deepEqual(r.data.failed, ['transition'], 'a shortcut in use elsewhere is reported');
   registered.get('Ctrl+Alt+A')();
   assert.deepEqual(sent.at(-1), ['hotkey', { action: 'afk' }]);
@@ -67,7 +74,7 @@ try {
   call({ op: 'pause' });
   assert.equal(registered.size, 0);
   call({ op: 'resume' });
-  assert.equal(registered.size, 5);
+  assert.equal(registered.size, 7);
   // Remembered after a restart.
   globalShortcut.unregisterAll();
   start();
@@ -75,7 +82,7 @@ try {
   assert.equal(r.data.enabled, true);
   assert.equal(r.data.keys.transition, 'Ctrl+Shift+F10');
   assert.equal(r.data.muteSource, 'Mic/Aux');
-  assert.equal(registered.size, 5);
+  assert.equal(registered.size, 7);
   // Off: nothing registered.
   handlers.hotkeys({}, { op: 'set', enabled: false });
   assert.equal(registered.size, 0);

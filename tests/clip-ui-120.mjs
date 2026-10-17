@@ -57,11 +57,12 @@ try {
     'C:\\Videos\\Replay 1.mkv'
   );
 
-  // The Clip button sits right after Start/Stop Recording.
+  // The Clip button sits right after Start/Stop Recording (and Pause, shown while recording).
   const order = await page.evaluate(() =>
     [...document.querySelectorAll('#streamsPanel button')].map(b => b.id)
   );
-  assert.equal(order.indexOf('obsClip'), order.indexOf('obsRecord') + 1, order.join());
+  assert.equal(order.indexOf('obsRecordPause'), order.indexOf('obsRecord') + 1, order.join());
+  assert.equal(order.indexOf('obsClip'), order.indexOf('obsRecordPause') + 1, order.join());
   // While it saves, it says so; a second click meanwhile is not silently ignored.
   await page.evaluate(() => (window.clipSlow = true));
   await page.locator('#obsClip').click();

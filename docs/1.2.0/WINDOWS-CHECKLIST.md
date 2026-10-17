@@ -66,6 +66,9 @@ You need:
   - [ ] Lock a source (🔓 → 🔒): it can't be moved here or in OBS. Rotated sources move but are not resized by handles.
   - [ ] Edit a scene that is not live (e.g. BRB): the stream does not change.
 
+- [ ] **Relay layout handles** (Stream layout): select an item; it has 8 handles. Corners keep the shape, Shift stretches, edges stretch one side and snap. Right-click: Fit to screen, Stretch to screen, Centre horizontally / vertically, Undo. Ctrl+Z undoes moves and resizes.
+- [ ] **Post-stream report:** end a relay broadcast. The report pops up with length, drops, dropped frames, peak viewers, markers and clips, and "Stream report <date> <time>.txt" is next to your recordings. Tools → Stream reports shows it again.
+
 ## 4. Recording, clips and storage
 
 - [ ] Start Recording, then stop: the file is in OBS's recordings folder.
@@ -97,6 +100,19 @@ You need:
   - [ ] The choices are greyed out while recording.
   - [ ] Auto-record with the recording scene chosen records the recording scene.
   - [ ] Quit UniversalCollab while recording the recording scene: it asks first, and the file plays afterwards.
+- [ ] **Pause and split** (needs OBS 30 or newer):
+  - [ ] While recording, **Pause** appears next to Stop Recording. Pause → the status bar shows REC PAUSED; Resume carries on in the same file. Ctrl+Alt+P and the Stream Deck Pause key (lit while paused) do the same.
+  - [ ] Recording scene only, and Both: pause pauses both files.
+  - [ ] Settings → OBS → "Start a new recording file every" 30 minutes: after 30 minutes a second file starts with no gap. If OBS says it can't, follow the message (Advanced output → Automatic File Splitting → Split Manually) and try again.
+- [ ] **Stream markers:** during a broadcast press **Mark** (next to Clip), Ctrl+Alt+K or the Stream Deck Mark key.
+  - [ ] The notice line says "Marker 1 at stream 0:12:34, recording …".
+  - [ ] Twitch: the marker shows in the Twitch dashboard (Stream Manager → markers, or the VOD).
+  - [ ] Recording in Hybrid MP4: the marker is a chapter in the file (e.g. VLC → Playback → Chapter).
+- [ ] **Vertical clips** (Settings → OBS → Vertical clips, recording format MP4 or Hybrid MP4):
+  - [ ] Turn on, Layout "Facecam on top": it names your webcam source.
+  - [ ] Press Clip: after about as long as the clip, "Vertical clip saved: … (vertical).mp4". It is 1080 × 1920, the facecam is on top, the gameplay below, and it has sound.
+  - [ ] Try "Whole picture over a blurred background" and "Centre of the picture".
+  - [ ] With MKV recordings it says to switch to MP4.
 - [ ] The status bar shows **This PC <free> free**, and the details show the drive and OBS's recordings folder. Try with OBS recording to a drive other than C: if you have one.
 - [ ] **My storage** shows your relay allowance (needs the per-user storage relay change).
 - [ ] Optional: fill a USB stick or a small drive below 10 GB and set OBS to record there. "This PC" turns yellow and the notice line warns once.

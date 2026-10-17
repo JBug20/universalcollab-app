@@ -164,8 +164,9 @@ try {
   delete files.out;
   delete files.fail;
   await page.goto(base + 'convert.html#' + encodeURIComponent(JSON.stringify({ ...job, layout: 'crop' })));
-  for (let i = 0; i < 100 && !files.fail; i++) await new Promise(r => setTimeout(r, 100));
-  assert.match(files.fail || '', /cannot read this clip[\s\S]*MP4 or Hybrid MP4/);
+  for (let i = 0; i < 300 && !files.fail; i++) await new Promise(r => setTimeout(r, 100));
+  assert.equal(files.out, undefined, 'nothing made from an unreadable clip');
+  assert.match(String(files.fail), /cannot read this clip[\s\S]*MP4 or Hybrid MP4/, 'message: ' + files.fail);
   console.log(
     'PASS vertical clip conversion: 1080 × 1920, facecam on top, gameplay below, sound, unreadable clip.'
   );

@@ -68,8 +68,15 @@
     };
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, p.width, p.height);
-    recorder.start(1000);
     await video.play();
+    // The first picture is drawn before recording starts, so the file starts with video as well as sound (a file
+    // that starts with sound only can show as 0 × 0 in some players).
+    await new Promise(r =>
+      video.readyState >= 2 ? r() : video.addEventListener('loadeddata', r, { once: true })
+    );
+    draw();
+    await new Promise(r => requestAnimationFrame(() => r()));
+    recorder.start(1000);
     // A steady frame rate from the playing clip (the window is hidden, so frame callbacks are not relied on).
     const timer = setInterval(draw, 1000 / (job.fps || 30));
     await new Promise((resolve, reject) => {

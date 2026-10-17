@@ -474,7 +474,12 @@
         // As wide as fits, and never taller than the window: the boxes are placed on the stage's width.
         stage.style.width = `min(100%, calc((100vh - 150px) * ${base.width / base.height}))`;
         if (chosen !== null && !item(chosen)) chosen = null;
-        paint();
+        // Only redraw when OBS reports something new (boxes being hovered or grabbed stay put).
+        const sig = JSON.stringify([base, items, chosen]);
+        if (sig !== lastLoaded) {
+          lastLoaded = sig;
+          paint();
+        }
       } catch (e) {
         say(e.message);
       }
@@ -495,7 +500,8 @@
     // Changes during a drag go to OBS at most every 80 ms; the latest wins.
     let sending = null,
       queued = null,
-      epoch = 0;
+      epoch = 0,
+      lastLoaded = '';
     function send(id, transform) {
       epoch++;
       queued = { id, transform: { ...(queued?.id === id ? queued.transform : {}), ...transform } };
@@ -719,6 +725,7 @@
     sceneSelect.onchange = () => {
       scene = sceneSelect.value;
       chosen = null;
+      lastLoaded = '';
       void load();
     };
     new ResizeObserver(() => open && paint()).observe(stage);
