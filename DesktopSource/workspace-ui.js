@@ -127,6 +127,7 @@
       ['Check stream readiness', () => window.openReadiness?.()],
       ['End credits & alerts', () => window.openEndCredits?.()],
       ['Go-live announcements', () => window.openAnnouncements?.()],
+      ['Stream reports', () => window.openStreamReports?.()],
       ['Edit OBS scene on screen', () => window.openObsSceneEditor?.()],
       ['OBS Connection', settings('obs')],
       [

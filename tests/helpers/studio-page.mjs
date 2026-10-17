@@ -156,6 +156,33 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
       onAppUpdate: callback => {
         window.appUpdatePush = callback;
       },
+      // Post-stream reports: kept in window.fakeReports.
+      streamReports: async input => {
+        calls.push({ reports: input.op, input });
+        window.fakeReports ||= [];
+        if (input.op === 'save') {
+          window.fakeReports.unshift({
+            report: input.report,
+            text: input.text,
+            path: 'D:\\Rec\\Stream report.txt'
+          });
+          return { ok: true, data: { file: 'Stream report.txt', path: 'D:\\Rec\\Stream report.txt' } };
+        }
+        if (input.op === 'list')
+          return {
+            ok: true,
+            data: window.fakeReports.map(r => ({
+              id: r.report.id,
+              title: r.report.title,
+              startedAt: r.report.startedAt,
+              endedAt: r.report.endedAt
+            }))
+          };
+        const r = window.fakeReports.find(r => r.report.id === input.id);
+        if (input.op === 'get')
+          return { ok: true, data: { report: r.report, path: r.path, file: 'Stream report.txt' } };
+        return { ok: true, data: {} };
+      },
       // Go-live announcements: tests set window.fakeDiscord ({ id }) or window.announceFail (an error text).
       announce: async input => {
         calls.push({ announce: input.op, input });

@@ -2103,3 +2103,52 @@ dialog.obs-editor {
     grid-template-columns: 1fr;
   }
 }
+/* Post-stream report (stream-report.js). */
+dialog.stream-report {
+  width: min(820px, calc(100vw - 32px));
+  max-width: none;
+}
+.report-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+.report-fact {
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  border: 1px solid #464050;
+  border-radius: 8px;
+  background: #1a1724;
+}
+.report-fact strong {
+  font-size: 22px;
+}
+.report-fact span {
+  color: #b9a9cd;
+  font-size: 12px;
+}
+.report-text {
+  max-height: 40vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  font:
+    13px/1.5 ui-monospace,
+    Consolas,
+    monospace;
+  background: #13121c;
+  border: 1px solid #464050;
+  border-radius: 8px;
+  padding: 12px;
+}
+.report-list {
+  display: grid;
+  gap: 4px;
+  max-height: 20vh;
+  overflow: auto;
+}
+.report-list .report-item {
+  margin: 0;
+  text-align: left;
+}

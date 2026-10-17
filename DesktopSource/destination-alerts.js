@@ -125,6 +125,18 @@
         else down.delete(e.output.id);
         note(text(e));
         beep(e.type === 'down');
+        // The post-stream report (stream-report.js) keeps a list of drops.
+        window.dispatchEvent(
+          new CustomEvent('destination-alert', {
+            detail: {
+              type: e.type,
+              id: e.output.id,
+              name: e.output.name,
+              state: e.output.state,
+              at: Date.now()
+            }
+          })
+        );
       }
       line.hidden = !down.size;
       line.textContent = down.size

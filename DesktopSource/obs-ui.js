@@ -243,6 +243,7 @@
       clipNote.textContent = `Replay buffer started. Press Clip again to save the last ${r.seconds || 'few'} seconds.`;
       return 'Replay buffer started.';
     }
+    window.dispatchEvent(new CustomEvent('obs-clip-saved', { detail: { path: r.path || '' } }));
     const file = r.path ? r.path.split(/[\\/]/).pop() : '';
     clipNote.append(file ? 'Clip saved: ' + file + ' ' : "Clip saved in OBS's recording folder.");
     if (r.path) {
