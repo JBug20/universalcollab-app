@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('relayDesktop', {
   },
   // End credits and alerts overlays for OBS (overlays.cjs / end-credits.js).
   overlays: input => ipcRenderer.invoke('overlays', input),
+  // Vertical copies of clips (vertical-clips.cjs / vertical-clip-ui.js).
+  verticalClip: input => ipcRenderer.invoke('vertical-clip', input),
   // Post-stream reports (stream-reports.cjs / stream-report.js).
   streamReports: input => ipcRenderer.invoke('stream-reports', input),
   // Go-live announcements (announce.cjs / announce.js).

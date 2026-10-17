@@ -502,6 +502,22 @@
                   ><button id="obsRecordSceneCheck" type="button">Check again</button>
                 </div>
               </div>
+              <div class="record-folder" id="verticalClips">
+                <h3>Vertical clips</h3>
+                <label class="check-row"
+                  ><input id="verticalClipOn" type="checkbox" /> Also save a vertical (9:16) copy of each
+                  clip</label
+                >
+                <label
+                  >Layout<select id="verticalClipLayout">
+                    <option value="stack">Facecam on top, gameplay below</option>
+                    <option value="blur">Whole picture over a blurred background</option>
+                    <option value="crop">Centre of the picture</option>
+                  </select></label
+                >
+                <label>Facecam<select id="verticalClipCam"></select></label>
+                <p class="hint" id="verticalClipInfo"></p>
+              </div>
               <p class="hint">
                 Stop all OBS outputs before changing video settings. Encoder and plugin-specific options
                 remain in OBS.
@@ -1007,6 +1023,7 @@
     <script src="announce.js"></script>
     <script src="markers.js"></script>
     <script src="stream-report.js"></script>
+    <script src="vertical-clip-ui.js"></script>
     <script src="obs-editor.js"></script>
     <script src="studio-mode.js"></script>
     <script src="relay-video.js"></script>

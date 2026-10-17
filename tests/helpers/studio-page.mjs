@@ -156,6 +156,13 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
       onAppUpdate: callback => {
         window.appUpdatePush = callback;
       },
+      // Vertical clips: tests set window.verticalFail (an error text).
+      verticalClip: async input => {
+        calls.push({ vertical: input });
+        if (window.verticalFail) return { ok: false, error: window.verticalFail };
+        const file = input.file.replace(/\.mp4$/, ' (vertical).mp4');
+        return { ok: true, data: { file: file.split(/[\\/]/).pop(), path: file } };
+      },
       // Post-stream reports: kept in window.fakeReports.
       streamReports: async input => {
         calls.push({ reports: input.op, input });
@@ -263,6 +270,9 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
           if (window.splitFail) throw Error(window.splitFail);
           return { program: true, scene: false };
         }
+        // Clip: tests set window.clipPath for a saved clip.
+        if (op === 'clip' && window.clipPath)
+          return { supported: true, active: true, saved: true, path: window.clipPath };
         if (op === 'record-chapter') return { program: !!window.obsRecording, scene: false };
         if (op === 'record-stop') {
           window.obsRecording = false;

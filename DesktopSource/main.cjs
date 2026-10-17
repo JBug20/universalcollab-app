@@ -7,7 +7,8 @@ const {
   session,
   shell,
   dialog,
-  globalShortcut
+  globalShortcut,
+  protocol
 } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -15,6 +16,8 @@ const { pathToFileURL } = require('node:url');
 // Preserve legacy credentials and Chromium localStorage during the rename.
 app.setPath('userData', path.join(app.getPath('appData'), 'Stream Relay'));
 app.setName('UniversalCollab');
+// Vertical clips (vertical-clips.cjs) read clips over a private address; it must be declared before the app is ready.
+require('./vertical-clips.cjs').registerScheme(protocol);
 // Automatic settings backups (settings-backup.cjs); a restore asked for last time is done now, before settings load.
 const settingsBackups = require('./settings-backup.cjs').create(app.getPath('userData'));
 let restoredBackup = null;
@@ -168,6 +171,15 @@ app.whenReady().then(() => {
   require('./overlays.cjs').start({ app, ipcMain, guard, clipboard });
   // Go-live announcements to Discord (announce.cjs / announce.js).
   require('./announce.cjs').start({ app, ipcMain, guard, safeStorage });
+  // Vertical (9:16) copies of clips (vertical-clips.cjs / vertical-clip-ui.js).
+  require('./vertical-clips.cjs').start({
+    ipcMain,
+    guard,
+    BrowserWindow,
+    session,
+    isClip: file => !!obsControls?.clips?.includes(file),
+    addClip: file => obsControls && (obsControls.clips = [file, ...(obsControls.clips || [])].slice(0, 50))
+  });
   // Post-stream reports (stream-reports.cjs / stream-report.js): saved next to OBS's recordings.
   require('./stream-reports.cjs').start({
     app,
