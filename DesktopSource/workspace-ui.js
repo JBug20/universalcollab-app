@@ -636,6 +636,7 @@
       ['Add source', () => $('addItem').click()],
       ...(sel.media ? [['Source settings…', () => window.streamCanvas.openProperties(), fixed]] : []),
       ['Position & size…', () => open('sourceProperties')],
+      ['Undo', () => window.streamCanvas.undo(), !window.streamCanvas.canUndo()],
       ['Lock / unlock', () => window.streamCanvas.toggleLock()],
       ['Move forward', () => $('canvasFront').click()],
       ['Move backward', () => $('canvasBack').click()],
@@ -647,6 +648,12 @@
         ['center', 'Centre'],
         ['reset', 'Reset position & size']
       ].map(([c, label]) => [label, () => window.streamCanvas.placeCorner(c), fixed]),
+      ...[
+        ['fit', 'Fit to screen (keep shape)'],
+        ['stretch', 'Stretch to screen'],
+        ['centreH', 'Centre horizontally'],
+        ['centreV', 'Centre vertically']
+      ].map(([k, label]) => [label, () => window.streamCanvas.transform(k), fixed]),
       ['Make 2×2 split', () => window.streamCanvas.split()],
       ['Remove', () => $('canvasRemove').click(), fixed || sel.kind === 'main']
     ];

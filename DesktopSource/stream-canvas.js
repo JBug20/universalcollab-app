@@ -88,7 +88,7 @@
       return 'Text, picture and browser sources stay local until this relay is updated to 1.2.0.';
     if (items.some(isMedia) && !capability('mediaSources'))
       return 'This relay host has turned off text, picture and browser sources.';
-    return 'Drag to move or resize. Items snap to edges, centres and other items — hold Alt to place freely. Right-click for corners, centre and 2×2 split.';
+    return 'Drag to move; drag the handles to resize (corners keep the shape, Shift stretches). Items snap to edges, centres and other items — hold Alt to place freely. Arrow keys nudge, Ctrl+Z undoes. Right-click for Fit, Stretch, Centre, corners and 2×2 split.';
   }
   function changed() {
     layoutDirty = true;
@@ -669,6 +669,8 @@
   }
 
   function paint() {
+    // Keys (arrows, Ctrl+Z) keep working on the selected item after a redraw.
+    const hadFocus = root.contains(document.activeElement);
     const o = outputSize();
     root.style.aspectRatio = o.w + '/' + o.h;
     for (const child of [...root.children]) if (child.id !== 'relayCanvasVideo') child.remove();
@@ -740,12 +742,14 @@
           }
         }
       }
-      const handle = document.createElement('button');
-      handle.type = 'button';
-      handle.className = 'canvas-resize';
-      handle.textContent = '↘';
-      handle.setAttribute('aria-label', 'Resize ' + title(item));
-      tile.append(handle);
+      // OBS-style handles on the selected item: corners keep the shape (Shift stretches), edges stretch one side.
+      for (const h of ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']) {
+        const handle = document.createElement('span');
+        handle.className = 'canvas-handle ' + h;
+        handle.dataset.handle = h;
+        handle.setAttribute('aria-hidden', 'true');
+        tile.append(handle);
+      }
       tile.onpointerdown = e => {
         if (e.button !== 0) return;
         selection = item.id;
@@ -760,7 +764,9 @@
           startX: e.clientX,
           startY: e.clientY,
           before: { ...item },
-          resize: e.target === handle
+          resize: e.target.closest?.('.canvas-handle')?.dataset.handle || false,
+          snapshot: positions(),
+          moved: false
         };
         dragging = true;
         tile.setPointerCapture(e.pointerId);
@@ -771,26 +777,37 @@
           b = moving.before,
           dx = (e.clientX - moving.startX) / r.width,
           dy = (e.clientY - moving.startY) / r.height;
+        moving.moved = true;
         if (moving.resize) {
-          const left = b.x * (1 - b.width),
-            top = b.y * (1 - b.height);
-          item.width = clamp(b.width + dx, 0.04, 1 - left);
-          item.height = clamp(b.height + dy, 0.04, 1 - top);
-          item.x = left / Math.max(0.000001, 1 - item.width);
-          item.y = top / Math.max(0.000001, 1 - item.height);
+          const g = window.layoutGeometry;
+          Object.assign(item, g.resize(b, moving.resize, dx, dy, { free: e.shiftKey }));
+          clearGuides();
+          // Snap the dragged edges (Alt places freely). Kept-shape corners are not snapped, so the shape stays.
+          if (!e.altKey && (e.shiftKey || moving.resize.length === 1)) {
+            const s = g.snapEdges(
+              g.box(item),
+              moving.resize,
+              { x: snapLines(item, 'x'), y: snapLines(item, 'y') },
+              0.012
+            );
+            Object.assign(item, g.fromBox(s.box));
+            for (const v of s.used.v) guide('v', v);
+            for (const v of s.used.h) guide('h', v);
+          }
         } else {
           item.x = clamp(b.x + dx / Math.max(0.000001, 1 - b.width), 0, 1);
           item.y = clamp(b.y + dy / Math.max(0.000001, 1 - b.height), 0, 1);
+          item.x = clamp(item.x, 0, 1);
+          item.y = clamp(item.y, 0, 1);
+          snap(item, false, e.altKey);
         }
-        item.x = clamp(item.x, 0, 1);
-        item.y = clamp(item.y, 0, 1);
-        snap(item, moving.resize, e.altKey);
         styleBox(tile, item);
         inspect();
         changed();
       };
       tile.onpointerup = () => {
         const resized = moving?.resize;
+        if (moving?.moved) remember(moving.snapshot);
         moving = null;
         dragging = null;
         clearGuides();
@@ -810,10 +827,18 @@
           openProperties(item.id);
           return;
         }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          undo();
+          return;
+        }
         const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
         if (!delta || !editable(item)) return;
         e.preventDefault();
         selection = item.id;
+        // A run of key presses is one step to undo.
+        if (Date.now() - lastNudge > 1000) remember();
+        lastNudge = Date.now();
         if (e.shiftKey) {
           item.width = clamp(item.width + delta[0] * 0.01, 0.04, 1);
           item.height = clamp(item.height + delta[1] * 0.01, 0.04, 1);
@@ -879,6 +904,7 @@
       $('canvasLayers').append(row);
     }
     inspect();
+    if (hadFocus) root.querySelector(`.canvas-item[data-item="${CSS.escape(selection)}"]`)?.focus();
   }
   function selectPaint() {
     for (const node of root.children) node.classList?.toggle('selected', node.dataset.item === selection);
@@ -1350,7 +1376,9 @@
             img = document.createElement('img');
             img.className = 'obs-preview-image media-preview';
             img.alt = '';
-            tile.querySelector('.canvas-resize').before(img);
+            const first = tile.querySelector('.canvas-handle');
+            if (first) first.before(img);
+            else tile.append(img);
           }
           img.src = browserShots.get(frame.id).url;
         }
@@ -1639,9 +1667,53 @@
   }
 
   // ---- corners, centre and 2x2 split ----
+  // Undo (Ctrl+Z or the menu): positions and sizes, up to 50 steps.
+  const history = [];
+  let lastNudge = 0;
+  const positions = () =>
+    items.map(i => ({
+      id: i.id,
+      x: i.x,
+      y: i.y,
+      width: i.width,
+      height: i.height,
+      z: i.z,
+      visible: i.visible
+    }));
+  function remember(s = positions()) {
+    history.push(s);
+    if (history.length > 50) history.shift();
+  }
+  function undo() {
+    const h = history.pop();
+    if (!h) {
+      hint('Nothing to undo.');
+      return false;
+    }
+    for (const saved of h) {
+      const i = items.find(x => x.id === saved.id);
+      if (i) Object.assign(i, saved);
+    }
+    changed();
+    paint();
+    inspect();
+    return true;
+  }
+  // Right-click: Fit (keeps the shape), Stretch, Centre horizontally / vertically.
+  function transform(kind) {
+    const i = chosen();
+    if (!i || !editable(i) || !window.layoutGeometry.ACTIONS[kind]) return;
+    remember();
+    const o = outputSize();
+    Object.assign(i, window.layoutGeometry.ACTIONS[kind](i, o.w / o.h));
+    changed();
+    paint();
+    inspect();
+  }
   function placeCorner(corner) {
     const i = chosen();
     if (!i || !editable(i)) return;
+    remember();
     if (corner === 'reset') {
       // Back to where a new item starts: the main feed fills the frame; others are centred at their starting size
       // (text, picture and browser sources keep their own size).
@@ -1673,6 +1745,7 @@
       note('A 2×2 split needs at least two visible, unlocked items.');
       return;
     }
+    remember();
     pick.forEach((i, n) => {
       i.width = 0.5;
       i.height = 0.5;
@@ -1885,6 +1958,9 @@
     toggleLock,
     placeCorner,
     split,
+    transform,
+    undo,
+    canUndo: () => history.length > 0,
     openProperties: () => openProperties(selection),
     selected: () => ({
       id: selection,

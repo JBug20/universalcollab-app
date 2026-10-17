@@ -2152,3 +2152,63 @@ dialog.stream-report {
   margin: 0;
   text-align: left;
 }
+/* Relay layout editor handles (stream-canvas.js, layout-geometry.js), like OBS's, just inside the item's edges
+   (items clip what is outside them). */
+.canvas-handle {
+  position: absolute;
+  z-index: 2;
+  width: 10px;
+  height: 10px;
+  background: #ae86fb;
+  border: 1px solid #fff;
+  box-sizing: border-box;
+  touch-action: none;
+}
+.canvas-item:not(.selected) .canvas-handle,
+.canvas-item.locked .canvas-handle {
+  display: none;
+}
+.canvas-handle.nw,
+.canvas-handle.w,
+.canvas-handle.sw {
+  left: 0;
+}
+.canvas-handle.n,
+.canvas-handle.s {
+  left: calc(50% - 5px);
+}
+.canvas-handle.ne,
+.canvas-handle.e,
+.canvas-handle.se {
+  right: 0;
+}
+.canvas-handle.nw,
+.canvas-handle.n,
+.canvas-handle.ne {
+  top: 0;
+}
+.canvas-handle.w,
+.canvas-handle.e {
+  top: calc(50% - 5px);
+}
+.canvas-handle.sw,
+.canvas-handle.s,
+.canvas-handle.se {
+  bottom: 0;
+}
+.canvas-handle.nw,
+.canvas-handle.se {
+  cursor: nwse-resize;
+}
+.canvas-handle.ne,
+.canvas-handle.sw {
+  cursor: nesw-resize;
+}
+.canvas-handle.n,
+.canvas-handle.s {
+  cursor: ns-resize;
+}
+.canvas-handle.e,
+.canvas-handle.w {
+  cursor: ew-resize;
+}
