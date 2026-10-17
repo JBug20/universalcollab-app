@@ -13,6 +13,8 @@ const ACTIONS = new Set([
   'stream-start',
   'stream-stop',
   'record',
+  'record-pause',
+  'marker',
   'clip',
   'end-relay',
   'afk',

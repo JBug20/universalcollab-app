@@ -65,6 +65,11 @@
     recScene = { ...recScene, ...JSON.parse(localStorage.getItem(REC_KEY) || '{}') };
   } catch {}
   let recScenesSig = '';
+  // New recording file every N minutes (autoSplit below).
+  const SPLIT_KEY = 'uc-record-split';
+  let splitMinutes = Number(localStorage.getItem(SPLIT_KEY)) || 0,
+    splitAt = 0,
+    splitting = false;
   const REC_OPS = ['snapshot', 'record-start', 'record-stop', 'scene-record-info'];
   const recInput = () => ({
     recordScene: recScene.scene,
@@ -191,6 +196,14 @@
         : 'Recording "' + scene.scene + '" started.';
     return 'Recording started.';
   }
+  // Pause / resume (button, shortcut, Stream Deck): OBS's recording and the recording scene together.
+  async function togglePause() {
+    if (!online) throw Error('Connect OBS in Settings → OBS first.');
+    if (!state?.record?.outputActive) throw Error('Nothing is recording.');
+    const r = await call('record-pause');
+    await poll();
+    return r.paused ? 'Recording paused.' : 'Recording resumed.';
+  }
   const start = btn('Start Stream', startStream);
   start.id = 'startStream';
   $('newStream').after(start);
@@ -199,6 +212,9 @@
   start.after(stop);
   const record = btn('Start Recording', () => toggleRecord(true));
   record.id = 'obsRecord';
+  const pauseButton = btn('Pause', togglePause);
+  pauseButton.id = 'obsRecordPause';
+  pauseButton.hidden = true;
   stop.after(record);
   // Clip: saves the last seconds of OBS output (OBS replay buffer) as a video file in OBS's recording folder.
   const clipNote = node('p');
@@ -245,7 +261,7 @@
   const recordRow = node('div');
   recordRow.className = 'record-clip-row';
   record.after(recordRow);
-  recordRow.append(record, clip);
+  recordRow.append(record, pauseButton, clip);
   recordRow.after(clipNote);
   clipNote.after($('end'));
   $('end').hidden = false;
@@ -268,6 +284,7 @@
       online,
       live: !!state?.stream?.outputActive,
       recording: !!state?.record?.outputActive,
+      paused: !!state?.record?.outputPaused,
       scenes: (state?.scenes || []).map(s => s.sceneName),
       current: state?.current || '',
       preview: state?.preview || '',
@@ -276,6 +293,7 @@
     start: () => remote(startStream),
     stop: () => remote(() => stopStream(false)),
     record: () => remote(() => toggleRecord(false)),
+    pause: () => remote(togglePause),
     clip: () => remote(saveClip),
     scene: name =>
       remote(async () => {
@@ -308,6 +326,10 @@
     stop.disabled = working || !state?.stream?.outputActive;
     record.disabled = working || !online;
     record.textContent = state?.record?.outputActive ? 'Stop Recording' : 'Start Recording';
+    pauseButton.hidden = !online || !state?.record?.outputActive;
+    pauseButton.disabled = working;
+    pauseButton.textContent = state?.record?.outputPaused ? 'Resume' : 'Pause';
+    pauseButton.setAttribute('aria-pressed', String(!!state?.record?.outputPaused));
   }
   function connection(value) {
     if (!value) {
@@ -615,6 +637,7 @@
           // Stream and recording timers for the status bar (durations count on locally between polls).
           window.obsOutputs = { stream: state.stream, record: state.record, at: Date.now() };
           fillRecordScenes();
+          void autoSplit();
           if (state.available?.includes?.('SetStudioModeEnabled'))
             window.studioMode?.fromOBS(!!state.studioMode);
           paint();
@@ -902,6 +925,37 @@
     autoRecord.stop = $('obsAutoRecordStop').checked;
     saveAuto();
   };
+  // New file every N minutes (Settings → OBS): a crash or a full drive then loses at most one part.
+  $('obsRecordSplit').value = String(splitMinutes);
+  $('obsRecordSplit').onchange = () => {
+    splitMinutes = Number($('obsRecordSplit').value) || 0;
+    try {
+      localStorage.setItem(SPLIT_KEY, String(splitMinutes));
+    } catch {}
+  };
+  async function autoSplit() {
+    const r = state?.record;
+    if (!r?.outputActive) {
+      splitAt = 0;
+      return;
+    }
+    if (!splitMinutes || r.outputPaused || splitting || !Number.isFinite(r.outputDuration)) return;
+    if (r.outputDuration < splitAt) splitAt = 0;
+    if (r.outputDuration - splitAt < splitMinutes * 60000) return;
+    splitting = true;
+    splitAt = r.outputDuration;
+    try {
+      await call('record-split');
+      note('Recording continues in a new file (every ' + splitMinutes + ' minutes).');
+    } catch (e) {
+      note(e.message);
+      // Do not try again every few seconds.
+      splitMinutes = 0;
+      $('obsRecordSplit').value = '0';
+    } finally {
+      splitting = false;
+    }
+  }
   $('obsRecordDirectoryOpen').onclick = () => run(async () => void (await call('record-dir-open')));
   // Tools → Recordings folder (after Settings → OBS is open): bring the folder setting into view with the OBS
   // settings freshly loaded.

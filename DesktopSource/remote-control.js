@@ -33,6 +33,11 @@
         return sc.record();
       case 'clip':
         return sc.clip();
+      case 'record-pause':
+        return sc.pause();
+      case 'marker':
+        if (!window.streamMarkers) throw Error('Markers are unavailable.');
+        return window.streamMarkers.add();
       case 'obs-scene':
         return sc.scene(args.name);
       case 'mute':
@@ -74,6 +79,8 @@
     'stream-stop': 'Stop Stream',
     record: 'Recording',
     clip: 'Clip',
+    'record-pause': 'Pause recording',
+    marker: 'Mark',
     'end-relay': 'End Relay',
     afk: 'AFK',
     'obs-scene': 'OBS scene',

@@ -307,14 +307,74 @@ class OBSControls {
     const rec = recording(i);
     const scene = await this.sceneStatus(rec.scene || this.sceneRec?.scene || '');
     if (!scene?.active) return { ...program, programActive: !!program.outputActive, scene };
+    // Paused time is not counted (pause() below).
+    const r = this.sceneRec || {};
+    const pausedMs = (r.pausedMs || 0) + (r.pausedAt ? Date.now() - r.pausedAt : 0);
     return {
       ...program,
       outputActive: true,
-      outputDuration: program.outputActive ? program.outputDuration : Date.now() - scene.since,
-      outputPaused: program.outputActive ? program.outputPaused : false,
+      outputDuration: program.outputActive ? program.outputDuration : Date.now() - scene.since - pausedMs,
+      outputPaused: program.outputActive ? program.outputPaused : !!r.pausedAt,
       programActive: !!program.outputActive,
       scene
     };
+  }
+  // Pause or resume whatever is recording: OBS's recording and the recording scene (Source Record's own pause).
+  async pause(i) {
+    const state = await this.recordState(i);
+    if (!state.outputActive) throw Error('Nothing is recording.');
+    const pausing = !state.outputPaused;
+    if (state.programActive) {
+      if (!this.available.has('PauseRecord')) throw Error('This OBS cannot pause recordings.');
+      try {
+        await this.call(pausing ? 'PauseRecord' : 'ResumeRecord');
+      } catch {
+        throw Error(
+          'OBS could not ' +
+            (pausing ? 'pause' : 'resume') +
+            ' the recording. Recordings using the same encoder as the stream cannot be paused: in OBS, Settings → Output → Recording → choose its own encoder.'
+        );
+      }
+    }
+    const r = this.sceneRec;
+    if (r?.scene && this.available.has('CallVendorRequest')) {
+      await this.call('CallVendorRequest', {
+        vendorName: 'source-record',
+        requestType: pausing ? 'record_pause' : 'record_unpause',
+        requestData: { source: r.scene, filter: SCENE_FILTER }
+      });
+      if (pausing) r.pausedAt = Date.now();
+      else if (r.pausedAt) {
+        r.pausedMs = (r.pausedMs || 0) + Date.now() - r.pausedAt;
+        r.pausedAt = 0;
+      }
+    }
+    return { ...(await this.recordState(i)), paused: pausing };
+  }
+  // Start a new file now (OBS's recording and the recording scene), without a gap.
+  async split() {
+    const out = { program: false, scene: false };
+    if ((await this.call('GetRecordStatus')).outputActive) {
+      if (!this.available.has('SplitRecordFile'))
+        throw Error('This OBS cannot split recordings (OBS 30 or newer can).');
+      try {
+        await this.call('SplitRecordFile');
+        out.program = true;
+      } catch {
+        throw Error(
+          'OBS could not start a new file. In OBS: Settings → Output (Output Mode: Advanced) → Recording → Automatic File Splitting → on (Split Manually is enough).'
+        );
+      }
+    }
+    if (this.sceneRec?.scene && this.available.has('CallVendorRequest')) {
+      await this.call('CallVendorRequest', {
+        vendorName: 'source-record',
+        requestType: 'record_split',
+        requestData: { source: this.sceneRec.scene, filter: SCENE_FILTER }
+      });
+      out.scene = true;
+    }
+    return out;
   }
   async recordStart(i) {
     const rec = recording(i);
@@ -538,6 +598,28 @@ class OBSControls {
     if (op === 'replay-status') return this.replayStatus();
     if (op === 'replay-start') return this.replayStart();
     if (op === 'clip') return this.clip();
+    // Stream markers: a chapter in the recording (OBS's own needs Hybrid MP4; Source Record adds its own).
+    if (op === 'record-chapter') {
+      const chapterName = typeof i.name === 'string' ? i.name.slice(0, 100) : '';
+      const out = { program: false, scene: false };
+      if (this.available.has('CreateRecordChapter') && (await this.call('GetRecordStatus')).outputActive)
+        try {
+          await this.call('CreateRecordChapter', chapterName ? { chapterName } : {});
+          out.program = true;
+        } catch {}
+      if (this.sceneRec?.scene && this.available.has('CallVendorRequest'))
+        try {
+          await this.call('CallVendorRequest', {
+            vendorName: 'source-record',
+            requestType: 'record_add_chapter',
+            requestData: { source: this.sceneRec.scene, filter: SCENE_FILTER, chapter_name: chapterName }
+          });
+          out.scene = true;
+        } catch {}
+      return out;
+    }
+    if (op === 'record-pause') return this.pause(i);
+    if (op === 'record-split') return this.split();
     if (op === 'record-start') return this.recordStart(i);
     if (op === 'record-stop') return this.recordStop(i);
     if (op === 'stream-stop') return this.call('StopStream');

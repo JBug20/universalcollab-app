@@ -858,6 +858,49 @@ class PlatformService {
         return this.categories(input.query);
       case 'twitch-save':
         return this.updateTwitch(input);
+      // Stream markers (markers.js): a Twitch stream marker at this moment of the live stream.
+      case 'twitch-marker': {
+        const a = this.account('twitch');
+        const description = String(input.description || '').slice(0, 140);
+        try {
+          const r = await this.api('twitch', 'streams/markers', {
+            method: 'POST',
+            body: { user_id: a.id, ...(description ? { description } : {}) }
+          });
+          return { position: r.data?.[0]?.position_seconds ?? null };
+        } catch (e) {
+          // Twitch refuses markers while the channel is offline (or VODs are off).
+          if (e.status === 404 || e.status === 400)
+            throw new PlatformError(
+              'Twitch did not add a marker: the channel is not live or past broadcasts are off.'
+            );
+          throw e;
+        }
+      }
+      // Post-stream report (stream-report.js): viewers right now on Twitch and on the YouTube broadcast.
+      case 'live-viewers': {
+        const out = { twitch: null, youtube: null };
+        try {
+          const a = this.account('twitch');
+          const r = await this.api('twitch', 'streams?' + qs({ user_id: a.id }));
+          out.twitch = r.data?.[0] ? Number(r.data[0].viewer_count) || 0 : null;
+        } catch {}
+        try {
+          this.account('youtube');
+          const d = Object.values(this.db.streamDrafts || {})
+            .filter(x => x.broadcastId)
+            .at(-1);
+          if (d) {
+            const r = await this.api(
+              'youtube',
+              'videos?' + qs({ part: 'liveStreamingDetails', id: d.broadcastId })
+            );
+            const v = r.items?.[0]?.liveStreamingDetails?.concurrentViewers;
+            out.youtube = v === undefined ? null : Number(v) || 0;
+          }
+        } catch {}
+        return out;
+      }
       case 'broadcasts':
         return this.broadcasts();
       case 'youtube-video-info': {

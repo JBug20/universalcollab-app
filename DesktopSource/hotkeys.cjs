@@ -1,16 +1,18 @@
 'use strict';
 // Keyboard shortcuts (1.2.0), main process. System-wide shortcuts (they work while a game has focus) for Clip,
-// Start/Stop Recording, AFK (switch viewers to a collaborator's stream and back), Studio Mode, Transition and
+// Start/Stop Recording, Pause/Resume Recording, Mark a moment, AFK (switch viewers to a collaborator's stream and back), Studio Mode, Transition and
 // muting one audio source. Off until turned on in Tools → Keyboard shortcuts. Stream start/stop and End Relay are
 // deliberately not available as shortcuts. A shortcut another program already uses is reported, not taken.
 // Presses are sent to the window, which runs them through the same code as the buttons (keyboard-shortcuts.js).
 const fs = require('node:fs'),
   path = require('node:path');
 
-const ACTIONS = ['clip', 'record', 'afk', 'studio-mode', 'transition', 'mute'];
+const ACTIONS = ['clip', 'record', 'record-pause', 'marker', 'afk', 'studio-mode', 'transition', 'mute'];
 const DEFAULTS = {
   clip: 'Ctrl+Alt+C',
   record: 'Ctrl+Alt+R',
+  'record-pause': 'Ctrl+Alt+P',
+  marker: 'Ctrl+Alt+K',
   afk: 'Ctrl+Alt+A',
   'studio-mode': '',
   transition: 'Ctrl+Alt+T',

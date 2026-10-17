@@ -458,6 +458,18 @@
                   ><input id="obsAutoRecordStop" type="checkbox" /> Stop that recording when I stop
                   streaming</label
                 >
+                <label
+                  >Start a new recording file every<select id="obsRecordSplit">
+                    <option value="0">Never (one file)</option>
+                    <option value="30">30 minutes</option>
+                    <option value="60">1 hour</option>
+                    <option value="120">2 hours</option>
+                  </select></label
+                >
+                <p class="hint">
+                  Long recordings in parts: a crash or a full drive then loses at most one part. Pause /
+                  Resume appears next to Start Recording while recording (shortcut Ctrl+Alt+P).
+                </p>
               </div>
               <div class="record-folder" id="obsRecordScene">
                 <h3>Recording scene</h3>
@@ -993,6 +1005,7 @@
     <script src="readiness.js"></script>
     <script src="end-credits.js"></script>
     <script src="announce.js"></script>
+    <script src="markers.js"></script>
     <script src="obs-editor.js"></script>
     <script src="studio-mode.js"></script>
     <script src="relay-video.js"></script>

@@ -56,6 +56,12 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
       onPlatforms: () => {},
       platform: async (op, input) => {
         calls.push({ op, input });
+        // Stream markers and the post-stream report.
+        if (op === 'twitch-marker') {
+          if (window.twitchMarkerFail) throw Error(window.twitchMarkerFail);
+          return { position: 65 };
+        }
+        if (op === 'live-viewers') return window.fakeViewers || { twitch: null, youtube: null };
         return op === 'categories' || op === 'youtube-categories' || op === 'broadcasts' ? [] : account;
       },
       studio: async (op, input = {}) => {
@@ -177,6 +183,8 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
             stream: { outputActive: window.obsStreaming },
             record: {
               outputActive: !!window.obsRecording,
+              outputPaused: !!window.obsPaused,
+              outputDuration: window.obsRecording ? (window.recordMs ?? 90000) : 0,
               programActive: !!window.obsRecording && window.obsRecordingWhat !== 'scene',
               scene:
                 window.obsRecording && input.recordScene && window.obsRecordingWhat !== 'program'
@@ -219,8 +227,19 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
             ...(window.fakeSourceRecord || {}),
             ...(input.recordScene ? { scene: input.recordScene, active: !!window.obsRecording } : {})
           };
+        if (op === 'record-pause') {
+          window.obsPaused = !window.obsPaused;
+          return { paused: window.obsPaused };
+        }
+        if (op === 'record-split') {
+          window.splits = (window.splits || 0) + 1;
+          if (window.splitFail) throw Error(window.splitFail);
+          return { program: true, scene: false };
+        }
+        if (op === 'record-chapter') return { program: !!window.obsRecording, scene: false };
         if (op === 'record-stop') {
           window.obsRecording = false;
+          window.obsPaused = false;
           return {};
         }
         if (op === 'preview') return { image: 'data:image/jpeg;base64,AAAA' };

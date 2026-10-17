@@ -35,6 +35,10 @@ function commandFor(kind, settings, state) {
       return { action: 'record' };
     case 'clip':
       return { action: 'clip' };
+    case 'pause':
+      return { action: 'record-pause' };
+    case 'marker':
+      return { action: 'marker' };
     case 'endrelay':
       return { action: 'end-relay', confirm: settings?.confirmStop !== false };
     case 'studiomode':
@@ -73,6 +77,8 @@ function keyState(kind, settings, state) {
       return obs.live || state.relay?.live ? 1 : 0;
     case 'record':
       return obs.recording ? 1 : 0;
+    case 'pause':
+      return obs.paused ? 1 : 0;
     case 'endrelay':
       return state.relay?.live ? 1 : 0;
     case 'studiomode':

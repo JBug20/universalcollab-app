@@ -10,6 +10,8 @@
   const NAMES = {
     clip: 'Clip',
     record: 'Start / stop recording',
+    'record-pause': 'Pause / resume recording',
+    marker: 'Mark this moment',
     afk: 'AFK: switch to a collaborator and back',
     'studio-mode': 'Studio Mode on / off',
     transition: 'Transition (Studio Mode)',
@@ -130,7 +132,7 @@
           throw Error('Choose which audio source to mute in Tools → Keyboard shortcuts.');
         const r = await window.runControlAction(action, { name });
         if (action !== 'afk' && typeof r === 'string' && r) note(r);
-        else if (action === 'clip' || action === 'record' || action === 'mute' || action === 'transition')
+        else if (['clip', 'record', 'record-pause', 'marker', 'mute', 'transition'].includes(action))
           note(NAMES[action] + ': done.');
       } catch (e) {
         note(NAMES[action] + ': ' + (e?.message || 'failed.'));
@@ -255,6 +257,8 @@
         keys: {
           clip: 'Ctrl+Alt+C',
           record: 'Ctrl+Alt+R',
+          'record-pause': 'Ctrl+Alt+P',
+          marker: 'Ctrl+Alt+K',
           afk: 'Ctrl+Alt+A',
           'studio-mode': '',
           transition: 'Ctrl+Alt+T',

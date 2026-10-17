@@ -1,9 +1,9 @@
 {
   "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
   "Name": "UniversalCollab",
-  "Version": "1.2.4.0",
+  "Version": "1.2.5.0",
   "Author": "UniversalCollab",
-  "Description": "Control UniversalCollab from Stream Deck: stream, recording, clips, OBS and relay scenes, Studio Mode, AFK, audio and Stream Assist.",
+  "Description": "Control UniversalCollab from Stream Deck: stream, recording (pause), clips, markers, OBS and relay scenes, Studio Mode, AFK, audio and Stream Assist.",
   "URL": "https://github.com/JBug20/universalcollab-app",
   "UUID": "stream.universalcollab.app",
   "SDKVersion": 2,
@@ -73,6 +73,38 @@
       "States": [
         {
           "Image": "imgs/keys/clip"
+        }
+      ]
+    },
+    {
+      "UUID": "stream.universalcollab.app.pause",
+      "Name": "Pause Recording",
+      "Tooltip": "Pause or resume the recording (OBS and the recording scene). Lit while paused.",
+      "Icon": "imgs/actions/pause",
+      "PropertyInspectorPath": "ui/pi.html",
+      "Controllers": ["Keypad"],
+      "States": [
+        {
+          "Image": "imgs/keys/pause-off",
+          "Name": "Recording"
+        },
+        {
+          "Image": "imgs/keys/pause-on",
+          "Name": "Paused"
+        }
+      ],
+      "DisableAutomaticStates": true
+    },
+    {
+      "UUID": "stream.universalcollab.app.marker",
+      "Name": "Mark",
+      "Tooltip": "Mark this moment: a Twitch stream marker, a chapter in the recording and a line in the post-stream report.",
+      "Icon": "imgs/actions/marker",
+      "PropertyInspectorPath": "ui/pi.html",
+      "Controllers": ["Keypad"],
+      "States": [
+        {
+          "Image": "imgs/keys/marker"
         }
       ]
     },
