@@ -106,25 +106,81 @@
       $('verticalClips')
     );
 
-    // After each clip.
-    let busy = 0;
+    // After each clip. A line under Clip shows how the vertical copy is going and stays until the next one, so a
+    // copy that is waiting, slow or failed is never silent.
+    const status = document.createElement('p');
+    status.id = 'verticalClipStatus';
+    status.className = 'hint';
+    status.setAttribute('role', 'status');
+    status.hidden = true;
+    const place = () => {
+      const after = $('obsClipNote') || $('obsClip');
+      if (after && status.previousElementSibling !== after) after.after(status);
+    };
+    const clock = s => {
+      const n = Math.max(0, Math.round(s || 0));
+      return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
+    };
+    const name = f =>
+      String(f || '')
+        .split(/[\\/]/)
+        .pop();
+    function show(text, { bad = false, file = '' } = {}) {
+      place();
+      status.hidden = false;
+      status.classList.toggle('bad', bad);
+      status.replaceChildren(text);
+      if (file) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = 'Show file';
+        b.onclick = () => obs('clip-show', { path: file }).catch(e => note(e.message));
+        status.append(' ', b);
+      }
+    }
+    const more = n => (n ? ` · ${n} more waiting` : '');
+    bridge.onVerticalClip?.(d => {
+      if (d.state === 'queued' && d.waiting)
+        show(`Vertical copy of ${name(d.file)} is waiting (${d.waiting} ahead).`);
+      else if (d.state === 'making') show(`Making the vertical copy of ${name(d.file)}…` + more(d.waiting));
+      else if (d.state === 'progress')
+        show(
+          `Making the vertical copy: ${clock(d.t)}` +
+            (d.d ? ` of ${clock(d.d)}` : '') +
+            more(d.waiting) +
+            ' (it takes as long as the clip).'
+        );
+      else if (d.state === 'done') show('Vertical clip saved: ' + d.name + more(d.waiting), { file: d.out });
+      else if (d.state === 'failed')
+        show('Vertical copy failed: ' + d.error + more(d.waiting), { bad: true });
+    });
     window.addEventListener('obs-clip-saved', async e => {
       const file = e.detail?.path;
-      if (!settings.on || !file) return;
+      if (!settings.on) return;
+      if (!file) {
+        show(
+          "No vertical copy: OBS saved the clip but did not say where within 30 seconds. Check OBS's recordings folder.",
+          { bad: true }
+        );
+        return;
+      }
       let cam = null;
       if (settings.layout === 'stack')
         try {
-          const s = await scene();
-          cam = facecam(s.items, s.base, settings.camera, window.obsEditorGeometry.rect);
+          const sc = await scene();
+          cam = facecam(sc.items, sc.base, settings.camera, window.obsEditorGeometry.rect);
         } catch {}
       busy++;
-      note('Making a vertical copy of the clip…');
+      show(`Vertical copy of ${name(file)} is starting…`);
       try {
         const r = await bridge.verticalClip({ file, layout: settings.layout, facecam: cam });
         if (!r?.ok) throw Error(r?.error || 'The vertical copy failed.');
         note('Vertical clip saved: ' + r.data.file);
         window.dispatchEvent(new CustomEvent('vertical-clip-saved', { detail: r.data }));
       } catch (err) {
+        // Refused before it started (e.g. MKV): the main side sent nothing, so say it here.
+        if (!status.classList.contains('bad') || !status.textContent.includes(err.message))
+          show('Vertical copy failed: ' + err.message, { bad: true });
         note('Vertical clip: ' + err.message);
       } finally {
         busy--;

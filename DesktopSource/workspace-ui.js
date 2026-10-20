@@ -199,7 +199,7 @@
   );
   info(
     'aboutApp',
-    'UniversalCollab · 1.2.0-preview.15',
+    'UniversalCollab · 1.2.0-preview.16',
     'Self-hosted collaboration and streaming workspace. OBS preview is local, without audio, and does not show the final relay composite.'
   );
   const prop = make('dialog');

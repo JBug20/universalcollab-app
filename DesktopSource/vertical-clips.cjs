@@ -66,11 +66,34 @@ exports.start = ({
   session,
   isClip,
   addClip = () => {},
-  dir = path.join(__dirname, 'vertical')
+  getWindow = () => null,
+  logFile = '',
+  dir = path.join(__dirname, 'vertical'),
+  stallMs = 45000
 }) => {
   let ses = null,
-    queue = Promise.resolve();
+    queue = Promise.resolve(),
+    queued = 0;
   const jobs = new Map();
+  const waiting = () => Math.max(0, queued - 1);
+  // The window shows what is happening (vertical-clip-ui.js).
+  const tell = data => {
+    try {
+      const w = getWindow();
+      if (w && !w.isDestroyed()) w.webContents.send('vertical-clip', data);
+    } catch {}
+  };
+  // A short log of each copy, to see why one was not made (app data folder, vertical-clips.log).
+  const log = line => {
+    if (!logFile) return;
+    try {
+      if (fs.existsSync(logFile) && fs.statSync(logFile).size > 200000) {
+        const keep = fs.readFileSync(logFile, 'utf8').slice(-100000);
+        fs.writeFileSync(logFile, keep.slice(keep.indexOf('\n') + 1));
+      }
+      fs.appendFileSync(logFile, new Date().toISOString() + ' ' + line + '\n');
+    } catch {}
+  };
   function partition() {
     if (ses) return ses;
     ses = session.fromPartition('uc-vertical-clips');
@@ -88,10 +111,10 @@ exports.start = ({
       const headers = { 'content-type': PAGES[u.pathname], 'cache-control': 'no-store' };
       if (u.pathname.endsWith('.html'))
         headers['content-security-policy'] =
-          "default-src 'none'; script-src 'self'; media-src 'self'; connect-src 'self'; base-uri 'none'";
+          "default-src 'none'; script-src 'self'; media-src 'self' blob:; connect-src 'self'; base-uri 'none'";
       return new Response(fs.readFileSync(path.join(dir, u.pathname.slice(1))), { headers });
     }
-    const m = /^\/(clip|out|fail)\/([A-Za-z0-9_-]{16,64})$/.exec(u.pathname);
+    const m = /^\/(clip|out|fail|progress)\/([A-Za-z0-9_-]{16,64})$/.exec(u.pathname);
     const job = m && jobs.get(m[2]);
     if (!job) return text(404, 'Not found');
     if (m[1] === 'clip' && req.method === 'GET') {
@@ -122,6 +145,17 @@ exports.start = ({
       job.done({ path: out, file: path.basename(out) });
       return text(200, 'ok');
     }
+    if (m[1] === 'progress' && req.method === 'POST') {
+      const t = Number(u.searchParams.get('t')),
+        d = Number(u.searchParams.get('d'));
+      if (Number.isFinite(t) && t !== job.t) {
+        job.t = t;
+        job.moved = Date.now();
+      }
+      if (Number.isFinite(d) && d > 0) job.d = d;
+      tell({ state: 'progress', file: job.file, t: job.t || 0, d: job.d || 0, waiting: waiting() });
+      return text(200, 'ok');
+    }
     if (m[1] === 'fail' && req.method === 'POST') {
       job.fail(Error((await req.text()).slice(0, 500) || 'The vertical copy failed.'));
       return text(200, 'ok');
@@ -134,16 +168,24 @@ exports.start = ({
       let win = null,
         timer = null;
       const finish = (fn, v) => {
-        clearTimeout(timer);
+        clearInterval(timer);
         jobs.delete(token);
         try {
           if (win && !win.isDestroyed()) win.destroy();
         } catch {}
         fn(v);
       };
-      jobs.set(token, { file, done: v => finish(resolve, v), fail: e => finish(reject, e) });
-      // Clips are seconds to a few minutes long; it plays once in real time.
-      timer = setTimeout(() => finish(reject, Error('Making the vertical copy took too long.')), 20 * 60000);
+      const job = { file, moved: Date.now(), done: v => finish(resolve, v), fail: e => finish(reject, e) };
+      jobs.set(token, job);
+      // It plays once in real time and reports how far it is every second; if that stops moving, give up rather
+      // than hold up the clips waiting after it.
+      timer = setInterval(() => {
+        if (Date.now() - job.moved > stallMs)
+          finish(
+            reject,
+            Error('The clip stopped playing part way through, so the vertical copy was not finished.')
+          );
+      }, 2000);
       win = new BrowserWindow({
         show: false,
         width: 540,
@@ -183,11 +225,33 @@ exports.start = ({
             (ext.slice(1).toUpperCase() || 'an unknown format') +
             '. Vertical copies need MP4: in OBS, Settings → Output → Recording → Recording Format → MP4 or Hybrid MP4.'
         );
-      const job = (queue = queue.catch(() => {}).then(() => convert(file, options(input))));
-      const data = await job;
+      queued++;
+      tell({ state: 'queued', file, waiting: waiting() });
+      log('queued ' + path.basename(file));
+      const run = (queue = queue
+        .catch(() => {})
+        .then(() => {
+          tell({ state: 'making', file, waiting: waiting() });
+          log('making ' + path.basename(file));
+          return convert(file, options(input));
+        }));
+      let data;
+      try {
+        data = await run;
+      } catch (err) {
+        log('failed ' + path.basename(file) + ': ' + err.message);
+        err.logged = true;
+        tell({ state: 'failed', file, error: err.message, waiting: Math.max(0, queued - 1) });
+        throw err;
+      } finally {
+        queued--;
+      }
+      log('saved ' + data.file);
+      tell({ state: 'done', file, out: data.path, name: data.file, waiting: waiting() });
       addClip(data.path);
       return { ok: true, data };
     } catch (err) {
+      if (!err.logged) log('not made: ' + err.message);
       return { ok: false, error: err.message };
     }
   });

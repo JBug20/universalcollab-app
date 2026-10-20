@@ -101,6 +101,9 @@ class OBSLink {
                   }))
                 });
               }
+            } else if (type === 'ReplayBufferSaved') {
+              // Where OBS saved the last clip (obs-controls.cjs, clip()).
+              this.lastReplaySaved = { path: String(m.d.eventData?.savedReplayPath || ''), at: Date.now() };
             } else if (
               /^(CurrentProgramSceneChanged|SceneListChanged|SceneItem.*|InputMuteStateChanged|InputVolumeChanged|StreamStateChanged|RecordStateChanged)$/.test(
                 type

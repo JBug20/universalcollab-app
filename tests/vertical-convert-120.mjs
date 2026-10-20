@@ -55,6 +55,11 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200);
     return res.end('ok');
   }
+  if (req.method === 'POST' && u.pathname === '/progress/' + token) {
+    files.progress = (files.progress || 0) + 1;
+    res.writeHead(200);
+    return res.end('ok');
+  }
   if (req.method === 'POST' && u.pathname === '/fail/' + token) {
     files.fail = String(await body());
     res.writeHead(200);
@@ -122,6 +127,7 @@ try {
   for (let i = 0; i < 300 && !files.out && !files.fail; i++) await new Promise(r => setTimeout(r, 100));
   assert.equal(files.fail, undefined, files.fail);
   assert(files.out?.length > 1000, 'vertical copy received');
+  assert(files.progress >= 1, 'progress reported while it plays');
 
   // 3. Check the result: size, picture and sound.
   await page.goto(base + 'blank.html');
@@ -152,7 +158,13 @@ try {
       audioBytes: v.webkitAudioDecodedByteCount
     };
   });
-  assert.deepEqual([r.w, r.h], [1080, 1920]);
+  if (process.env.VERTICAL_DEBUG && (r.w !== 1080 || process.env.VERTICAL_DEBUG_ALL))
+    fs.writeFileSync(process.env.VERTICAL_DEBUG, files.out);
+  assert.deepEqual(
+    [r.w, r.h],
+    [1080, 1920],
+    JSON.stringify({ ...r, type: files.outType, size: files.out.length })
+  );
   const is = (rgb, want) => rgb.every((v, i) => Math.abs(v - want[i]) < 70);
   assert(is(r.top, [0, 255, 0]), 'facecam on top: ' + r.top);
   assert(is(r.bottomLeft, [255, 0, 0]), 'gameplay left: ' + r.bottomLeft);

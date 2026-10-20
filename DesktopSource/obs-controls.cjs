@@ -196,14 +196,21 @@ class OBSControls {
     if (s.enabled === false) throw Error(REPLAY_OFF);
     if (!s.active) return this.replayStart();
     const before = await this.lastReplay();
+    const asked = Date.now();
     await this.call('SaveReplayBuffer');
-    // OBS writes the file in the background and then reports its path.
-    for (let i = 0; i < 40 && this.available.has('GetLastReplayBufferReplay'); i++) {
+    // OBS writes the file in the background and then reports its path: in its ReplayBufferSaved event, and in
+    // GetLastReplayBufferReplay. Long clips on a busy or slow drive can take a while, so wait up to 30 seconds.
+    const found = path => {
+      this.clips = [path, ...(this.clips || []).filter(p => p !== path)].slice(0, 50);
+      return { ...s, saved: true, path };
+    };
+    for (let i = 0; i < 120; i++) {
       await new Promise(r => setTimeout(r, 250));
-      const now = await this.lastReplay();
-      if (now && now !== before) {
-        this.clips = [now, ...(this.clips || []).filter(p => p !== now)].slice(0, 50);
-        return { ...s, saved: true, path: now };
+      const ev = this.link.lastReplaySaved;
+      if (ev?.path && ev.at >= asked) return found(ev.path);
+      if (i % 4 === 3 && this.available.has('GetLastReplayBufferReplay')) {
+        const now = await this.lastReplay();
+        if (now && now !== before) return found(now);
       }
     }
     return { ...s, saved: true, path: '' };

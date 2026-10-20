@@ -69,10 +69,29 @@ try {
     'Game',
     'Facecam'
   ]);
+  // While it is made, the line under Clip says how far it is; then the file, with Show file.
+  await page.evaluate(() => {
+    window.verticalHold = new Promise(r => (window.releaseVertical = r));
+  });
   await page.evaluate(() => window.streamControls.clip());
+  await page.waitForFunction(() =>
+    /Making the vertical copy: 0:42 of 1:00 · 1 more waiting/.test(
+      document.getElementById('verticalClipStatus').textContent
+    )
+  );
+  await page.evaluate(() => window.releaseVertical());
   await page.waitForFunction(() =>
     /Vertical clip saved: Replay 1 \(vertical\)\.mp4/.test(document.getElementById('notice').textContent)
   );
+  assert.match(
+    await page.locator('#verticalClipStatus').textContent(),
+    /^Vertical clip saved: Replay 1 \(vertical\)\.mp4 Show file$/
+  );
+  await page.locator('#verticalClipStatus button', { hasText: 'Show file' }).click();
+  await page.waitForFunction(() =>
+    window.calls.some(c => c.obs === 'clip-show' && /\(vertical\)/.test(c.input.path))
+  );
+  await page.evaluate(() => (window.verticalHold = null));
   const [first] = await vertical();
   assert.equal(first.file, 'D:\\Rec\\Replay 1.mp4');
   assert.equal(first.layout, 'stack');
@@ -90,6 +109,22 @@ try {
   await page.evaluate(() => window.streamControls.clip());
   await page.waitForFunction(() =>
     /Vertical clip: This clip is MKV/.test(document.getElementById('notice').textContent)
+  );
+  // The failure stays visible under Clip.
+  assert.match(
+    await page.locator('#verticalClipStatus').textContent(),
+    /^Vertical copy failed: This clip is MKV/
+  );
+  assert.equal(await page.locator('#verticalClipStatus').evaluate(n => n.classList.contains('bad')), true);
+  // OBS did not say where it saved the clip: said, not silent.
+  await page.evaluate(() => {
+    window.verticalFail = '';
+    window.dispatchEvent(new CustomEvent('obs-clip-saved', { detail: { path: '' } }));
+  });
+  await page.waitForFunction(() =>
+    /No vertical copy: OBS saved the clip but did not say where/.test(
+      document.getElementById('verticalClipStatus').textContent
+    )
   );
   assert.equal((await vertical()).at(-1).layout, 'blur');
   assert.equal((await vertical()).at(-1).facecam, null);

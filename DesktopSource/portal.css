@@ -2212,3 +2212,10 @@ dialog.stream-report {
 .canvas-handle.w {
   cursor: ew-resize;
 }
+#verticalClipStatus.bad {
+  color: #ffb4a8;
+}
+#verticalClipStatus button {
+  margin: 0 0 0 6px;
+  padding: 2px 8px;
+}

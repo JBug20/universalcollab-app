@@ -143,28 +143,37 @@ const near = (a, b, d = 0.5) => assert(Math.abs(a - b) <= d, `${a} is not about 
         assert.equal(part.headers.get('content-type'), 'video/mp4');
         assert.equal(await part.text(), '0123456789');
         assert.equal((await handler(new Request('ucclip://app/clip/wrongtoken12345678'))).status, 404);
-        if (pageBehaviour === 'ok')
-          await handler(
-            new Request('ucclip://app/out/' + job.token + '?ext=mp4', { method: 'POST', body: 'VERTICAL' })
-          );
-        else
+        if (pageBehaviour === 'stall') return; // never plays: the watchdog gives up
+        if (pageBehaviour === 'fail') {
           await handler(
             new Request('ucclip://app/fail/' + job.token, {
               method: 'POST',
               body: 'UniversalCollab cannot read this clip.'
             })
           );
+          return;
+        }
+        await handler(new Request('ucclip://app/progress/' + job.token + '?t=1.0&d=2.0', { method: 'POST' }));
+        if (pageBehaviour === 'slow') await new Promise(r => setTimeout(r, 150));
+        await handler(
+          new Request('ucclip://app/out/' + job.token + '?ext=mp4', { method: 'POST', body: 'VERTICAL' })
+        );
       }
     }
     const handlers = {},
-      added = [];
+      added = [],
+      told = [];
+    const logFile = path.join(dir, 'vertical-clips.log');
     V.start({
       ipcMain: { handle: (n, fn) => (handlers[n] = fn) },
       guard: () => {},
       BrowserWindow: FakeWindow,
       session,
       isClip: f => f === clip || f === mkv,
-      addClip: f => added.push(f)
+      addClip: f => added.push(f),
+      getWindow: () => ({ isDestroyed: () => false, webContents: { send: (ch, d) => told.push([ch, d]) } }),
+      logFile,
+      stallMs: 400
     });
     const call = i => handlers['vertical-clip']({}, i);
     const r = await call({ file: clip, layout: 'stack', facecam: { x: 0.7, y: 0.6, w: 0.25, h: 0.3 } });
@@ -175,12 +184,49 @@ const near = (a, b, d = 0.5) => assert(Math.abs(a - b) <= d, `${a} is not about 
     const job = JSON.parse(decodeURIComponent(loaded[0].split('#')[1]));
     assert.deepEqual([job.layout, job.facecam.w, job.fps], ['stack', 0.25, 30]);
     assert.equal(job.base, undefined, 'the app always uses its private address');
+    // What the window was told, and the log.
+    const states = told.filter(([ch]) => ch === 'vertical-clip').map(([, d]) => d.state);
+    assert.deepEqual(states, ['queued', 'making', 'progress', 'done']);
+    assert.deepEqual(told.find(([, d]) => d.state === 'progress')[1], {
+      state: 'progress',
+      file: clip,
+      t: 1,
+      d: 2,
+      waiting: 0
+    });
+    assert.equal(told.at(-1)[1].name, 'Replay 1 (vertical).mp4');
+    assert.match(
+      fs.readFileSync(logFile, 'utf8'),
+      /queued Replay 1\.mp4\n.*making Replay 1\.mp4\n.*saved Replay 1 \(vertical\)\.mp4\n$/
+    );
+    // Two clips in a row: the second waits for the first, both are made, the window hears "1 ahead".
+    told.length = 0;
+    pageBehaviour = 'slow';
+    const both = await Promise.all([call({ file: clip }), call({ file: clip })]);
+    assert(
+      both.every(r => r.ok),
+      JSON.stringify(both)
+    );
+    assert.equal(told.filter(([, d]) => d.state === 'queued')[1][1].waiting, 1);
+    assert.equal(told.filter(([, d]) => d.state === 'done').length, 2);
+    // A clip that never plays: given up after the stall time, and the next one is not held up.
+    told.length = 0;
+    pageBehaviour = 'stall';
+    const stalled = call({ file: clip });
+    await new Promise(r => setTimeout(r, 50));
+    pageBehaviour = 'ok';
+    const after = call({ file: clip });
+    assert.match((await stalled).error, /stopped playing part way/);
+    assert.equal((await after).ok, true, 'the next clip is still made');
+    assert(told.find(([, d]) => d.state === 'failed')[1].error.includes('stopped playing'));
+    assert.match(fs.readFileSync(logFile, 'utf8'), /failed Replay 1\.mp4: The clip stopped playing/);
     // The page could not read it: its message comes back.
     pageBehaviour = 'fail';
     assert.match((await call({ file: clip })).error, /cannot read this clip/);
     // Not a clip from this session, or MKV.
     assert.match((await call({ file: path.join(dir, 'other.mp4') })).error, /not available/);
     assert.match((await call({ file: mkv })).error, /This clip is MKV\. Vertical copies need MP4/);
+    assert.match(fs.readFileSync(logFile, 'utf8'), /not made: This clip is MKV/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

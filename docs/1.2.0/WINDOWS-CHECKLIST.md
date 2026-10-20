@@ -111,6 +111,8 @@ You need:
 - [ ] **Vertical clips** (Settings → OBS → Vertical clips, recording format MP4 or Hybrid MP4):
   - [ ] Turn on, Layout "Facecam on top": it names your webcam source.
   - [ ] Press Clip: after about as long as the clip, "Vertical clip saved: … (vertical).mp4". It is 1080 × 1920, the facecam is on top, the gameplay below, and it has sound.
+  - [ ] Press Clip three times, a few seconds apart. The line under Clip shows "Making the vertical copy: 0:42 of 1:00 · 2 more waiting", and all three vertical copies are made, one after another.
+  - [ ] If one is not made, the line under Clip says why. Send `%APPDATA%\Stream Relay\vertical-clips.log`.
   - [ ] Try "Whole picture over a blurred background" and "Centre of the picture".
   - [ ] With MKV recordings it says to switch to MP4.
 - [ ] The status bar shows **This PC <free> free**, and the details show the drive and OBS's recordings folder. Try with OBS recording to a drive other than C: if you have one.

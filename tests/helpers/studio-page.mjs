@@ -159,9 +159,20 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
       // Vertical clips: tests set window.verticalFail (an error text).
       verticalClip: async input => {
         calls.push({ vertical: input });
-        if (window.verticalFail) return { ok: false, error: window.verticalFail };
+        const push = d => window.verticalClipPush?.(d);
         const file = input.file.replace(/\.mp4$/, ' (vertical).mp4');
+        push({ state: 'making', file: input.file, waiting: 0 });
+        push({ state: 'progress', file: input.file, t: 42, d: 60, waiting: 1 });
+        if (window.verticalFail) {
+          push({ state: 'failed', file: input.file, error: window.verticalFail, waiting: 0 });
+          return { ok: false, error: window.verticalFail };
+        }
+        if (window.verticalHold) await window.verticalHold;
+        push({ state: 'done', file: input.file, out: file, name: file.split(/[\\/]/).pop(), waiting: 0 });
         return { ok: true, data: { file: file.split(/[\\/]/).pop(), path: file } };
+      },
+      onVerticalClip: fn => {
+        window.verticalClipPush = fn;
       },
       // Post-stream reports: kept in window.fakeReports.
       streamReports: async input => {

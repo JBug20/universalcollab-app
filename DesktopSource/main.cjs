@@ -178,6 +178,8 @@ app.whenReady().then(() => {
     BrowserWindow,
     session,
     isClip: file => !!obsControls?.clips?.includes(file),
+    getWindow: () => win,
+    logFile: path.join(app.getPath('userData'), 'vertical-clips.log'),
     addClip: file => obsControls && (obsControls.clips = [file, ...(obsControls.clips || [])].slice(0, 50))
   });
   // Post-stream reports (stream-reports.cjs / stream-report.js): saved next to OBS's recordings.

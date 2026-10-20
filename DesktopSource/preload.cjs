@@ -22,6 +22,11 @@ contextBridge.exposeInMainWorld('relayDesktop', {
   overlays: input => ipcRenderer.invoke('overlays', input),
   // Vertical copies of clips (vertical-clips.cjs / vertical-clip-ui.js).
   verticalClip: input => ipcRenderer.invoke('vertical-clip', input),
+  onVerticalClip: callback => {
+    const fn = (_event, data) => callback(data);
+    ipcRenderer.on('vertical-clip', fn);
+    return () => ipcRenderer.removeListener('vertical-clip', fn);
+  },
   // Post-stream reports (stream-reports.cjs / stream-report.js).
   streamReports: input => ipcRenderer.invoke('stream-reports', input),
   // Go-live announcements (announce.cjs / announce.js).
