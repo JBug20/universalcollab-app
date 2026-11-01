@@ -29,6 +29,8 @@ You need:
 - [ ] Open OBS by hand and choose **Safe Mode** when asked. Within about 20 seconds the notice line says "OBS is open but not accepting connections…". Reopen OBS normally: it reconnects and says "OBS connected."
 - [ ] Close UniversalCollab, then open it again straight away while it's still closing OBS. There's no "Object has been destroyed" error, and the app opens once the old one has finished.
 
+- [ ] **OBS window** (Settings → OBS, included OBS): Open OBS window shows it; Hide OBS window puts it back in the tray. Afterwards OBS's own tray icon → Show / Hide and its minimise button still work, in any order.
+
 ## 3. Streaming
 
 - [ ] New stream with two or more destinations → Create & prepare → Start Stream: every destination goes green in Destination health.

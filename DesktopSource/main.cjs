@@ -473,6 +473,7 @@ app.whenReady().then(() => {
           if (data) return { ok: true, data };
         }
         if (op === 'bundled-show') return { ok: true, data: { shown: await bundledOBS.show() } };
+        if (op === 'bundled-hide') return { ok: true, data: { hidden: await bundledOBS.hide() } };
         if (op === 'bundled-stop') {
           obs.close();
           await bundledOBS.stop();

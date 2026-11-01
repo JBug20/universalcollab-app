@@ -144,6 +144,56 @@ const listening = (port, ms = 400) =>
     s.once('error', () => done(false));
   });
 
+// PowerShell that shows or hides OBS's main window like a click on OBS's tray icon. OBS keeps track of whether its
+// window is shown; forcing the window open from outside (as 1.2.0 previews before 17 did) left OBS thinking it was
+// still hidden, so its own tray Show / Hide and minimise stopped working. A click on the tray icon reaches OBS as a
+// message to Qt's hidden tray window (class QTrayIconMessageWindowClass): WM_APP + 101 with NIN_SELECT (0x400) for
+// icon 0, which makes OBS toggle its window itself. If that window is not found, it falls back to showing directly.
+function windowScript(pid, mode) {
+  const show = mode !== 'hide';
+  return `
+Add-Type @'
+using System; using System.Runtime.InteropServices; using System.Text;
+public static class W {
+  public delegate bool P(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(P p, IntPtr l);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+}
+'@
+$script:main = [IntPtr]::Zero; $script:tray = [IntPtr]::Zero
+[W]::EnumWindows({ param($h, $l) $p = 0; [void][W]::GetWindowThreadProcessId($h, [ref]$p)
+  if ($p -eq ${Number(pid)}) {
+    $c = New-Object System.Text.StringBuilder 256; [void][W]::GetClassName($h, $c, 256)
+    $t = New-Object System.Text.StringBuilder 256; [void][W]::GetWindowText($h, $t, 256)
+    if ($c.ToString() -like 'QTrayIconMessageWindowClass*') { $script:tray = $h }
+    elseif ($t.ToString() -like 'OBS *' -and $script:main -eq [IntPtr]::Zero) { $script:main = $h } }
+  return $true }, [IntPtr]::Zero) | Out-Null
+function Visible { $script:main -ne [IntPtr]::Zero -and [W]::IsWindowVisible($script:main) }
+function TrayClick { [void][W]::PostMessage($script:tray, 0x8065, [IntPtr]::Zero, [IntPtr]0x400); Start-Sleep -Milliseconds 700 }
+$wantShown = $${show ? 'true' : 'false'}
+if ((Visible) -eq $wantShown) {
+  if ($wantShown) { if ([W]::IsIconic($script:main)) { [void][W]::ShowWindow($script:main, 9) }; [void][W]::SetForegroundWindow($script:main) }
+  exit 0
+}
+if ($script:tray -ne [IntPtr]::Zero) {
+  TrayClick
+  # OBS may have thought the opposite (an earlier forced show); a second click puts it right.
+  if ((Visible) -ne $wantShown) { TrayClick }
+  if ($wantShown -and (Visible)) { [void][W]::SetForegroundWindow($script:main) }
+  if ((Visible) -eq $wantShown) { exit 0 }
+}
+if ($script:main -eq [IntPtr]::Zero) { exit 3 }
+if ($wantShown) { [void][W]::ShowWindow($script:main, 9); [void][W]::SetForegroundWindow($script:main) } else { [void][W]::ShowWindow($script:main, 0) }
+exit 0`;
+}
+
 class BundledOBS {
   constructor(options = {}) {
     this.options = options;
@@ -222,33 +272,28 @@ class BundledOBS {
     });
     return this.starting;
   }
-  // Brings the OBS window up (from the tray) for advanced settings, filters and plugins.
+  // Shows the OBS window (from the tray) for advanced settings, filters and plugins, or hides it back to the tray.
+  // Done the way OBS's own tray icon does it (windowScript), so OBS's Show / Hide and minimise keep working.
   show() {
+    return this.window('show');
+  }
+  hide() {
+    return this.window('hide');
+  }
+  window(mode) {
     if (!this.running) return Promise.reject(Error('The included OBS is not running.'));
     if (process.platform !== 'win32') return Promise.resolve(false);
-    const pid = this.child.pid;
-    const script = `
-Add-Type @'
-using System; using System.Runtime.InteropServices; using System.Text;
-public static class W {
-  public delegate bool P(IntPtr h, IntPtr l);
-  [DllImport("user32.dll")] public static extern bool EnumWindows(P p, IntPtr l);
-  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
-  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
-  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
-  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
-}
-'@
-$found = $false
-[W]::EnumWindows({ param($h, $l) $p = 0; [void][W]::GetWindowThreadProcessId($h, [ref]$p)
-  if ($p -eq ${pid}) { $s = New-Object System.Text.StringBuilder 256; [void][W]::GetWindowText($h, $s, 256)
-    if ($s.ToString() -like 'OBS *') { [void][W]::ShowWindow($h, 9); [void][W]::SetForegroundWindow($h); $script:found = $true; return $false } }
-  return $true }, [IntPtr]::Zero) | Out-Null
-if (-not $found) { exit 3 }`;
     return new Promise(resolve =>
       execFile(
         'powershell.exe',
-        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-Command',
+          windowScript(this.child.pid, mode)
+        ],
         { windowsHide: true, timeout: 10000 },
         e => resolve(!e)
       )
@@ -275,4 +320,4 @@ if (-not $found) { exit 3 }`;
     }
   }
 }
-module.exports = { BundledOBS, locate, prepare, iniMerge, PORT, ARGS };
+module.exports = { BundledOBS, locate, prepare, iniMerge, windowScript, PORT, ARGS };

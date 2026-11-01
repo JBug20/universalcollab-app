@@ -1370,11 +1370,20 @@
       const r = await call('bundled-show');
       say(
         r.shown
-          ? 'OBS window opened. Close it or minimise it to the tray when finished.'
-          : 'Open OBS from its icon in the system tray (near the clock).'
+          ? 'OBS window opened. When finished, choose Hide OBS window (or OBS tray icon → Hide); closing the OBS window closes OBS.'
+          : 'Open OBS from its icon in the system tray (near the clock): right-click → Show.'
       );
     });
     show.id = 'bundledOBSShow';
+    const hide = btn('Hide OBS window', async () => {
+      const r = await call('bundled-hide');
+      say(
+        r.hidden
+          ? 'OBS window hidden; OBS keeps running in the system tray.'
+          : 'Hide OBS from its tray icon: right-click → Hide.'
+      );
+    });
+    hide.id = 'bundledOBSHide';
     const stop = btn('Close included OBS', async () => {
       retryPaused = true;
       await call('bundled-stop');
@@ -1382,7 +1391,7 @@
       say('Included OBS closed.');
     });
     stop.id = 'bundledOBSStop';
-    box.append(label, info, start, show, stop);
+    box.append(label, info, start, show, hide, stop);
     const intro = $('automaticOBS').querySelector('p');
     $('automaticOBS').insertBefore(box, intro);
     const manual = [
@@ -1399,9 +1408,9 @@
       } catch {}
       const on = useBundled();
       for (const n of manual) if (n) n.hidden = on;
-      start.hidden = show.hidden = stop.hidden = !on;
+      start.hidden = show.hidden = hide.hidden = stop.hidden = !on;
       start.disabled = online && bundled.running;
-      show.disabled = stop.disabled = !bundled.running;
+      show.disabled = hide.disabled = stop.disabled = !bundled.running;
       info.hidden = !on;
       info.textContent = bundled.running
         ? 'The included OBS' +
