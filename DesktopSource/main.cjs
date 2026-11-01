@@ -446,6 +446,27 @@ app.whenReady().then(() => {
               running: input.bundled ? !!bundledOBS?.running : await require('./own-obs.cjs').running()
             }
           };
+        // OBS open but not accepting connections: why, from OBS's log, its windows and the connection error
+        // (obs-diagnose.cjs).
+        if (op === 'obs-diagnose') {
+          const bundled = !!input.bundled;
+          const isRunning = bundled ? !!bundledOBS?.running : await require('./own-obs.cjs').running();
+          if (!isRunning) return { ok: true, data: { running: false } };
+          const data = await require('./obs-diagnose.cjs').diagnose({
+            bundledRoot: bundled ? bundledOBS.found?.root || '' : '',
+            pid: bundled ? bundledOBS.child?.pid || 0 : 0,
+            failure: obs?.lastFailure || '',
+            expectedPort: bundled ? bundledOBS.credentials?.port || 0 : read().credentials?.port || 0
+          });
+          return { ok: true, data: { running: true, ...data } };
+        }
+        // Restart OBS (the included one): close it (forcefully if it does not answer); reconnecting starts it again.
+        if (op === 'bundled-restart') {
+          obs.close();
+          await bundledOBS.stop();
+          bundledOBS.closedByUser = false;
+          return { ok: true, data: bundledOBS.info() };
+        }
         if (op.startsWith('own-obs-')) {
           ownOBS ||= require('./own-obs.cjs').create({ app, dialog, getWindow: () => win });
           const data = await ownOBS.handle(op, input);

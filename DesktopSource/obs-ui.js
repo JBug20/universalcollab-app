@@ -1489,12 +1489,62 @@
     localStorage.setItem('uc-ui7-obs-retry', String(autoRetry));
     connection(online);
   };
-  // OBS open but not accepting connections for 20 seconds: usually its "run in Safe Mode?" question is waiting (often
-  // hidden in the tray), or it was started in Safe Mode, which turns its WebSocket server off.
+  // OBS open but not accepting connections for 20 seconds: say why, from what OBS itself reports (obs-diagnose.cjs:
+  // Safe Mode, a question waiting, its connection failing to open, the wrong password or port, a crash or a plugin
+  // that failed to load), with Show OBS / Restart OBS for the included OBS. Checked again every 30 seconds.
   const STUCK =
     'OBS is open but not accepting connections. If OBS is asking whether to run in Safe Mode, choose Run Normally (open OBS from the system tray if you cannot see the question). If OBS is already in Safe Mode, close it and open it again normally.';
+  const stuckBox = node('div');
+  stuckBox.id = 'obsStuck';
+  stuckBox.className = 'obs-stuck';
+  stuckBox.setAttribute('role', 'alert');
+  stuckBox.hidden = true;
+  status.after(stuckBox);
   let failedSince = 0,
-    stuckShown = false;
+    stuckShown = false,
+    stuckText = '',
+    stuckAt = 0;
+  async function explainStuck() {
+    stuckAt = Date.now();
+    let d = await call('obs-diagnose', { bundled: useBundled() }).catch(() => null);
+    if (!d?.running) return false;
+    if (!d.text) d = { ...d, text: STUCK, actions: [] };
+    const text = node('p', d.text);
+    const row = node('div');
+    row.className = 'buttons';
+    if (d.actions?.includes('show'))
+      row.append(
+        btn('Show OBS', async () => {
+          if (!(await call('bundled-show'))?.shown)
+            say('OBS is in the system tray: right-click its icon → Show.');
+        })
+      );
+    if (d.actions?.includes('restart'))
+      row.append(
+        btn('Restart OBS', async () => {
+          say('Restarting the included OBS…');
+          await call('bundled-restart');
+          failedSince = Date.now();
+          stuckShown = false;
+          stuckText = '';
+          stuckBox.hidden = true;
+        })
+      );
+    if (d.facts) {
+      const copy = node('button', 'Copy details');
+      copy.type = 'button';
+      copy.onclick = () => navigator.clipboard?.writeText(JSON.stringify(d.facts, null, 2)).catch(() => {});
+      row.append(copy);
+    }
+    stuckBox.replaceChildren(text, row);
+    stuckBox.hidden = false;
+    if (d.text !== stuckText) {
+      stuckText = d.text;
+      say(d.text);
+      note(d.text);
+    }
+    return true;
+  }
   async function retry() {
     if (!bridge?.obs || online || retrying || working || !paired || !autoRetry || retryPaused) return;
     retrying = true;
@@ -1503,20 +1553,16 @@
       connection(true);
       say('OBS reconnected.');
       failedSince = 0;
-      if (stuckShown && $('notice').textContent === STUCK) note('OBS connected.');
+      if (stuckShown && $('notice').textContent === stuckText) note('OBS connected.');
       stuckShown = false;
+      stuckText = '';
+      stuckBox.hidden = true;
       await poll();
     } catch {
       connection(false);
       failedSince ||= Date.now();
-      if (!stuckShown && Date.now() - failedSince > 20000) {
-        const open = await call('obs-process', { bundled: useBundled() }).catch(() => null);
-        if (open?.running) {
-          stuckShown = true;
-          say(STUCK);
-          note(STUCK);
-        }
-      }
+      if (!stuckShown && Date.now() - failedSince > 20000) stuckShown = await explainStuck();
+      else if (stuckShown && Date.now() - stuckAt > 30000) await explainStuck();
     } finally {
       retrying = false;
     }

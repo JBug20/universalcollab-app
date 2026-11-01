@@ -35,10 +35,19 @@ class OBSLink {
     this.close();
     const ws = new WebSocket('ws://127.0.0.1:' + port, { maxPayload: 4 * 1024 * 1024 });
     this.socket = ws;
+    // Why the last attempt failed, to explain a connection that keeps failing (obs-diagnose.cjs): 'refused' (nothing
+    // listening on the port), 'auth' (wrong password), 'timeout' (open but not answering), or 'closed'.
+    let reason = '',
+      opened = false;
+    ws.on('open', () => (opened = true));
     return new Promise((resolve, reject) => {
       let settled = false;
-      const timer = setTimeout(() => fail(), 10000);
+      const timer = setTimeout(() => {
+        reason ||= opened ? 'timeout' : 'no-answer';
+        fail();
+      }, 10000);
       const fail = () => {
+        this.lastFailure = reason || 'closed';
         if (this.socket === ws) this.close();
         if (!settled) {
           settled = true;
@@ -50,8 +59,12 @@ class OBSLink {
           );
         }
       };
-      ws.on('error', fail);
-      ws.on('close', () => {
+      ws.on('error', e => {
+        reason ||= e?.code === 'ECONNREFUSED' ? 'refused' : 'error';
+        fail();
+      });
+      ws.on('close', code => {
+        if (code === 4009) reason = 'auth';
         if (this.socket === ws) {
           const wasReady = this.ready;
           this.ready = false;
@@ -84,6 +97,7 @@ class OBSLink {
             if (this.socket !== ws) return fail();
             settled = true;
             this.ready = true;
+            this.lastFailure = '';
             clearTimeout(timer);
             this.notify({ type: 'connection', connected: true });
             resolve({ connected: true });
