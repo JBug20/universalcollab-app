@@ -63,9 +63,58 @@ function iniMerge(file, wanted) {
   fs.writeFileSync(file, out.join('\r\n'));
 }
 
-function prepare(found) {
+// OBS saves its window position (Qt saveGeometry, base64) in user.ini / global.ini, [BasicWindow] geometry. If it
+// was saved while the window was minimised (Windows parks those at -32000) or on a screen that is not there now,
+// OBS opens its window off-screen: Show in the tray then does nothing visible. Such a position is removed, so OBS
+// opens on a screen. `displays`: the screens now ({ x, y, width, height }), when known.
+function geometryOnScreen(b64, displays = []) {
+  let b;
+  try {
+    b = Buffer.from(String(b64 || '').trim(), 'base64');
+  } catch {
+    return true;
+  }
+  if (b.length < 24 || b.readUInt32BE(0) !== 0x01d9d0cb) return true; // not understood: leave it
+  const left = b.readInt32BE(8),
+    top = b.readInt32BE(12),
+    right = b.readInt32BE(16),
+    bottom = b.readInt32BE(20);
+  if (left < -20000 || top < -20000 || right - left < 200 || bottom - top < 150) return false;
+  if (!displays.length) return true;
+  // At least a grabbable part of the window (its title bar) must be on a screen.
+  return displays.some(
+    d =>
+      Math.min(right, d.x + d.width) - Math.max(left, d.x) >= 100 &&
+      Math.min(top + 40, d.y + d.height) - Math.max(top, d.y) >= 20
+  );
+}
+function repairGeometry(file, displays) {
+  let text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch {
+    return false;
+  }
+  let section = '',
+    changed = false;
+  const lines = text.split(/\r?\n/).filter(line => {
+    const m = /^\s*\[([^\]]+)\]\s*$/.exec(line);
+    if (m) section = m[1];
+    const g = /^\s*geometry\s*=(.*)$/.exec(line);
+    if (section === 'BasicWindow' && g && !geometryOnScreen(g[1], displays)) {
+      changed = true;
+      return false;
+    }
+    return true;
+  });
+  if (changed) fs.writeFileSync(file, lines.join('\r\n'));
+  return changed;
+}
+
+function prepare(found, { displays = [] } = {}) {
   const config = path.join(found.root, 'config', 'obs-studio');
   fs.writeFileSync(path.join(found.root, 'portable_mode.txt'), '');
+  for (const f of ['user.ini', 'global.ini']) repairGeometry(path.join(config, f), displays);
   const general = {
     General: {
       FirstRun: 'true',
@@ -165,6 +214,24 @@ public static class W {
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+  [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; }
+  [StructLayout(LayoutKind.Sequential)] public struct MI { public int cb; public R M; public R W; public uint F; }
+  [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr h, uint f);
+  [DllImport("user32.dll")] public static extern bool GetMonitorInfo(IntPtr m, ref MI i);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int w, int hh, uint f);
+  // Shown, on a screen and in front: a minimised window is restored; one that is off every screen (e.g. at the
+  // -32000 Windows uses for minimised windows) is moved to the middle of the main screen.
+  public static void Bring(IntPtr h) {
+    if (IsIconic(h)) ShowWindow(h, 9);
+    if (MonitorFromWindow(h, 0) == IntPtr.Zero) {
+      MI i = new MI(); i.cb = Marshal.SizeOf(typeof(MI));
+      GetMonitorInfo(MonitorFromWindow(h, 1), ref i);
+      int sw = i.W.Rt - i.W.L, sh = i.W.B - i.W.T;
+      int w = Math.Min(1280, sw - 80), hh = Math.Min(800, sh - 80);
+      SetWindowPos(h, IntPtr.Zero, i.W.L + (sw - w) / 2, i.W.T + (sh - hh) / 2, w, hh, 0x0004);
+    }
+    SetForegroundWindow(h);
+  }
 }
 '@
 $script:main = [IntPtr]::Zero; $script:tray = [IntPtr]::Zero
@@ -179,18 +246,18 @@ function Visible { $script:main -ne [IntPtr]::Zero -and [W]::IsWindowVisible($sc
 function TrayClick { [void][W]::PostMessage($script:tray, 0x8065, [IntPtr]::Zero, [IntPtr]0x400); Start-Sleep -Milliseconds 700 }
 $wantShown = $${show ? 'true' : 'false'}
 if ((Visible) -eq $wantShown) {
-  if ($wantShown) { if ([W]::IsIconic($script:main)) { [void][W]::ShowWindow($script:main, 9) }; [void][W]::SetForegroundWindow($script:main) }
+  if ($wantShown) { [W]::Bring($script:main) }
   exit 0
 }
 if ($script:tray -ne [IntPtr]::Zero) {
   TrayClick
   # OBS may have thought the opposite (an earlier forced show); a second click puts it right.
   if ((Visible) -ne $wantShown) { TrayClick }
-  if ($wantShown -and (Visible)) { [void][W]::SetForegroundWindow($script:main) }
+  if ($wantShown -and (Visible)) { [W]::Bring($script:main) }
   if ((Visible) -eq $wantShown) { exit 0 }
 }
 if ($script:main -eq [IntPtr]::Zero) { exit 3 }
-if ($wantShown) { [void][W]::ShowWindow($script:main, 9); [void][W]::SetForegroundWindow($script:main) } else { [void][W]::ShowWindow($script:main, 0) }
+if ($wantShown) { [void][W]::ShowWindow($script:main, 9); [W]::Bring($script:main) } else { [void][W]::ShowWindow($script:main, 0) }
 exit 0`;
 }
 
@@ -228,7 +295,11 @@ class BundledOBS {
     if (!this.found) return Promise.reject(Error('This build does not include OBS.'));
     if (this.starting) return this.starting;
     this.starting = (async () => {
-      this.credentials = prepare(this.found);
+      let displays = [];
+      try {
+        displays = this.options.displays?.() || [];
+      } catch {}
+      this.credentials = prepare(this.found, { displays });
       if (!this.running) {
         if (await listening(this.credentials.port))
           // Already running (e.g. left over from a crash); use it.
@@ -320,4 +391,14 @@ class BundledOBS {
     }
   }
 }
-module.exports = { BundledOBS, locate, prepare, iniMerge, windowScript, PORT, ARGS };
+module.exports = {
+  BundledOBS,
+  locate,
+  prepare,
+  iniMerge,
+  windowScript,
+  geometryOnScreen,
+  repairGeometry,
+  PORT,
+  ARGS
+};

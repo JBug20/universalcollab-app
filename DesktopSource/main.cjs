@@ -435,7 +435,13 @@ app.whenReady().then(() => {
         };
         if (op === 'state') return { ok: true, data: { connected: obs.ready } };
         // "With OBS" builds: the included copy of OBS (see bundled-obs.cjs).
-        bundledOBS ||= new (require('./bundled-obs.cjs').BundledOBS)();
+        // The screens now, so an off-screen OBS window position is reset before OBS starts (bundled-obs.cjs).
+        bundledOBS ||= new (require('./bundled-obs.cjs').BundledOBS)({
+          displays: () =>
+            require('electron')
+              .screen.getAllDisplays()
+              .map(d => d.bounds)
+        });
         if (op === 'bundled-info') return { ok: true, data: bundledOBS.info() };
         // The user's own OBS: optional start with UniversalCollab, minimized to the tray (own-obs.cjs).
         // Is OBS open (the included one, or any OBS on this PC)? Used to explain a connection that keeps failing.
