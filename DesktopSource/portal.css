@@ -1533,3 +1533,21 @@ footer span {
   font-weight: 700;
   color: #ff6b7a;
 }
+/* Appearance themes (theme.js). */
+.theme-list {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+}
+.theme-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.theme-swatch {
+  display: inline-block;
+  width: 42px;
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid;
+}

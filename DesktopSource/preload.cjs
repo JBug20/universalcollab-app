@@ -2,6 +2,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('relayDesktop', {
   layoutMedia: input => ipcRenderer.invoke('layout-media', input),
   browserSource: input => ipcRenderer.invoke('browser-source', input),
+  // Appearance themes (theme.js): the text of the app's own stylesheets, once, before the first paint.
+  themeStyles: () => {
+    const r = ipcRenderer.sendSync('theme-styles');
+    return r?.ok ? r.data : null;
+  },
   maintenance: async op => {
     const r = await ipcRenderer.invoke('app-maintenance', op);
     if (!r.ok) throw Error(r.error);

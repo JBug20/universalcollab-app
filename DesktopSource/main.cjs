@@ -100,6 +100,21 @@ app.whenReady().then(() => {
   });
   require('./browser-sources.cjs').start({ app, ipcMain, guard, BrowserWindow, session, mainWindow: win });
   layoutMedia = require('./layout-media.cjs').start({ app, ipcMain, guard });
+  // Appearance themes (theme.js): the app's own stylesheets, read-only, fixed names.
+  ipcMain.on('theme-styles', e => {
+    try {
+      guard(e);
+      e.returnValue = {
+        ok: true,
+        data: ['portal.css', 'studio-ui-v2.css'].map(name => ({
+          name,
+          text: fs.readFileSync(path.join(__dirname, name), 'utf8')
+        }))
+      };
+    } catch {
+      e.returnValue = { ok: false };
+    }
+  });
   // Recover from a crashed or frozen display process instead of leaving a blank window. Reasons are logged to userData/renderer-problems.log.
   {
     let crashes = 0,
