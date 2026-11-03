@@ -257,9 +257,12 @@ app.whenReady().then(() => {
         );
       } catch {}
     };
+    // Closing always works, even with a crashed or frozen window (shutdown.cjs); it is never reloaded while closing.
+    const { closing } = require('./shutdown.cjs').closeGuard({ win, app, note });
     win.webContents.on('render-process-gone', (_e, d) => {
       note('gone ' + d.reason + ' ' + d.exitCode);
       if (d.reason === 'clean-exit' || win.isDestroyed()) return;
+      if (closing()) return win.destroy();
       if (++crashes > 3) {
         note('not reloading after 3 recoveries');
         return;
@@ -270,6 +273,7 @@ app.whenReady().then(() => {
     });
     win.on('unresponsive', () => {
       note('unresponsive');
+      if (closing()) return win.destroy();
       clearTimeout(hangTimer);
       hangTimer = setTimeout(() => {
         if (!win.isDestroyed()) {
@@ -1051,6 +1055,25 @@ async function firstRunScene() {
 }
 let quitAfterCamera = false,
   quitAfterOBS = false;
+// Quitting never hangs: once the app is closing OBS (or OBS is not answering), it exits within 20 seconds whatever
+// happens (shutdown.cjs). A downloaded update is still installed, and the app reopens when that was asked for.
+const forceQuitSoon = require('./shutdown.cjs').forceQuit({
+  app,
+  note: text => {
+    try {
+      fs.appendFileSync(
+        path.join(app.getPath('userData'), 'renderer-problems.log'),
+        new Date().toISOString() + ' ' + text + '\n'
+      );
+    } catch {}
+  },
+  before: () => {
+    try {
+      appUpdate?.apply();
+    } catch {}
+    if (relaunchAfterQuit) app.relaunch();
+  }
+});
 app.on('before-quit', e => {
   // Close OBS with the app: the included OBS always, your own OBS when "Close my OBS when UniversalCollab
   // closes" is on (own-obs.cjs). Stop its stream and recording first so files are finished.
@@ -1065,6 +1088,8 @@ app.on('before-quit', e => {
     e.preventDefault();
     (async () => {
       let busy = false;
+      // OBS crashed or frozen: asking it can take a while; the question to the user is not timed.
+      const asked = setTimeout(forceQuitSoon, 12000);
       if (obs?.ready)
         try {
           const [st, rec] = await Promise.all([
@@ -1073,6 +1098,7 @@ app.on('before-quit', e => {
           ]);
           busy = !!(st.outputActive || rec.outputActive || obsControls?.sceneRec);
         } catch {}
+      clearTimeout(asked);
       if (busy) {
         const { response } = await dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
           type: 'question',
@@ -1086,6 +1112,7 @@ app.on('before-quit', e => {
             'Stop and quit ends the stream and recording and closes OBS. Keep OBS running leaves it going in the system tray; the app reconnects to it next time.'
         });
         if (response === 1) return app.quit();
+        forceQuitSoon();
         await Promise.race([
           Promise.all([
             obs.request('StopStream').catch(() => {}),
@@ -1096,6 +1123,7 @@ app.on('before-quit', e => {
           new Promise(r => setTimeout(r, 3000))
         ]);
       }
+      forceQuitSoon();
       obs?.close();
       if (bundledOBS?.running) await bundledOBS.stop();
       else await ownOBS.close();
