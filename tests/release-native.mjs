@@ -60,7 +60,7 @@ try {
         return false;
       }
     },
-    ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
+    ipcMain: { handle: (name, fn) => handlers.set(name, fn), on() {} },
     clipboard: { writeText: text => (copied = text) },
     safeStorage: {
       isEncryptionAvailable: () => encrypted,

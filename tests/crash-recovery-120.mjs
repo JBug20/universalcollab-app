@@ -71,7 +71,7 @@ const electron = {
       return destroyed;
     }
   },
-  ipcMain: { handle() {} },
+  ipcMain: { handle() {}, on() {} },
   clipboard: { writeText() {} },
   safeStorage: {
     isEncryptionAvailable: () => false,

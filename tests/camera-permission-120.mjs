@@ -62,7 +62,7 @@ const electron = {
       return false;
     }
   },
-  ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
+  ipcMain: { handle: (name, fn) => handlers.set(name, fn), on() {} },
   clipboard: { writeText() {} },
   safeStorage: { isEncryptionAvailable: () => false, getSelectedStorageBackend: () => 'basic_text' },
   session: {

@@ -68,7 +68,7 @@ const electron = {
       return false;
     }
   },
-  ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
+  ipcMain: { handle: (name, fn) => handlers.set(name, fn), on() {} },
   clipboard: { writeText() {} },
   shell: { showItemInFolder: file => shown.push(file) },
   safeStorage: { isEncryptionAvailable: () => false, getSelectedStorageBackend: () => 'basic_text' },
