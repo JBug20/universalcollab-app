@@ -100,6 +100,8 @@ app.whenReady().then(() => {
   });
   require('./browser-sources.cjs').start({ app, ipcMain, guard, BrowserWindow, session, mainWindow: win });
   layoutMedia = require('./layout-media.cjs').start({ app, ipcMain, guard });
+  // Go-live announcements to Discord (announce.cjs / announce.js).
+  require('./announce.cjs').start({ app, ipcMain, guard, safeStorage });
   // Appearance themes (theme.js): the app's own stylesheets, read-only, fixed names.
   ipcMain.on('theme-styles', e => {
     try {

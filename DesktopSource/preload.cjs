@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('relayDesktop', {
   layoutMedia: input => ipcRenderer.invoke('layout-media', input),
   browserSource: input => ipcRenderer.invoke('browser-source', input),
+  // Go-live announcements (announce.cjs / announce.js).
+  announce: input => ipcRenderer.invoke('announce', input),
   // Appearance themes (theme.js): the text of the app's own stylesheets, once, before the first paint.
   themeStyles: () => {
     const r = ipcRenderer.sendSync('theme-styles');

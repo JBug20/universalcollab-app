@@ -121,6 +121,7 @@
     ],
     Panels: [],
     Tools: [
+      ['Go-live announcements', () => window.openAnnouncements?.()],
       ['OBS Connection', settings('obs')],
       ['Platform connections', settings('connections')],
       ['Relay connection', settings('relay')],
