@@ -1371,7 +1371,8 @@
       say(
         r.shown
           ? 'OBS window opened. When finished, choose Hide OBS window (or OBS tray icon → Hide); closing the OBS window closes OBS.'
-          : 'Open OBS from its icon in the system tray (near the clock): right-click → Show.'
+          : 'Open OBS from its icon in the system tray (near the clock): right-click → Show.' +
+              (r.how ? ' (' + r.how + ')' : '')
       );
     });
     show.id = 'bundledOBSShow';
@@ -1380,7 +1381,7 @@
       say(
         r.hidden
           ? 'OBS window hidden; OBS keeps running in the system tray.'
-          : 'Hide OBS from its tray icon: right-click → Hide.'
+          : 'Hide OBS from its tray icon: right-click → Hide.' + (r.how ? ' (' + r.how + ')' : '')
       );
     });
     hide.id = 'bundledOBSHide';

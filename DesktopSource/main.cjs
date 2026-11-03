@@ -482,8 +482,10 @@ app.whenReady().then(() => {
           const data = await ownOBS.handle(op, input);
           if (data) return { ok: true, data };
         }
-        if (op === 'bundled-show') return { ok: true, data: { shown: await bundledOBS.show() } };
-        if (op === 'bundled-hide') return { ok: true, data: { hidden: await bundledOBS.hide() } };
+        if (op === 'bundled-show')
+          return { ok: true, data: { shown: await bundledOBS.show(), how: bundledOBS.lastWindow || '' } };
+        if (op === 'bundled-hide')
+          return { ok: true, data: { hidden: await bundledOBS.hide(), how: bundledOBS.lastWindow || '' } };
         if (op === 'bundled-stop') {
           obs.close();
           await bundledOBS.stop();

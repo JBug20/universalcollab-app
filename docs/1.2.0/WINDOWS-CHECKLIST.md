@@ -29,7 +29,7 @@ You need:
 - [ ] Open OBS by hand and choose **Safe Mode** when asked. Within about 20 seconds the notice line says "OBS is open but not accepting connections…". Reopen OBS normally: it reconnects and says "OBS connected."
 - [ ] Close UniversalCollab, then open it again straight away while it's still closing OBS. There's no "Object has been destroyed" error, and the app opens once the old one has finished.
 
-- [ ] **OBS window** (Settings → OBS, included OBS): Open OBS window shows it; Hide OBS window puts it back in the tray. Afterwards OBS's own tray icon → Show / Hide and its minimise button still work, in any order. The window always opens on a screen (also after a monitor was unplugged).
+- [ ] **OBS window** (Settings → OBS, included OBS): Open OBS window shows it; Hide OBS window puts it back in the tray. Afterwards OBS's own tray icon → Show / Hide and its minimise button still work, in any order. The window always opens on a screen (also after a monitor was unplugged). Right after OBS starts in the tray (window never shown yet), the first Open OBS window shows it and it stays open, in front of UniversalCollab. After restarting UniversalCollab while OBS kept running, Open OBS window still works. If it fails, the message ends with a reason in brackets: note it.
 - [ ] **Closing always works:** make a vertical clip and close UniversalCollab while it is being made: the app closes completely (nothing left in Task Manager → Details for StreamRelay.exe after about 20 seconds), and opening it again works. Also try closing it while OBS is not responding: it still closes within about 20 seconds.
 
 ## 3. Streaming

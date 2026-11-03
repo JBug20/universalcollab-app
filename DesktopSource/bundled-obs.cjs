@@ -197,9 +197,16 @@ const listening = (port, ms = 400) =>
 // window is shown; forcing the window open from outside (as 1.2.0 previews before 17 did) left OBS thinking it was
 // still hidden, so its own tray Show / Hide and minimise stopped working. A click on the tray icon reaches OBS as a
 // message to Qt's hidden tray window (class QTrayIconMessageWindowClass): WM_APP + 101 with NIN_SELECT (0x400) for
-// icon 0, which makes OBS toggle its window itself. If that window is not found, it falls back to showing directly.
-function windowScript(pid, mode) {
+// icon 0, which makes OBS toggle its window itself.
+// OBS started in the tray has no main window until it is first shown, so the windows are looked up again after each
+// click and the result is waited for (up to 3 seconds) before deciding anything; a second click is only sent when
+// the main window exists and is still the wrong way round. If there is no tray window it shows the window directly.
+// target: OBS's process id, or { pid, exe } (exe also finds an OBS left running from an earlier session).
+function windowScript(target, mode) {
   const show = mode !== 'hide';
+  const t = typeof target === 'object' && target ? target : { pid: target };
+  const pid = Number.isInteger(Number(t.pid)) && Number(t.pid) > 0 ? Number(t.pid) : 0;
+  const exe = typeof t.exe === 'string' ? t.exe.replace(/[\r\n\0]/g, '').replace(/'/g, "''") : '';
   return `
 Add-Type @'
 using System; using System.Runtime.InteropServices; using System.Text;
@@ -213,6 +220,7 @@ public static class W {
   [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
   [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; }
   [StructLayout(LayoutKind.Sequential)] public struct MI { public int cb; public R M; public R W; public uint F; }
@@ -220,7 +228,8 @@ public static class W {
   [DllImport("user32.dll")] public static extern bool GetMonitorInfo(IntPtr m, ref MI i);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int w, int hh, uint f);
   // Shown, on a screen and in front: a minimised window is restored; one that is off every screen (e.g. at the
-  // -32000 Windows uses for minimised windows) is moved to the middle of the main screen.
+  // -32000 Windows uses for minimised windows) is moved to the middle of the main screen. Briefly made topmost so
+  // it comes in front of UniversalCollab even when Windows refuses to hand over the focus.
   public static void Bring(IntPtr h) {
     if (IsIconic(h)) ShowWindow(h, 9);
     if (MonitorFromWindow(h, 0) == IntPtr.Zero) {
@@ -230,35 +239,52 @@ public static class W {
       int w = Math.Min(1280, sw - 80), hh = Math.Min(800, sh - 80);
       SetWindowPos(h, IntPtr.Zero, i.W.L + (sw - w) / 2, i.W.T + (sh - hh) / 2, w, hh, 0x0004);
     }
+    SetWindowPos(h, new IntPtr(-1), 0, 0, 0, 0, 0x0043);
+    SetWindowPos(h, new IntPtr(-2), 0, 0, 0, 0, 0x0043);
+    BringWindowToTop(h);
     SetForegroundWindow(h);
   }
 }
 '@
-$script:main = [IntPtr]::Zero; $script:tray = [IntPtr]::Zero
-[W]::EnumWindows({ param($h, $l) $p = 0; [void][W]::GetWindowThreadProcessId($h, [ref]$p)
-  if ($p -eq ${Number(pid)}) {
-    $c = New-Object System.Text.StringBuilder 256; [void][W]::GetClassName($h, $c, 256)
-    $t = New-Object System.Text.StringBuilder 256; [void][W]::GetWindowText($h, $t, 256)
-    if ($c.ToString() -like 'QTrayIconMessageWindowClass*') { $script:tray = $h }
-    elseif ($t.ToString() -like 'OBS *' -and $script:main -eq [IntPtr]::Zero) { $script:main = $h } }
-  return $true }, [IntPtr]::Zero) | Out-Null
+$script:pids = @()
+${pid ? '$script:pids += ' + pid : ''}
+$exe = '${exe}'
+if ($exe) { Get-Process obs64 -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } | ForEach-Object { $script:pids += $_.Id } }
+if ($script:pids.Count -eq 0) { Write-Output 'no-obs'; exit 4 }
+function Find {
+  $script:main = [IntPtr]::Zero; $script:tray = [IntPtr]::Zero
+  [W]::EnumWindows({ param($h, $l) $p = 0; [void][W]::GetWindowThreadProcessId($h, [ref]$p)
+    if ($script:pids -contains [int]$p) {
+      $c = New-Object System.Text.StringBuilder 256; [void][W]::GetClassName($h, $c, 256)
+      $t = New-Object System.Text.StringBuilder 256; [void][W]::GetWindowText($h, $t, 256)
+      if ($c.ToString() -like 'QTrayIconMessageWindowClass*') { $script:tray = $h }
+      elseif ($t.ToString() -like 'OBS *' -and ($script:main -eq [IntPtr]::Zero -or [W]::IsWindowVisible($h))) { $script:main = $h } }
+    return $true }, [IntPtr]::Zero) | Out-Null
+}
 function Visible { $script:main -ne [IntPtr]::Zero -and [W]::IsWindowVisible($script:main) }
-function TrayClick { [void][W]::PostMessage($script:tray, 0x8065, [IntPtr]::Zero, [IntPtr]0x400); Start-Sleep -Milliseconds 700 }
+function WaitFor($want) {
+  for ($i = 0; $i -lt 30; $i++) { Start-Sleep -Milliseconds 100; Find; if ((Visible) -eq $want) { return $true } }
+  return $false
+}
+function TrayClick { [void][W]::PostMessage($script:tray, 0x8065, [IntPtr]::Zero, [IntPtr]0x400) }
 $wantShown = $${show ? 'true' : 'false'}
+Find
 if ((Visible) -eq $wantShown) {
   if ($wantShown) { [W]::Bring($script:main) }
-  exit 0
+  Write-Output 'already'; exit 0
 }
 if ($script:tray -ne [IntPtr]::Zero) {
   TrayClick
-  # OBS may have thought the opposite (an earlier forced show); a second click puts it right.
-  if ((Visible) -ne $wantShown) { TrayClick }
-  if ($wantShown -and (Visible)) { [W]::Bring($script:main) }
-  if ((Visible) -eq $wantShown) { exit 0 }
+  $ok = WaitFor $wantShown
+  # OBS may have thought the opposite (an earlier forced show): its window exists but is still the wrong way round.
+  if (-not $ok -and $script:main -ne [IntPtr]::Zero) { TrayClick; $ok = WaitFor $wantShown }
+  if ($ok) { if ($wantShown) { [W]::Bring($script:main) }; Write-Output 'tray'; exit 0 }
 }
-if ($script:main -eq [IntPtr]::Zero) { exit 3 }
+if ($script:main -eq [IntPtr]::Zero) { Write-Output 'no-window'; exit 3 }
 if ($wantShown) { [void][W]::ShowWindow($script:main, 9); [W]::Bring($script:main) } else { [void][W]::ShowWindow($script:main, 0) }
-exit 0`;
+Find
+if ((Visible) -eq $wantShown) { Write-Output 'direct'; exit 0 }
+Write-Output 'failed'; exit 5`;
 }
 
 class BundledOBS {
@@ -351,9 +377,13 @@ class BundledOBS {
   hide() {
     return this.window('hide');
   }
+  // Resolves true when the window ended up as asked. this.lastWindow keeps how (or why not) for diagnosis.
   window(mode) {
-    if (!this.running) return Promise.reject(Error('The included OBS is not running.'));
+    // An OBS left running from an earlier session (start() reuses it) has no child here: found by its program file.
+    if (!this.running && !this.found) return Promise.reject(Error('The included OBS is not running.'));
     if (process.platform !== 'win32') return Promise.resolve(false);
+    const target = { pid: this.running ? this.child.pid : 0, exe: this.found?.exe || '' };
+    if (!target.pid && !target.exe) return Promise.reject(Error('The included OBS is not running.'));
     return new Promise(resolve =>
       execFile(
         'powershell.exe',
@@ -363,10 +393,18 @@ class BundledOBS {
           '-ExecutionPolicy',
           'Bypass',
           '-Command',
-          windowScript(this.child.pid, mode)
+          windowScript(target, mode)
         ],
-        { windowsHide: true, timeout: 10000 },
-        e => resolve(!e)
+        { windowsHide: true, timeout: 20000 },
+        (e, out) => {
+          this.lastWindow =
+            (String(out || '')
+              .trim()
+              .split(/\s+/)
+              .pop() || (e ? 'error' : '')) + (e?.killed ? ' (timed out)' : '');
+          if (/no-obs/.test(this.lastWindow)) return resolve(false);
+          resolve(!e);
+        }
       )
     );
   }

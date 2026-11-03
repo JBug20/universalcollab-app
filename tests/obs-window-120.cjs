@@ -91,21 +91,28 @@ try {
 const show = windowScript(4321, 'show'),
   hide = windowScript(4321, 'hide');
 for (const s of [show, hide]) {
-  assert.match(s, /\$p -eq 4321/, 'only this OBS');
+  assert.match(s, /\$script:pids \+= 4321/, 'only this OBS');
   assert.match(s, /QTrayIconMessageWindowClass/, "OBS's tray window");
   assert.match(
     s,
     /PostMessage\(\$script:tray, 0x8065, \[IntPtr\]::Zero, \[IntPtr\]0x400\)/,
     'WM_APP + 101, NIN_SELECT'
   );
+  // OBS started in the tray has no main window yet: after a click the windows are looked up again and the result
+  // waited for, and a second click is only sent when the main window exists and is still the wrong way round.
+  assert.match(s, /function WaitFor\(\$want\) \{[^}]*Find;/, 'looked up again while waiting');
+  assert.match(s, /TrayClick\n  \$ok = WaitFor \$wantShown/);
   assert.match(
     s,
-    /if \(\(Visible\) -ne \$wantShown\) \{ TrayClick \}/,
-    'a second click puts an out-of-step OBS right'
+    /if \(-not \$ok -and \$script:main -ne \[IntPtr\]::Zero\) \{ TrayClick; \$ok = WaitFor \$wantShown \}/,
+    'a second click only for an out-of-step OBS'
   );
 }
 assert.match(show, /\$wantShown = \$true/);
 assert.match(hide, /\$wantShown = \$false/);
+// Brought in front even when Windows will not hand over the focus (briefly topmost).
+assert.match(show, /SetWindowPos\(h, new IntPtr\(-1\)/);
+assert.match(show, /SetWindowPos\(h, new IntPtr\(-2\)/);
 // Already as wanted: nothing toggled (a shown window is only brought to the front).
 assert(show.indexOf('if ((Visible) -eq $wantShown) {') < show.indexOf('TrayClick\n'));
 assert.equal(
@@ -113,6 +120,12 @@ assert.equal(
   false,
   'the process id is a number'
 );
+// An OBS left running from an earlier session is found by its program file; quotes in the path stay inside it.
+const byExe = windowScript({ pid: 0, exe: "C:\\Program Files\\Bob's\\obs64.exe" }, 'show');
+assert.match(byExe, /\$exe = 'C:\\Program Files\\Bob''s\\obs64\.exe'/);
+assert.match(byExe, /Get-Process obs64/);
+assert.doesNotMatch(byExe, /\$script:pids \+= 0/);
+assert.equal(windowScript({ exe: "x'\n; Remove-Item" }, 'show').includes("x'\n"), false);
 // Not running: a clear error.
 const b = new BundledOBS({ root: '/nonexistent' });
 assert
