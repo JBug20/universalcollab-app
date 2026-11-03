@@ -437,7 +437,19 @@
               </div>
               <button id="obsVideoSave">Save OBS video settings</button
               ><label>Recording folder<input id="obsRecordDirectory" maxlength="512" /></label
-              ><button id="obsRecordDirectorySave">Save recording folder</button>
+              ><button id="obsRecordDirectorySave">Save recording folder</button
+              ><label
+                >Start a new recording file every<select id="obsRecordSplit">
+                  <option value="0">Never (one file)</option>
+                  <option value="30">30 minutes</option>
+                  <option value="60">1 hour</option>
+                  <option value="120">2 hours</option>
+                </select></label
+              >
+              <p class="hint">
+                Long recordings in parts: a crash or a full drive then loses at most one part. Pause / Resume
+                appears next to Start Recording while recording.
+              </p>
               <p class="hint">
                 Stop all OBS outputs before changing video settings. Encoder and plugin-specific options
                 remain in OBS.
@@ -930,6 +942,7 @@
     <script src="server-health.js"></script>
     <script src="destination-health.js"></script>
     <script src="announce.js"></script>
+    <script src="markers.js"></script>
     <script src="studio-mode.js"></script>
   </body>
 </html>

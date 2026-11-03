@@ -84,6 +84,10 @@ export async function openStudio({
       onPlatforms: () => {},
       platform: async (op, input) => {
         calls.push({ op, input });
+        if (op === 'twitch-marker') {
+          if (window.twitchMarkerFail) throw Error(window.twitchMarkerFail);
+          return { position: 65 };
+        }
         return op === 'categories' || op === 'youtube-categories' || op === 'broadcasts' ? [] : account;
       },
       studio: async (op, input = {}) => {
@@ -123,7 +127,11 @@ export async function openStudio({
             inputs: mixer.map(m => ({ inputName: m.inputName })),
             mixer,
             stream: { outputActive: window.obsStreaming, ...window.obsStreamExtra },
-            record: { outputActive: false },
+            record: {
+              outputActive: !!window.obsRecording,
+              outputPaused: !!window.obsPaused,
+              outputDuration: window.obsRecording ? (window.recordMs ?? 90000) : 0
+            },
             virtualCam: window.obsVirtualCam ?? null,
             // Studio mode: window.obsStudio = { enabled, preview } makes OBS report it.
             ...(window.obsStudio
@@ -139,6 +147,16 @@ export async function openStudio({
           window.obsVirtualCam = !!input.enabled;
           return { active: !!input.enabled, startedByApp: true };
         }
+        if (op === 'record-pause') {
+          window.obsPaused = !window.obsPaused;
+          return { paused: window.obsPaused };
+        }
+        if (op === 'record-split') {
+          window.splits = (window.splits || 0) + 1;
+          if (window.splitFail) throw Error(window.splitFail);
+          return { program: true };
+        }
+        if (op === 'record-chapter') return { program: !!window.obsRecording };
         if (op === 'start') {
           window.obsStreaming = true;
           return {};

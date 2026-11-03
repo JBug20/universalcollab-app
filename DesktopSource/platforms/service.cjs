@@ -856,6 +856,25 @@ class PlatformService {
         return this.twitchInfo();
       case 'categories':
         return this.categories(input.query);
+      // Stream markers (markers.js): a Twitch stream marker at this moment of the live stream.
+      case 'twitch-marker': {
+        const a = this.account('twitch');
+        const description = String(input.description || '').slice(0, 140);
+        try {
+          const r = await this.api('twitch', 'streams/markers', {
+            method: 'POST',
+            body: { user_id: a.id, ...(description ? { description } : {}) }
+          });
+          return { position: r.data?.[0]?.position_seconds ?? null };
+        } catch (e) {
+          // Twitch refuses markers while the channel is offline (or VODs are off).
+          if (e.status === 404 || e.status === 400)
+            throw new PlatformError(
+              'Twitch did not add a marker: the channel is not live or past broadcasts are off.'
+            );
+          throw e;
+        }
+      }
       case 'twitch-save':
         return this.updateTwitch(input);
       case 'broadcasts':

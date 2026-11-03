@@ -244,6 +244,46 @@ class OBSControls {
     }
     if (op === 'preview-scene') return this.call('SetCurrentPreviewScene', { sceneName: name(i.sceneName) });
     if (op === 'transition') return this.call('TriggerStudioModeTransition');
+    // Stream markers: a chapter in OBS's recording (needs OBS 30+ and the Hybrid MP4 format).
+    if (op === 'record-chapter') {
+      const chapterName = typeof i.name === 'string' ? i.name.slice(0, 100) : '';
+      const out = { program: false };
+      if (this.available.has('CreateRecordChapter') && (await this.call('GetRecordStatus')).outputActive)
+        try {
+          await this.call('CreateRecordChapter', chapterName ? { chapterName } : {});
+          out.program = true;
+        } catch {}
+      return out;
+    }
+    if (op === 'record-pause') {
+      const status = await this.call('GetRecordStatus');
+      if (!status.outputActive) throw Error('Nothing is recording.');
+      const pausing = !status.outputPaused;
+      if (!this.available.has('PauseRecord')) throw Error('This OBS cannot pause recordings.');
+      try {
+        await this.call(pausing ? 'PauseRecord' : 'ResumeRecord');
+      } catch {
+        throw Error(
+          'OBS could not ' +
+            (pausing ? 'pause' : 'resume') +
+            ' the recording. Recordings using the same encoder as the stream cannot be paused: in OBS, Settings → Output → Recording → choose its own encoder.'
+        );
+      }
+      return { paused: pausing };
+    }
+    if (op === 'record-split') {
+      if (!(await this.call('GetRecordStatus')).outputActive) throw Error('Nothing is recording.');
+      if (!this.available.has('SplitRecordFile'))
+        throw Error('This OBS cannot split recordings (OBS 30 or newer can).');
+      try {
+        await this.call('SplitRecordFile');
+      } catch {
+        throw Error(
+          'OBS could not start a new file. In OBS: Settings → Output (Output Mode: Advanced) → Recording → Automatic File Splitting → on (Split Manually is enough).'
+        );
+      }
+      return { program: true };
+    }
     if (op === 'record-start') return this.call('StartRecord');
     if (op === 'record-stop') return this.call('StopRecord');
     if (op === 'stream-stop') return this.call('StopStream');

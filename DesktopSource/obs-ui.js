@@ -96,6 +96,14 @@
   });
   stop.id = 'stopOBSStream';
   start.after(stop);
+  // New recording file every N minutes (autoSplit below).
+  const SPLIT_KEY = 'uc-record-split';
+  let splitMinutes = 0,
+    splitAt = 0,
+    splitting = false;
+  try {
+    splitMinutes = Number(localStorage.getItem(SPLIT_KEY)) || 0;
+  } catch {}
   const record = btn('Start Recording', async () => {
     if (state?.record?.outputActive) {
       if (!confirm('Stop the local OBS recording?')) return;
@@ -138,7 +146,16 @@
   const recordRow = node('div');
   recordRow.className = 'record-clip-row';
   record.after(recordRow);
-  recordRow.append(record, clip);
+  // Pause / resume OBS's recording.
+  const pauseButton = btn('Pause', async () => {
+    if (!state?.record?.outputActive) throw Error('Nothing is recording.');
+    const r = await call('record-pause');
+    say(r.paused ? 'Recording paused.' : 'Recording resumed.');
+    await poll();
+  });
+  pauseButton.id = 'obsRecordPause';
+  pauseButton.hidden = true;
+  recordRow.append(record, pauseButton, clip);
   recordRow.after(clipNote);
   function buttons() {
     start.hidden = !!state?.stream?.outputActive;
@@ -152,6 +169,10 @@
     stop.disabled = working || !state?.stream?.outputActive;
     record.disabled = working || !online;
     record.textContent = state?.record?.outputActive ? 'Stop Recording' : 'Start Recording';
+    pauseButton.hidden = !online || !state?.record?.outputActive;
+    pauseButton.disabled = working;
+    pauseButton.textContent = state?.record?.outputPaused ? 'Resume' : 'Pause';
+    pauseButton.setAttribute('aria-pressed', String(!!state?.record?.outputPaused));
   }
   function connection(value) {
     if (!value) {
@@ -439,6 +460,7 @@
           editScene = state.sceneName;
           // Stream and recording timers for the status bar (durations count on locally between polls).
           window.obsOutputs = { stream: state.stream, record: state.record, at: Date.now() };
+          void autoSplit();
           if (state.available?.includes?.('SetStudioModeEnabled'))
             window.studioMode?.fromOBS(!!state.studioMode);
           paint();
@@ -539,6 +561,37 @@
       await loadSettings();
       say('OBS video settings saved.');
     });
+  // New file every N minutes (Settings → OBS): a crash or a full drive then loses at most one part.
+  $('obsRecordSplit').value = String(splitMinutes);
+  $('obsRecordSplit').onchange = () => {
+    splitMinutes = Number($('obsRecordSplit').value) || 0;
+    try {
+      localStorage.setItem(SPLIT_KEY, String(splitMinutes));
+    } catch {}
+  };
+  async function autoSplit() {
+    const r = state?.record;
+    if (!r?.outputActive) {
+      splitAt = 0;
+      return;
+    }
+    if (!splitMinutes || r.outputPaused || splitting || !Number.isFinite(r.outputDuration)) return;
+    if (r.outputDuration < splitAt) splitAt = 0;
+    if (r.outputDuration - splitAt < splitMinutes * 60000) return;
+    splitting = true;
+    splitAt = r.outputDuration;
+    try {
+      await call('record-split');
+      note('Recording continues in a new file (every ' + splitMinutes + ' minutes).');
+    } catch (e) {
+      note(e.message);
+      // Do not try again every few seconds.
+      splitMinutes = 0;
+      $('obsRecordSplit').value = '0';
+    } finally {
+      splitting = false;
+    }
+  }
   $('obsRecordDirectorySave').onclick = () =>
     run(async () => {
       await call('record-directory', { directory: $('obsRecordDirectory').value });
