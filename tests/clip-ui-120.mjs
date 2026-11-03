@@ -59,7 +59,9 @@ try {
   const order = await page.evaluate(() =>
     [...document.querySelectorAll('#streamsPanel button')].map(b => b.id)
   );
-  assert.equal(order.indexOf('obsClip'), order.indexOf('obsRecord') + 1, order.join());
+  // Pause (shown only while recording) sits between Recording and Clip.
+  assert.equal(order.indexOf('obsClip'), order.indexOf('obsRecordPause') + 1, order.join());
+  assert.equal(order.indexOf('obsRecordPause'), order.indexOf('obsRecord') + 1, order.join());
   assert.deepEqual(errors, []);
   console.log('PASS clip UI: starts the replay buffer, saves clips, Show file sends the saved path.');
 } finally {
