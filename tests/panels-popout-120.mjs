@@ -7,7 +7,8 @@ const { browser, page, errors } = await openStudio();
 try {
   await page.evaluate(() => document.getElementById('serverConnect').click());
   await page.waitForFunction(() => window.workspaceUI && document.body.dataset.ready === 'true');
-  const where = id => page.evaluate(i => document.querySelector(`[data-dock="${i}"]`)?.parentElement?.id || 'BODY', id);
+  const where = id =>
+    page.evaluate(i => document.querySelector(`[data-dock="${i}"]`)?.parentElement?.id || 'BODY', id);
   const handle = id => page.locator(`[data-dock="${id}"] > .dock-handle`);
   const menu = page.locator('#panelContext');
 
