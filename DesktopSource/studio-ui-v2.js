@@ -655,8 +655,46 @@
     heading.tabIndex = 0;
     heading.setAttribute('aria-label', 'Move ' + titles[id] + ' panel');
     panel.prepend(heading);
+    // A popped-out panel moves by pointer; dropping it on a column docks it there.
+    heading.addEventListener('pointerdown', e => {
+      const f = workspace.floating?.[id];
+      if (!f || e.button || e.target.closest('button,input,select,a')) return;
+      e.preventDefault();
+      const r = panel.getBoundingClientRect(),
+        dx = e.clientX - r.left,
+        dy = e.clientY - r.top;
+      const columns = () => ['dockLeft', 'dockCenter', 'dockRight', 'dockBottom'].map(c => $(c));
+      const under = ev => document.elementsFromPoint(ev.clientX, ev.clientY);
+      const column = ev => under(ev).find(n => n.classList?.contains('studio-column'));
+      heading.setPointerCapture(e.pointerId);
+      const move = ev => {
+        f.x = Math.max(0, Math.min(innerWidth - 80, ev.clientX - dx));
+        f.y = Math.max(0, Math.min(innerHeight - 40, ev.clientY - dy));
+        panel.style.left = f.x + 'px';
+        panel.style.top = f.y + 'px';
+        const over = column(ev);
+        for (const c of columns()) c.classList.toggle('drop-target', c === over);
+      };
+      const up = ev => {
+        heading.removeEventListener('pointermove', move);
+        heading.removeEventListener('pointerup', up);
+        heading.removeEventListener('pointercancel', up);
+        for (const c of columns()) c.classList.remove('drop-target');
+        const over = ev.type === 'pointerup' ? column(ev) : null;
+        if (over) {
+          delete workspace.floating[id];
+          const before = under(ev).find(n => n.dataset?.dock && n !== panel && n.parentElement === over);
+          if (before) over.insertBefore(panel, before);
+          else over.append(panel);
+        }
+        saveWorkspace();
+      };
+      heading.addEventListener('pointermove', move);
+      heading.addEventListener('pointerup', up);
+      heading.addEventListener('pointercancel', up);
+    });
     heading.ondragstart = e => {
-      if (!workspace.unlocked) {
+      if (!workspace.unlocked || workspace.floating?.[id]) {
         e.preventDefault();
         return;
       }
@@ -666,21 +704,40 @@
   for (const [id, panel] of panels) decorate(id, panel);
   function workspacePaint() {
     const seen = new Set();
+    if (!workspace.floating || typeof workspace.floating !== 'object') workspace.floating = {};
+    const floating = workspace.floating;
+    for (const id of Object.keys(floating))
+      if (!panels.has(id) || workspace.hidden?.includes(id)) delete floating[id];
     for (const column of ['dockLeft', 'dockCenter', 'dockRight', 'dockBottom'])
       for (const id of Array.isArray(workspace.order?.[column]) ? workspace.order[column] : []) {
-        if (panels.has(id) && !seen.has(id)) {
+        if (panels.has(id) && !seen.has(id) && !floating[id]) {
           $(column).append(panels.get(id));
           seen.add(id);
         }
       }
     for (const [id, p] of panels) {
-      if (!seen.has(id))
+      if (floating[id]) {
+        // Popped out: floats over the workspace until it is dragged onto a column.
+        if (p.parentElement !== document.body) document.body.append(p);
+        p.classList.add('panel-floating');
+        const f = floating[id];
+        p.style.left = f.x + 'px';
+        p.style.top = f.y + 'px';
+        p.style.width = f.w + 'px';
+        p.style.height = f.h + 'px';
+      } else {
+        if (p.classList.contains('panel-floating')) {
+          p.classList.remove('panel-floating');
+          for (const k of ['left', 'top', 'width']) p.style[k] = '';
+        }
+      }
+      if (!seen.has(id) && !floating[id])
         $(id === 'scenes' ? 'dockLeft' : id === 'layout' ? 'dockCenter' : 'dockRight').append(p);
       p.hidden =
         (Array.isArray(workspace.hidden) && workspace.hidden.includes(id)) ||
         (p.classList.contains('obs-panel') && !window.obsConnected);
       p.classList.toggle('resizable', !!workspace.unlocked);
-      p.firstElementChild.draggable = !!workspace.unlocked;
+      p.firstElementChild.draggable = !!workspace.unlocked && !floating[id];
       p.style.setProperty(
         '--panel-color',
         workspace.colors?.[id] ||
@@ -697,7 +754,7 @@
           '#514366'
       );
       const h = workspace.heights?.[id];
-      p.style.height = Number.isFinite(h) && h >= 180 ? Math.min(h, 1500) + 'px' : '';
+      if (!floating[id]) p.style.height = Number.isFinite(h) && h >= 180 ? Math.min(h, 1500) + 'px' : '';
     }
     $('studioDocks').classList.toggle('wide', workspace.width === 'wide');
     $('workspaceWidth').value = workspace.width === 'wide' ? 'wide' : 'balanced';
@@ -741,6 +798,7 @@
         select.append(new Option(label, col));
       select.value = p.parentElement.id;
       select.onchange = () => {
+        delete workspace.floating?.[id];
         $(select.value).append(p);
         saveWorkspace();
       };
@@ -781,8 +839,78 @@
   document.addEventListener('pointerup', () => {
     if (!workspace.unlocked) return;
     workspace.heights = {};
-    for (const [id, p] of panels) if (p.style.height) workspace.heights[id] = p.offsetHeight;
+    for (const [id, p] of panels) {
+      const f = workspace.floating?.[id];
+      if (f) {
+        if (p.offsetWidth && p.offsetHeight) [f.w, f.h] = [p.offsetWidth, p.offsetHeight];
+      } else if (p.style.height) workspace.heights[id] = p.offsetHeight;
+    }
     write('uc-ui8-workspace', workspace);
+  });
+  // Pop a panel out of its column so it floats; drag its header onto a column to put it back.
+  let popped = 0;
+  function popOut(id) {
+    const p = panels.get(id);
+    if (!p) return;
+    workspace.hidden = (workspace.hidden || []).filter(n => n !== id);
+    const r = p.parentElement ? p.getBoundingClientRect() : null,
+      shown = r && r.width > 0 && r.height > 0 && p.parentElement !== document.body;
+    const w = Math.round(Math.min(shown ? r.width : 360, 640, innerWidth - 40)),
+      h = Math.round(Math.min(Math.max(shown ? r.height : 280, 240), 600, innerHeight - 100));
+    const step = (popped++ % 6) * 28;
+    workspace.floating ??= {};
+    workspace.floating[id] = {
+      x: Math.max(0, Math.min(innerWidth - w - 10, shown ? r.left + 24 : 120 + step)),
+      y: Math.max(40, Math.min(innerHeight - h - 10, shown ? r.top + 24 : 110 + step)),
+      w,
+      h
+    };
+    saveWorkspace();
+  }
+  function removePanel(id) {
+    workspace.hidden = [...new Set([...(workspace.hidden || []), id])];
+    delete workspace.floating?.[id];
+    saveWorkspace();
+  }
+  // Right-click a panel header: Pop out (or Dock back) and Remove.
+  const panelContext = make('div');
+  panelContext.id = 'panelContext';
+  panelContext.hidden = true;
+  document.body.append(panelContext);
+  document.addEventListener('contextmenu', e => {
+    const handle = e.target.closest?.('.dock-handle');
+    const id = handle?.parentElement?.dataset.dock;
+    if (!id || !panels.has(id)) return;
+    e.preventDefault();
+    const done = fn => () => {
+      panelContext.hidden = true;
+      fn();
+    };
+    const floating = !!workspace.floating?.[id];
+    panelContext.replaceChildren(
+      button(
+        floating ? 'Dock back' : 'Pop out',
+        done(() => {
+          if (floating) {
+            delete workspace.floating[id];
+            saveWorkspace();
+          } else popOut(id);
+        })
+      ),
+      button(
+        'Remove',
+        done(() => removePanel(id))
+      )
+    );
+    panelContext.style.left = Math.max(0, Math.min(innerWidth - 150, e.clientX)) + 'px';
+    panelContext.style.top = Math.max(0, Math.min(innerHeight - 90, e.clientY)) + 'px';
+    panelContext.hidden = false;
+  });
+  document.addEventListener('pointerdown', e => {
+    if (!panelContext.contains(e.target)) panelContext.hidden = true;
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') panelContext.hidden = true;
   });
   $('workspaceUnlocked').onchange = () => {
     workspace.unlocked = $('workspaceUnlocked').checked;
@@ -963,6 +1091,8 @@
   if (onboarding) setPage('settings');
   window.workspaceUI = {
     getWorkspace: () => workspace,
+    popOut,
+    removePanel,
     setPanelVisible: (id, show) => {
       workspace.hidden = (workspace.hidden || []).filter(n => n !== id);
       if (!show) workspace.hidden.push(id);

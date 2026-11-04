@@ -1730,3 +1730,36 @@ body.onboarding #manageOBS {
   padding-left: 4px;
   padding-right: 4px;
 }
+/* Popped-out panels float over the workspace until dragged onto a column. */
+.panel-floating {
+  position: fixed;
+  z-index: 70;
+  margin: 0;
+  min-width: 240px;
+  min-height: 160px;
+  overflow: auto;
+  resize: both;
+  box-shadow: 0 12px 40px #000a;
+}
+.panel-floating[hidden] {
+  display: none;
+}
+.panel-floating > .dock-handle {
+  display: block;
+  cursor: move;
+  touch-action: none;
+}
+#panelContext {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #242130;
+  border: 1px solid #ae8ae4;
+  padding: 5px;
+  border-radius: 6px;
+}
+#panelContext[hidden] {
+  display: none;
+}

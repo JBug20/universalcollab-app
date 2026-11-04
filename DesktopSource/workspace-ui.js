@@ -772,8 +772,8 @@
     for (const [id] of ui.panels)
       if (ui.getWorkspace().hidden?.includes(id))
         choices.append(
-          btn(ui.titles[id], 'Show ' + ui.titles[id], () => {
-            ui.setPanelVisible(id, true);
+          btn(ui.titles[id], 'Add ' + ui.titles[id] + ' as a floating panel', () => {
+            ui.popOut(id);
             addPanel.close();
           })
         );
@@ -784,21 +784,12 @@
   function panelMenu() {
     const list = panelsMenu.querySelector('.menu-popup');
     list.replaceChildren();
-    for (const [id, p] of ui.panels) {
-      const label = make('label'),
-        c = make('input');
-      c.type = 'checkbox';
-      c.checked = !ui.getWorkspace().hidden?.includes(id);
-      c.setAttribute('aria-label', 'Show ' + ui.titles[id]);
-      c.onchange = () => ui.setPanelVisible(id, c.checked);
-      label.append(
-        c,
-        document.createTextNode(
-          ui.titles[id] + (p.classList.contains('obs-panel') && !window.obsConnected ? ' · OBS offline' : '')
-        )
-      );
-      list.append(label);
-    }
+    list.append(
+      make(
+        'p',
+        'Right-click a panel header to pop it out or remove it. Add panel brings a removed panel back as a floating panel; drag its header onto a column to put it in place.'
+      )
+    );
     list.append(
       btn('+ Add panel', 'Add panel', () => {
         panelsMenu.open = false;
