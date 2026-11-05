@@ -64,6 +64,17 @@ try {
   );
 
   // Pause / Resume while recording.
+  // Recording + Pause + Clip + Mark fit the Stream controls panel: nothing runs off the side or pushes End Relay's
+  // gear out of view.
+  assert.deepEqual(
+    await page.evaluate(() => {
+      const p = document.getElementById('streamsPanel'),
+        gear = document.getElementById('endRelaySettings').getBoundingClientRect(),
+        box = p.getBoundingClientRect();
+      return [p.scrollWidth <= p.clientWidth, gear.right <= box.right + 1];
+    }),
+    [true, true]
+  );
   await page.locator('#obsRecordPause').waitFor({ state: 'visible' });
   await page.locator('#obsRecordPause').click();
   await page.waitForFunction(() => document.getElementById('obsRecordPause').textContent === 'Resume');

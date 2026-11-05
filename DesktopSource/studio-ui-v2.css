@@ -1707,18 +1707,21 @@ body.onboarding #manageOBS {
 /* Start Recording and Clip side by side (obs-ui.js). */
 .record-clip-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 .record-clip-row[hidden] {
   display: none;
 }
 #streamsPanel .record-clip-row #obsRecord {
-  flex: 1;
+  flex: 1 1 110px;
   min-width: 0;
 }
-#streamsPanel .record-clip-row #obsClip {
-  flex: 0 0 64px;
-  width: 64px;
+/* Pause, Clip and Mark share the next line when Recording needs the room (they are small buttons). */
+#streamsPanel .record-clip-row #obsRecordPause,
+#streamsPanel .record-clip-row #obsClip,
+#streamsPanel .record-clip-row #streamMark {
+  flex: 1 1 52px;
   min-width: 0;
 }
 #obsClipNote {
