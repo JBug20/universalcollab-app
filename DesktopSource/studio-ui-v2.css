@@ -1893,3 +1893,15 @@ body.onboarding #manageOBS {
   padding: 3px 10px;
   font-size: 11px;
 }
+/* Where a dragged panel will land in a section: a bar on the edge it will take. */
+.drop-line {
+  position: fixed;
+  z-index: 190;
+  border-radius: 2px;
+  background: #6ee7a8;
+  box-shadow: 0 0 8px #6ee7a8;
+  pointer-events: none;
+}
+.drop-line[hidden] {
+  display: none;
+}

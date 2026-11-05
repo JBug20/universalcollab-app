@@ -650,6 +650,51 @@
     return p;
   }
   for (const t of customTools) toolCard(t);
+  // Where a dragged panel would go in a section: before the first panel whose middle the pointer has not passed,
+  // or after the last one. Sections run top to bottom, except the bottom row, which runs left to right.
+  const dropLine = make('div');
+  dropLine.className = 'drop-line';
+  dropLine.hidden = true;
+  document.body.append(dropLine);
+  function dropSlot(column, panel, ev) {
+    const horizontal = column.id === 'dockBottom',
+      pointer = horizontal ? ev.clientX : ev.clientY,
+      others = [...column.children].filter(n => n.dataset?.dock && n !== panel && !n.hidden);
+    let before = null;
+    for (const n of others) {
+      const r = n.getBoundingClientRect(),
+        middle = horizontal ? r.left + r.width / 2 : r.top + r.height / 2;
+      if (pointer < middle) {
+        before = n;
+        break;
+      }
+    }
+    const box = column.getBoundingClientRect(),
+      edge = before
+        ? before.getBoundingClientRect()
+        : others.length
+          ? others.at(-1).getBoundingClientRect()
+          : null;
+    // The line sits on the edge where the panel would land.
+    let at;
+    if (!edge) at = horizontal ? box.left + 4 : box.top + 4;
+    else if (before) at = (horizontal ? edge.left : edge.top) - 3;
+    else at = (horizontal ? edge.right : edge.bottom) + 3;
+    return { before, horizontal, at, box, last: others.at(-1) || null };
+  }
+  function showDropLine(slot) {
+    dropLine.hidden = !slot;
+    if (!slot) return;
+    const { horizontal, at, box } = slot;
+    dropLine.style.cssText = horizontal
+      ? `left:${at - 2}px;top:${box.top}px;width:4px;height:${box.height}px`
+      : `left:${box.left}px;top:${at - 2}px;width:${box.width}px;height:4px`;
+  }
+  function dropInto(column, panel, slot) {
+    if (slot.before) column.insertBefore(panel, slot.before);
+    else if (slot.last) slot.last.after(panel);
+    else column.append(panel);
+  }
   function decorate(id, panel) {
     const heading = make('div', titles[id]);
     heading.className = 'dock-handle';
@@ -699,6 +744,7 @@
         panel.style.top = f.y + 'px';
         settle(column(ev), ev);
         mark();
+        showDropLine(hold.ready && hold.column ? dropSlot(hold.column, panel, ev) : null);
       };
       const up = ev => {
         // Listening on the window as well as the header keeps the drag working over frames (chat, tools).
@@ -710,11 +756,10 @@
         hold.column = null;
         hold.ready = false;
         mark();
+        showDropLine(null);
         if (over) {
           delete workspace.floating[id];
-          const before = under(ev).find(n => n.dataset?.dock && n !== panel && n.parentElement === over);
-          if (before) over.insertBefore(panel, before);
-          else over.append(panel);
+          dropInto(over, panel, dropSlot(over, panel, ev));
         }
         saveWorkspace();
       };
@@ -753,18 +798,18 @@
         ghost.style.top = ev.clientY + 12 + 'px';
         const over = column(ev);
         for (const c of columns) c.classList.toggle('drop-target', c === over);
+        showDropLine(over ? dropSlot(over, panel, ev) : null);
       };
       const up = ev => {
         window.removeEventListener('pointermove', move);
         window.removeEventListener('pointerup', up);
         window.removeEventListener('pointercancel', up);
         ghost?.remove();
+        showDropLine(null);
         for (const c of columns) c.classList.remove('drop-target');
         const over = ghost && ev.type === 'pointerup' ? column(ev) : null;
         if (over) {
-          const before = under(ev).find(n => n.dataset?.dock && n !== panel && n.parentElement === over);
-          if (before) over.insertBefore(panel, before);
-          else over.append(panel);
+          dropInto(over, panel, dropSlot(over, panel, ev));
           saveWorkspace();
         }
       };
