@@ -1,5 +1,5 @@
 // Chat voice, window side: the dropdown in Chat settings (Off / On (streamer hears) / On (everyone hears)),
-// reading only new messages, the volume and Mute in the audio panel, the Linux steps under the dropdown, skipping
+// reading only new messages, the volume and Mute in Chat settings, the Linux steps under the dropdown, skipping
 // links, the blocklist, and the copy link.
 import assert from 'node:assert/strict';
 import { openStudio } from './helpers/studio-page.mjs';
@@ -73,17 +73,28 @@ try {
     'On (everyone hears)'
   ]);
   assert.equal(await page.locator('#chatVoiceMode').inputValue(), 'off');
-  // The volume sits in the audio panel, with Mute.
-  assert.equal(await page.locator('#obsMixerPanel #chatVoiceVolume').count(), 1);
-  assert.equal(await page.locator('#obsMixerPanel #chatVoiceMute').count(), 1);
-  // The volume is an ordinary sideways slider in the audio panel, not the mixer's tall faders.
+  // The volume sits in Chat settings under the dropdown, with Mute and the percentage; not in the audio panel.
+  assert.equal(await page.locator('#chatSettingsWindow #chatVoiceVolume').count(), 1);
+  assert.equal(await page.locator('#chatSettingsWindow #chatVoiceMute').count(), 1);
+  assert.equal(await page.locator('#obsMixerPanel #chatVoiceVolume').count(), 0);
+  assert.equal(
+    await page.evaluate(() => {
+      const a = document.getElementById('chatVoiceMode').closest('label'),
+        b = document.getElementById('chatVoiceVolume');
+      return !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    }),
+    true
+  );
+  // It is an ordinary sideways slider with room to use.
+  await page.evaluate(() => document.getElementById('chatSettingsWindow').showModal());
   const sliderBox = await page.locator('#chatVoiceVolume').evaluate(n => ({
     mode: getComputedStyle(n).writingMode,
     width: n.getBoundingClientRect().width,
     height: n.getBoundingClientRect().height
   }));
   assert.equal(sliderBox.mode, 'horizontal-tb');
-  assert(sliderBox.height < 60, JSON.stringify(sliderBox));
+  assert(sliderBox.width > 150 && sliderBox.height < 60, JSON.stringify(sliderBox));
+  await page.evaluate(() => document.getElementById('chatSettingsWindow').close());
   // The Linux install steps are written under the dropdown (this browser reports Linux).
   assert.equal(await page.locator('#chatVoiceLinux').evaluate(el => el.hidden), false);
   const help = await page.locator('#chatVoiceLinux').textContent();
@@ -160,17 +171,19 @@ try {
 
   // Volume and Mute in the audio panel set how loud it is.
   await set('chatVoiceVolume', { value: '40' });
+  assert.equal(await page.locator('#chatVoicePercent').textContent(), '40%');
   add('quieter');
   await send();
   await page.waitForFunction(() => window.spoken.length === 6);
   assert.equal(await page.evaluate(() => window.spoken.at(-1).volume), 0.4);
-  await page.locator('#chatVoiceMute').click();
+  await page.evaluate(() => document.getElementById('chatVoiceMute').click());
   assert.equal(await page.locator('#chatVoiceMute').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#chatVoicePercent').textContent(), 'Muted');
   add('muted message');
   await send();
   await page.waitForTimeout(300);
   assert.equal((await spoken()).length, 6, 'nothing is spoken while muted');
-  await page.locator('#chatVoiceMute').click();
+  await page.evaluate(() => document.getElementById('chatVoiceMute').click());
 
   // On (everyone hears): the stream voice is asked; the window does not also speak.
   await page.evaluate(() => window.chatVoice.set('stream'));

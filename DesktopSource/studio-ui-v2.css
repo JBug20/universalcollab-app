@@ -1834,17 +1834,20 @@ body.onboarding #manageOBS {
   font: inherit;
   resize: vertical;
 }
-#obsMixerPanel .chat-voice-row {
+.chat-voice-settings .chat-voice-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid #4a415e;
+  gap: 10px;
+  margin: 10px 0;
 }
-#obsMixerPanel .chat-voice-row input[type='range'] {
+.chat-voice-settings .chat-voice-row input[type='range'] {
   flex: 1;
-  min-width: 60px;
+  min-width: 120px;
+}
+.chat-voice-settings .chat-voice-percent {
+  min-width: 3.5em;
+  text-align: right;
+  font-size: 12px;
 }
 /* A floating panel held over a section: the section lights up and says what releasing does. */
 .studio-column.dock-ready {
@@ -1881,11 +1884,11 @@ body.onboarding #manageOBS {
   pointer-events: none;
   box-shadow: 0 4px 14px #0008;
 }
-#obsMixerPanel .chat-voice-row strong {
+.chat-voice-settings .chat-voice-row strong {
   font-size: 12px;
   white-space: nowrap;
 }
-#obsMixerPanel .chat-voice-row button {
+.chat-voice-settings .chat-voice-row button {
   min-height: 26px;
   padding: 3px 10px;
   font-size: 11px;

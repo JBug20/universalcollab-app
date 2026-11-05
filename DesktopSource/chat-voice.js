@@ -4,7 +4,7 @@
 // "Streamer hears" speaks with this computer's own voice, through the speakers or headphones. "Everyone hears" makes
 // a speech file for each message (tts.cjs) that an OBS browser source plays into the stream (the source's link is
 // copied from Chat settings); OBS then gives it its own volume, and the volume here sets how loud each message is.
-// The "Chat voice" volume and Mute are in the audio panel. Messages from before it was turned on are not read.
+// The volume and Mute are in Chat settings, under the dropdown. Messages from before it was turned on are not read.
 (() => {
   const KEY = 'uc-chat-voice',
     MODES = [
@@ -162,15 +162,10 @@
     test.type = copy.type = 'button';
     test.id = 'chatVoiceTest';
     copy.id = 'chatVoiceCopy';
-    row.append(test, copy);
-    box.append(label, linux, hint, row, status, skipLabel, blockLabel, blockHint);
-    const options = dialog.querySelector('.chat-options');
-    if (options) options.after(box);
-    else dialog.append(box);
-
-    // ---- Audio panel: the volume ----
+    // ---- The volume, under the dropdown ----
     const volumeRow = make('div', null, 'chat-voice-row'),
       slider = make('input'),
+      percent = make('span', null, 'chat-voice-percent'),
       mute = make('button', 'Mute');
     slider.type = 'range';
     slider.min = 0;
@@ -178,15 +173,20 @@
     slider.step = 1;
     slider.id = 'chatVoiceVolume';
     slider.setAttribute('aria-label', 'Chat voice volume');
+    percent.id = 'chatVoicePercent';
     mute.type = 'button';
     mute.id = 'chatVoiceMute';
-    volumeRow.append(make('strong', 'Chat voice'), slider, mute);
-    const mixer = $('obsMixer');
-    mixer.after(volumeRow);
+    volumeRow.append(make('strong', 'Volume'), slider, percent, mute);
+    row.append(test, copy);
+    box.append(label, linux, hint, volumeRow, row, status, skipLabel, blockLabel, blockHint);
+    const options = dialog.querySelector('.chat-options');
+    if (options) options.after(box);
+    else dialog.append(box);
 
     function paint() {
       select.value = prefs.mode;
       slider.value = String(prefs.volume);
+      percent.textContent = prefs.muted ? 'Muted' : prefs.volume + '%';
       mute.textContent = prefs.muted ? 'Unmute' : 'Mute';
       mute.setAttribute('aria-pressed', String(prefs.muted));
       copy.hidden = prefs.mode !== 'stream';
