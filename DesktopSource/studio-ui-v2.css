@@ -1815,6 +1815,25 @@ body.onboarding #manageOBS {
 .chat-voice-settings label {
   display: block;
 }
+.chat-voice-settings label.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+.chat-voice-settings textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  background: #13121c;
+  color: inherit;
+  border: 1px solid #4a415e;
+  border-radius: 8px;
+  padding: 10px;
+  font: inherit;
+  resize: vertical;
+}
 #obsMixerPanel .chat-voice-row {
   display: flex;
   align-items: center;

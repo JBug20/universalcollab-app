@@ -25,7 +25,67 @@
     const who = String(message?.author ?? '').trim();
     return (who ? who + ' says ' : '') + text;
   }
-  const api = { sentence, MODES };
+  // ---- Blocklist and links: what is never read out ----
+  // A voice on the stream can say something that gets the streamer banned, so the check is cautious: letters
+  // are lined up the way people disguise them (accents, 0→o, 1→i, 3→e, 4→a, 5→s, @→a, $→s, 7→t), spaces and
+  // symbols between letters are ignored, and repeated letters count once. A listed word of four letters or more
+  // matches anywhere in what is left; a shorter one only as a whole word. A message that is skipped by mistake
+  // is only not read; a message read by mistake could cost the channel.
+  const SUBSTITUTE = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', '@': 'a', $: 's', '!': 'i', '+': 't' };
+  const fold = text =>
+    String(text ?? '')
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[0134578@$!+]/g, c => SUBSTITUTE[c] || c);
+  const wordsOf = text =>
+    fold(text)
+      .split(/[^a-z]+/)
+      .filter(Boolean);
+  const squash = text =>
+    fold(text)
+      .replace(/[^a-z]/g, '')
+      .replace(/(.)\1+/g, '$1');
+  function parseBlocklist(text) {
+    return [
+      ...new Set(
+        String(text ?? '')
+          .split(/[\n,;]+/)
+          .map(w => w.trim())
+          .filter(Boolean)
+          .slice(0, 500)
+      )
+    ];
+  }
+  function blocked(text, list) {
+    if (!list?.length) return false;
+    const spaced = ' ' + wordsOf(text).join(' ') + ' ',
+      tight = squash(text);
+    for (const entry of list) {
+      const words = wordsOf(entry),
+        tightEntry = squash(entry);
+      if (!words.length) continue;
+      if (spaced.includes(' ' + words.join(' ') + ' ')) return true;
+      if (tightEntry.length >= 4 && tight.includes(tightEntry)) return true;
+    }
+    return false;
+  }
+  // A web address, with or without http(s):// (www.…, discord.gg/…, example.com/…).
+  const TLD =
+    'com|net|org|gg|tv|io|me|ly|co|uk|de|fr|es|it|nl|be|ru|cn|jp|br|in|au|ca|us|eu|app|dev|xyz|info|biz|link|click|site|online|shop|store|top|live|fm|to|ws|cc|tk|ml|ga|cf|gq|pw|vip|club|win|bid|icu|cam|page|world|today|stream|chat|social|zip|mov';
+  const LINK = new RegExp(
+    '(?:https?:\\/\\/|www\\.)\\S+|\\b[a-z0-9-]+(?:\\.[a-z0-9-]+)*\\.(?:' + TLD + ')\\b(?:\\/\\S*)?',
+    'i'
+  );
+  const hasLink = text => LINK.test(String(text ?? ''));
+  // What to tell Linux users: the package names differ by distribution.
+  const LINUX_HELP =
+    'Linux: reading chat aloud needs speech voices installed, then restart UniversalCollab. ' +
+    'Arch / Garuda: sudo pacman -S speech-dispatcher espeak-ng · ' +
+    'Debian / Ubuntu: sudo apt install speech-dispatcher espeak-ng · ' +
+    'Fedora: sudo dnf install speech-dispatcher espeak-ng. ' +
+    '“On (streamer hears)” uses speech-dispatcher; “On (everyone hears)” uses espeak-ng.';
+  const api = { sentence, MODES, parseBlocklist, blocked, hasLink, fold, LINUX_HELP };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
     return;
@@ -44,12 +104,14 @@
         if (cls) n.className = cls;
         return n;
       };
-    let prefs = { mode: 'off', volume: 80, muted: false };
+    let prefs = { mode: 'off', volume: 80, muted: false, skipLinks: true, blocklist: '' };
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
       if (saved && MODES.some(([m]) => m === saved.mode)) prefs.mode = saved.mode;
       if (Number.isFinite(saved?.volume)) prefs.volume = Math.min(100, Math.max(0, saved.volume));
       if (typeof saved?.muted === 'boolean') prefs.muted = saved.muted;
+      if (typeof saved?.skipLinks === 'boolean') prefs.skipLinks = saved.skipLinks;
+      if (typeof saved?.blocklist === 'string') prefs.blocklist = saved.blocklist.slice(0, 20000);
     } catch {}
     const save = () => {
       try {
@@ -74,13 +136,34 @@
       row = make('div', null, 'buttons');
     status.id = 'chatVoiceStatus';
     status.setAttribute('role', 'status');
+    const linux = make('p', LINUX_HELP, 'hint');
+    linux.id = 'chatVoiceLinux';
+    linux.hidden = !/Linux/.test(navigator.userAgent) || /Android/.test(navigator.userAgent);
+    const skipLabel = make('label', null, 'check'),
+      skipLinks = make('input');
+    skipLinks.type = 'checkbox';
+    skipLinks.id = 'chatVoiceSkipLinks';
+    skipLabel.append(skipLinks, document.createTextNode(' Never read messages that contain links'));
+    const blockLabel = make('label', 'Never read messages with these words (one per line)'),
+      blockText = make('textarea');
+    blockText.id = 'chatVoiceBlocklist';
+    blockText.rows = 4;
+    blockText.maxLength = 20000;
+    blockText.setAttribute('autocomplete', 'off');
+    blockText.setAttribute('spellcheck', 'false');
+    blockLabel.append(blockText);
+    const blockHint = make(
+      'p',
+      'For words that could get someone banned. Letters people swap (a→@, e→3, o→0) and spaces between letters are caught too, so a listed word is skipped in disguise as well. It only stops the voice: the message still shows in chat, so keep Twitch’s own AutoMod and blocked terms on as well.',
+      'hint'
+    );
     const test = make('button', 'Hear a test'),
       copy = make('button', 'Copy OBS link for chat voice');
     test.type = copy.type = 'button';
     test.id = 'chatVoiceTest';
     copy.id = 'chatVoiceCopy';
     row.append(test, copy);
-    box.append(label, hint, row, status);
+    box.append(label, linux, hint, row, status, skipLabel, blockLabel, blockHint);
     const options = dialog.querySelector('.chat-options');
     if (options) options.after(box);
     else dialog.append(box);
@@ -107,6 +190,8 @@
       mute.textContent = prefs.muted ? 'Unmute' : 'Mute';
       mute.setAttribute('aria-pressed', String(prefs.muted));
       copy.hidden = prefs.mode !== 'stream';
+      skipLinks.checked = prefs.skipLinks;
+      if (document.activeElement !== blockText) blockText.value = prefs.blocklist;
       hint.textContent =
         prefs.mode === 'stream'
           ? 'Everyone hears each message. In OBS add the copied link as a Browser source (it shows nothing), turn on “Control audio via OBS”, and set its Audio Monitoring to “Monitor and Output” if you want to hear it too.'
@@ -117,6 +202,8 @@
 
     // ---- Speaking ----
     const waiting = [];
+    let held = 0;
+    const list = () => parseBlocklist(prefs.blocklist);
     let speaking = false,
       skipped = 0;
     const volume = () => (prefs.muted ? 0 : prefs.volume / 100);
@@ -194,6 +281,12 @@
       if (prefs.mode === 'off') return;
       for (const m of fresh) {
         if (m.time && Date.now() - Number(m.time) > MAX_AGE) continue;
+        if (prefs.skipLinks && hasLink(m.text)) continue;
+        if (blocked((m.author ?? '') + ' ' + (m.text ?? ''), list())) {
+          held++;
+          say(held + ' message' + (held === 1 ? ' was' : 's were') + ' not read because of the blocklist.');
+          continue;
+        }
         enqueue(sentence(m));
       }
     });
@@ -205,6 +298,14 @@
       if (prefs.mode === 'off') say('');
       else say(prefs.mode === 'stream' ? 'Chat is now read to everyone.' : 'Chat is now read to you.');
       paint();
+    };
+    skipLinks.onchange = () => {
+      prefs.skipLinks = skipLinks.checked;
+      save();
+    };
+    blockText.oninput = () => {
+      prefs.blocklist = blockText.value.slice(0, 20000);
+      save();
     };
     slider.oninput = () => {
       prefs.volume = Number(slider.value);
