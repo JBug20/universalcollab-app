@@ -4,12 +4,13 @@
     <meta charset="utf-8" />
     <meta content="width=device-width,initial-scale=1" name="viewport" />
     <meta
-      content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-src https: http:; base-uri 'none'; form-action 'none'"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; media-src http://127.0.0.1:*; frame-src https: http:; base-uri 'none'; form-action 'none'"
       http-equiv="Content-Security-Policy"
     />
-    <title>UniversalCollab</title>
+    <title>UniversalCollab · 1.2.0-preview.20</title>
     <link href="portal.css" rel="stylesheet" />
     <link href="studio-ui-v2.css" rel="stylesheet" />
+    <link href="integrated-assist.css" rel="stylesheet" />
     <!-- After the stylesheets: recolours them for the chosen theme before the first paint. -->
     <script src="theme.js"></script>
   </head>
@@ -242,8 +243,8 @@
               before and during streaming, without audio. It starts the OBS Virtual Camera (OBS 28 or newer)
               and stops it again when the preview is turned off or the app closes, unless it was already
               running. If the virtual camera is unavailable, snapshots are used. Snapshots are periodically
-              refreshed images; their rate and width are set below. It does not show the relay’s final
-              outgoing feed.
+              refreshed images; their rate and width are set below. While a relay broadcast is running, the
+              preview shows the relay’s final outgoing feed instead.
             </p>
           </section>
           <section class="card" id="appearanceSettings">
@@ -435,21 +436,88 @@
                 ><label>FPS numerator<input id="obsFPSNum" max="240000" min="1" type="number" /></label
                 ><label>FPS denominator<input id="obsFPSDen" max="1001" min="1" type="number" /></label>
               </div>
-              <button id="obsVideoSave">Save OBS video settings</button
-              ><label>Recording folder<input id="obsRecordDirectory" maxlength="512" /></label
-              ><button id="obsRecordDirectorySave">Save recording folder</button
-              ><label
-                >Start a new recording file every<select id="obsRecordSplit">
-                  <option value="0">Never (one file)</option>
-                  <option value="30">30 minutes</option>
-                  <option value="60">1 hour</option>
-                  <option value="120">2 hours</option>
-                </select></label
-              >
-              <p class="hint">
-                Long recordings in parts: a crash or a full drive then loses at most one part. Pause / Resume
-                appears next to Start Recording while recording.
-              </p>
+              <button id="obsVideoSave">Save OBS video settings</button>
+              <div class="record-folder" id="obsRecordFolder">
+                <label
+                  >Recordings and clips are saved in<input
+                    id="obsRecordDirectory"
+                    maxlength="512"
+                    placeholder="D:\Recordings"
+                    spellcheck="false"
+                /></label>
+                <div class="record-folder-actions">
+                  <button id="obsRecordDirectoryBrowse" type="button">Choose folder…</button
+                  ><button id="obsRecordDirectorySave" type="button">Save typed folder</button
+                  ><button id="obsRecordDirectoryOpen" type="button">Open folder</button>
+                </div>
+                <p class="hint" id="obsRecordFolderInfo"></p>
+                <label class="check-row"
+                  ><input id="obsAutoRecord" type="checkbox" /> Start recording when I start streaming</label
+                >
+                <label class="check-row"
+                  ><input id="obsAutoRecordStop" type="checkbox" /> Stop that recording when I stop
+                  streaming</label
+                >
+                <label
+                  >Start a new recording file every<select id="obsRecordSplit">
+                    <option value="0">Never (one file)</option>
+                    <option value="30">30 minutes</option>
+                    <option value="60">1 hour</option>
+                    <option value="120">2 hours</option>
+                  </select></label
+                >
+                <p class="hint">
+                  Long recordings in parts: a crash or a full drive then loses at most one part. Pause /
+                  Resume appears next to Start Recording while recording (shortcut Ctrl+Alt+P).
+                </p>
+              </div>
+              <div class="record-folder" id="obsRecordScene">
+                <h3>Recording scene</h3>
+                <p class="hint">
+                  Record one OBS scene while you stream another, for example a clean scene without alerts or
+                  chat. Needs the free Source Record plugin in OBS.
+                </p>
+                <label
+                  >Start Recording records<select id="obsRecordWhat">
+                    <option value="program">What's on stream (normal OBS recording)</option>
+                    <option value="scene">The recording scene only</option>
+                    <option value="both">Both, as two files</option>
+                  </select></label
+                >
+                <label>Recording scene<select id="obsRecordSceneName"></select></label>
+                <label
+                  >Recording sound<select id="obsRecordAudio">
+                    <option value="1">Same as the stream (OBS audio Track 1)</option>
+                    <option value="2">OBS audio Track 2</option>
+                    <option value="3">OBS audio Track 3</option>
+                    <option value="4">OBS audio Track 4</option>
+                    <option value="5">OBS audio Track 5</option>
+                    <option value="6">OBS audio Track 6</option>
+                    <option value="0">Only sources inside the recording scene</option>
+                  </select></label
+                >
+                <p class="hint" id="obsRecordSceneInfo" role="status"></p>
+                <div class="record-folder-actions">
+                  <button id="obsSourceRecordGet" type="button">Get Source Record</button
+                  ><button id="obsRecordSceneCheck" type="button">Check again</button>
+                </div>
+              </div>
+              <div class="record-folder" id="verticalClips">
+                <h3>Vertical clips</h3>
+                <label class="check-row"
+                  ><input id="verticalClipOn" type="checkbox" /> Also save a vertical (9:16) copy of each
+                  clip</label
+                >
+                <label
+                  >Layout<select id="verticalClipLayout">
+                    <option value="stack">Facecam on top, gameplay below</option>
+                    <option value="blur">Whole picture over a blurred background</option>
+                    <option value="crop">Centre of the picture</option>
+                  </select></label
+                >
+                <label>Facecam<select id="verticalClipCam"></select></label>
+                <p class="hint" id="verticalClipInfo"></p>
+              </div>
               <p class="hint">
                 Stop all OBS outputs before changing video settings. Encoder and plugin-specific options
                 remain in OBS.
@@ -519,7 +587,7 @@
       </dialog>
       <div aria-live="polite" id="notice" role="status"></div>
       <footer>
-        UNIVERSALCOLLAB 1.0.0-rc.8
+        UNIVERSALCOLLAB 1.2.0-preview.20
         <span>Credentials hidden by default · Copying puts real values on your clipboard</span>
       </footer>
       <div hidden="" id="platformWorkspace">
@@ -747,7 +815,7 @@
       </div>
       <section class="welcome server-dialog" hidden="" id="welcome">
         <div class="intro">
-          <span class="eyebrow">CONTROL ROOM / 1.0.0-rc.8</span>
+          <span class="eyebrow">CONTROL ROOM / 1.2.0-preview.20</span>
           <h1>Keep your stream<br /><em>in good company.</em></h1>
           <p>
             Your own destination. Shared moments.<br />Collaborate on your terms, even when a connection
@@ -931,18 +999,34 @@
     </dialog>
     <script src="startup-guard.js"></script>
     <script src="portal.js"></script>
+    <script src="layout-geometry.js"></script>
     <script src="stream-canvas.js"></script>
     <script src="platforms-ui.js"></script>
     <script src="studio-ui.js"></script>
     <script src="release-ui.js"></script>
     <script src="host-ui.js"></script>
+    <script src="relay-owner-ui.js"></script>
     <script src="studio-ui-v2.js"></script>
     <script src="obs-ui.js"></script>
     <script src="workspace-ui.js"></script>
+    <script src="collaboration-window.js"></script>
+    <script src="integrated-chat.js"></script>
+    <script src="integrated-assist.js"></script>
+    <script src="remote-control.js"></script>
+    <script src="keyboard-shortcuts.js"></script>
+    <script src="app-update.js"></script>
     <script src="server-health.js"></script>
     <script src="destination-health.js"></script>
+    <script src="twitch-quality.js"></script>
+    <script src="destination-alerts.js"></script>
+    <script src="readiness.js"></script>
+    <script src="end-credits.js"></script>
     <script src="announce.js"></script>
     <script src="markers.js"></script>
+    <script src="stream-report.js"></script>
+    <script src="vertical-clip-ui.js"></script>
+    <script src="obs-editor.js"></script>
     <script src="studio-mode.js"></script>
+    <script src="relay-video.js"></script>
   </body>
 </html>

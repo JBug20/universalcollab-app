@@ -31,7 +31,8 @@
   let draftPending = false,
     state = null,
     online = false,
-    polling = false,
+    polling = null,
+    lastPoll = 0,
     working = false,
     editScene = '',
     selectedSource = null,
@@ -56,62 +57,164 @@
     status.textContent = text;
     $('obsFeedback').textContent = text;
   };
+  // Recording scene (Settings → OBS): what Start Recording records, sent with the calls that read or change the
+  // recording, so OBS's recording state includes the recording scene (obs-controls.cjs, Source Record plugin).
+  const REC_KEY = 'uc-record-scene';
+  let recScene = { scene: '', what: 'program', audio: 1 };
+  try {
+    recScene = { ...recScene, ...JSON.parse(localStorage.getItem(REC_KEY) || '{}') };
+  } catch {}
+  let recScenesSig = '';
+  // New recording file every N minutes (autoSplit below).
+  const SPLIT_KEY = 'uc-record-split';
+  let splitMinutes = Number(localStorage.getItem(SPLIT_KEY)) || 0,
+    splitAt = 0,
+    splitting = false;
+  const REC_OPS = ['snapshot', 'record-start', 'record-stop', 'scene-record-info'];
+  const recInput = () => ({
+    recordScene: recScene.scene,
+    recordWhat: recScene.what,
+    recordAudio: recScene.audio
+  });
   const call = (op, input = {}) => {
     if (!bridge?.obs) throw Error('OBS controls require the desktop app.');
-    return bridge.obs(op, { ...input, serverKey: selected()?.key });
+    const rec = REC_OPS.includes(op) ? recInput() : {};
+    return bridge.obs(op, { ...rec, ...input, serverKey: selected()?.key });
   };
+  // "With OBS" builds include OBS. Settings → OBS chooses between it and the user's own OBS.
+  let bundled = { available: false };
+  let obsSource = localStorage.getItem('uc-obs-source');
+  const useBundled = () => bundled.available && obsSource !== 'own';
   async function run(fn) {
-    if (working) return;
+    if (working) {
+      note('UniversalCollab is still finishing the last OBS action. Try again in a moment.');
+      return;
+    }
     working = true;
     buttons();
     try {
       await fn();
     } catch (e) {
       say(e.message);
+      // Also in the notice line: the OBS settings window, where say() writes, is usually closed.
+      note(e.message);
     } finally {
       working = false;
       buttons();
     }
   }
-  const start = btn('Start Stream', async () => {
+  // Shared by the buttons and Stream Deck (window.streamControls below). `ask` shows the confirmations
+  // the buttons use; a Stream Deck key confirms with a second press instead.
+  // Auto-record (Settings → OBS): start a recording with the stream, and optionally stop it with the stream. Only a
+  // recording started this way is stopped automatically. Skipped when this PC is almost out of space.
+  const AUTO_KEY = 'uc-auto-record';
+  let autoRecord = { start: false, stop: true },
+    autoStarted = false;
+  try {
+    autoRecord = { ...autoRecord, ...JSON.parse(localStorage.getItem(AUTO_KEY) || '{}') };
+  } catch {}
+  const saveAuto = () => {
+    try {
+      localStorage.setItem(AUTO_KEY, JSON.stringify(autoRecord));
+    } catch {}
+  };
+  async function recordWithStream() {
+    if (!autoRecord.start || state?.record?.outputActive) return '';
+    const disk = await window.relayDesktop?.diskSpace?.().catch(() => null);
+    if (disk?.ok && disk.data.freeBytes < 2e9) {
+      note(
+        'Not recording automatically: only ' +
+          Math.round(disk.data.freeBytes / 1048576) +
+          ' MB free on ' +
+          disk.data.drive +
+          '. Free up space or choose another recordings folder.'
+      );
+      return '';
+    }
+    try {
+      await call('record-start');
+      autoStarted = true;
+      return ' Recording started.';
+    } catch (e) {
+      note('The stream started, but recording did not: ' + e.message);
+      return '';
+    }
+  }
+  async function startStream() {
     if (!online) throw Error('Connect OBS in Settings → OBS first.');
+    if (state?.stream?.outputActive) return 'Already live.';
+    if (!connected || uncertain) throw Error('Connect to the relay first.');
+    if (draftPending) throw Error('Apply or discard the offline layout first.');
     await call('start', { automatic: $('obsMode').value === 'auto' });
     say('Stream started in OBS.');
     // Start the replay buffer with the stream so the first Clip already has footage (skipped if it is off in OBS).
     call('replay-start').catch(() => {});
     await poll();
-  });
-  start.id = 'startStream';
-  $('newStream').after(start);
-  const stop = btn('Stop Stream', async () => {
-    if (
-      confirm(
-        'Stop sending your OBS feed? Your relay may continue broadcasting its fallback until you end the relay broadcast.'
-      )
-    ) {
-      await call('stream-stop');
-      say('OBS stream stopped.');
+    const recording = await recordWithStream();
+    if (recording) {
+      say('Stream started in OBS.' + recording);
       await poll();
     }
-  });
+    return 'Stream started.' + recording;
+  }
+  async function stopStream(ask) {
+    if (!state?.stream?.outputActive) return 'Not live.';
+    if (
+      ask &&
+      !confirm(
+        'Stop sending your OBS feed? Your relay may continue broadcasting its fallback until you end the relay broadcast.'
+      )
+    )
+      return;
+    await call('stream-stop');
+    let stopped = '';
+    if (autoStarted && autoRecord.stop && state?.record?.outputActive) {
+      await call('record-stop').catch(() => {});
+      stopped = ' Recording stopped.';
+    }
+    autoStarted = false;
+    say('OBS stream stopped.' + stopped);
+    await poll();
+    return 'Stream stopped.' + stopped;
+  }
+  async function toggleRecord(ask) {
+    if (!online) throw Error('Connect OBS in Settings → OBS first.');
+    // A recording stopped or started by hand is yours: it is not stopped with the stream.
+    autoStarted = false;
+    if (state?.record?.outputActive) {
+      if (ask && !confirm('Stop the local OBS recording?')) return;
+      await call('record-stop');
+      await poll();
+      return 'Recording stopped.';
+    }
+    await call('record-start');
+    await poll();
+    const scene = state?.record?.scene;
+    if (scene?.active)
+      return state.record.programActive
+        ? 'Recording started (also recording "' + scene.scene + '").'
+        : 'Recording "' + scene.scene + '" started.';
+    return 'Recording started.';
+  }
+  // Pause / resume (button, shortcut, Stream Deck): OBS's recording and the recording scene together.
+  async function togglePause() {
+    if (!online) throw Error('Connect OBS in Settings → OBS first.');
+    if (!state?.record?.outputActive) throw Error('Nothing is recording.');
+    const r = await call('record-pause');
+    await poll();
+    return r.paused ? 'Recording paused.' : 'Recording resumed.';
+  }
+  const start = btn('Start Stream', startStream);
+  start.id = 'startStream';
+  $('newStream').after(start);
+  const stop = btn('Stop Stream', () => stopStream(true));
   stop.id = 'stopOBSStream';
   start.after(stop);
-  // New recording file every N minutes (autoSplit below).
-  const SPLIT_KEY = 'uc-record-split';
-  let splitMinutes = 0,
-    splitAt = 0,
-    splitting = false;
-  try {
-    splitMinutes = Number(localStorage.getItem(SPLIT_KEY)) || 0;
-  } catch {}
-  const record = btn('Start Recording', async () => {
-    if (state?.record?.outputActive) {
-      if (!confirm('Stop the local OBS recording?')) return;
-      await call('record-stop');
-    } else await call('record-start');
-    await poll();
-  });
+  const record = btn('Start Recording', () => toggleRecord(true));
   record.id = 'obsRecord';
+  const pauseButton = btn('Pause', togglePause);
+  pauseButton.id = 'obsRecordPause';
+  pauseButton.hidden = true;
   stop.after(record);
   // Clip: saves the last seconds of OBS output (OBS replay buffer) as a video file in OBS's recording folder.
   const clipNote = node('p');
@@ -120,14 +223,27 @@
   clipNote.setAttribute('role', 'status');
   clipNote.hidden = true;
   async function saveClip() {
-    if (!online) throw Error('Connect OBS in Settings → OBS first.');
-    const r = await call('clip');
-    clipNote.replaceChildren();
     clipNote.hidden = false;
+    clipNote.replaceChildren('Saving clip…');
+    let r;
+    try {
+      if (!online) throw Error('Connect OBS in Settings → OBS first.');
+      r = await call('clip');
+    } catch (e) {
+      // Shown where the button is, not only in the OBS settings window.
+      let text = 'Clip failed: ' + (e?.message || 'OBS did not answer.');
+      // The included OBS runs in the tray: say how to reach its settings.
+      if (/replay buffer/i.test(text) && useBundled())
+        text += ' The included OBS: Settings → OBS → Open OBS window.';
+      clipNote.replaceChildren(text);
+      throw Object.assign(Error(text.replace(/^Clip failed: /, '')), { cause: e });
+    }
+    clipNote.replaceChildren();
     if (r.started) {
       clipNote.textContent = `Replay buffer started. Press Clip again to save the last ${r.seconds || 'few'} seconds.`;
       return 'Replay buffer started.';
     }
+    window.dispatchEvent(new CustomEvent('obs-clip-saved', { detail: { path: r.path || '' } }));
     const file = r.path ? r.path.split(/[\\/]/).pop() : '';
     clipNote.append(file ? 'Clip saved: ' + file + ' ' : "Clip saved in OBS's recording folder.");
     if (r.path) {
@@ -146,17 +262,59 @@
   const recordRow = node('div');
   recordRow.className = 'record-clip-row';
   record.after(recordRow);
-  // Pause / resume OBS's recording.
-  const pauseButton = btn('Pause', async () => {
-    if (!state?.record?.outputActive) throw Error('Nothing is recording.');
-    const r = await call('record-pause');
-    say(r.paused ? 'Recording paused.' : 'Recording resumed.');
-    await poll();
-  });
-  pauseButton.id = 'obsRecordPause';
-  pauseButton.hidden = true;
   recordRow.append(record, pauseButton, clip);
   recordRow.after(clipNote);
+  clipNote.after($('end'));
+  $('end').hidden = false;
+  // Stream Deck runs the same actions; errors go back to the key instead of the status line.
+  async function remote(fn) {
+    if (working) throw Error('UniversalCollab is busy with another action. Try again.');
+    working = true;
+    buttons();
+    try {
+      // The window may be hidden behind a game: read OBS's real state before deciding (e.g. live or not).
+      await poll(true);
+      return await fn();
+    } finally {
+      working = false;
+      buttons();
+    }
+  }
+  window.streamControls = {
+    state: () => ({
+      online,
+      live: !!state?.stream?.outputActive,
+      recording: !!state?.record?.outputActive,
+      paused: !!state?.record?.outputPaused,
+      scenes: (state?.scenes || []).map(s => s.sceneName),
+      current: state?.current || '',
+      preview: state?.preview || '',
+      inputs: (state?.mixer || []).map(i => ({ name: i.inputName, muted: !!i.inputMuted }))
+    }),
+    start: () => remote(startStream),
+    stop: () => remote(() => stopStream(false)),
+    record: () => remote(() => toggleRecord(false)),
+    pause: () => remote(togglePause),
+    clip: () => remote(saveClip),
+    scene: name =>
+      remote(async () => {
+        if (!online) throw Error('Connect OBS in Settings → OBS first.');
+        if (!(state?.scenes || []).some(s => s.sceneName === name))
+          throw Error('OBS has no scene called "' + name + '".');
+        // Same as clicking the scene: in Studio Mode it becomes the preview scene.
+        if (state.studioMode) await call('preview-scene', { sceneName: name });
+        else await call('scene-switch', { sceneName: name });
+        await poll();
+      }),
+    mute: name =>
+      remote(async () => {
+        const input = (state?.mixer || []).find(i => i.inputName === name);
+        if (!input) throw Error('OBS has no audio source called "' + name + '".');
+        await call('mute', { inputName: name, muted: !input.inputMuted });
+        await poll();
+        return input.inputMuted ? 'Unmuted.' : 'Muted.';
+      })
+  };
   function buttons() {
     start.hidden = !!state?.stream?.outputActive;
     stop.hidden = !online || !state?.stream?.outputActive;
@@ -208,6 +366,9 @@
       if (value) {
         schedulePreview();
         void autoConfigure();
+        // However OBS connected (OBS window, automatic reconnect, included OBS), load its video and recording
+        // settings so Settings → OBS shows them.
+        void settingsOnConnect();
       }
       updateMeters();
     }
@@ -236,9 +397,9 @@
     await call(
       'connect',
       discover
-        ? { discover: true }
+        ? { discover: true, bundled: useBundled() }
         : saved
-          ? { saved: true }
+          ? { saved: true, bundled: useBundled() }
           : { port: Number($('obsPort').value), password, remember: $('obsRemember').checked }
     );
     paired = true;
@@ -448,18 +609,35 @@
     }
     transform();
   }
-  async function poll() {
-    if (polling || !bridge?.obs || document.hidden) return;
-    polling = true;
+  // Reads OBS's state. Skipped while the window is hidden, except every 5 seconds, so Stream Deck keys and
+  // shortcuts still see whether OBS is live or recording. `fresh` (Stream Deck, shortcuts) waits for any read in
+  // progress and reads again, so the decision is made on OBS's real state, not one from before the window hid.
+  async function poll(fresh = false) {
+    if (!bridge?.obs) return;
+    if (polling) {
+      if (!fresh) return;
+      await polling.catch(() => {});
+    }
+    if (document.hidden && !fresh && Date.now() - lastPoll < 5000) return;
+    polling = pollNow(fresh);
+    try {
+      await polling;
+    } finally {
+      polling = null;
+    }
+  }
+  async function pollNow(fresh) {
+    lastPoll = Date.now();
     try {
       const r = await call('state');
       connection(!!r.connected);
       if (online) {
-        if (!$('studioPage').hidden) {
+        if (!$('studioPage').hidden || document.hidden || fresh) {
           state = await call('snapshot', { ...(editScene ? { sceneName: editScene } : {}) });
           editScene = state.sceneName;
           // Stream and recording timers for the status bar (durations count on locally between polls).
           window.obsOutputs = { stream: state.stream, record: state.record, at: Date.now() };
+          fillRecordScenes();
           void autoSplit();
           if (state.available?.includes?.('SetStudioModeEnabled'))
             window.studioMode?.fromOBS(!!state.studioMode);
@@ -471,7 +649,6 @@
       say(e.message);
       editScene = '';
     } finally {
-      polling = false;
       updateMeters();
     }
   }
@@ -512,6 +689,147 @@
         selectedSource = null;
         await poll();
       });
+  // Add OBS source → Create a new source (obs-sources.cjs): webcam, screen, window, game, microphone, desktop audio,
+  // image, video file, text or web page, then pick which camera / screen / window / microphone from OBS's own list.
+  {
+    const box = node('section');
+    box.id = 'obsNewSource';
+    box.className = 'obs-new-source';
+    const type = node('select');
+    type.id = 'obsNewSourceType';
+    type.setAttribute('aria-label', 'Kind of source');
+    const label = (text, input) => {
+      const l = node('label', text);
+      l.append(input);
+      return l;
+    };
+    const nameInput = node('input');
+    nameInput.id = 'obsNewSourceName';
+    nameInput.maxLength = 256;
+    const textInput = node('textarea');
+    textInput.id = 'obsNewSourceText';
+    textInput.rows = 2;
+    textInput.maxLength = 2000;
+    const urlInput = node('input');
+    urlInput.id = 'obsNewSourceUrl';
+    urlInput.type = 'url';
+    urlInput.placeholder = 'https://…';
+    const widthInput = node('input'),
+      heightInput = node('input');
+    widthInput.id = 'obsNewSourceWidth';
+    heightInput.id = 'obsNewSourceHeight';
+    for (const [i, v] of [
+      [widthInput, '1920'],
+      [heightInput, '1080']
+    ]) {
+      i.type = 'number';
+      i.min = '1';
+      i.value = v;
+    }
+    let file = '';
+    const fileInfo = node('span', 'No file chosen');
+    const pick = btn('Choose file…', async () => {
+      const r = await call('source-pick-file', { type: type.value });
+      if (r.canceled) return;
+      file = r.file;
+      fileInfo.textContent = file.split(/[\\/]/).pop();
+      if (!nameInput.value || nameInput.dataset.auto === 'true') {
+        nameInput.value = fileInfo.textContent.replace(/\.[^.]+$/, '');
+        nameInput.dataset.auto = 'true';
+      }
+    });
+    pick.id = 'obsNewSourceFile';
+    const fields = {
+      text: [label('Text', textInput)],
+      browser: [label('Web address', urlInput), label('Width', widthInput), label('Height', heightInput)],
+      image: [pick, fileInfo],
+      media: [pick, fileInfo]
+    };
+    const extra = node('div');
+    extra.className = 'obs-new-source-fields';
+    const chooseRow = node('div');
+    chooseRow.hidden = true;
+    const choose = node('select');
+    choose.id = 'obsNewSourceChoice';
+    const chooseLabel = node('label', 'Use');
+    chooseLabel.append(choose);
+    chooseRow.append(chooseLabel);
+    const create = btn('Create source', async () => {
+      if (!editScene) throw Error('Choose the OBS scene to add it to first.');
+      const r = await call('source-create', {
+        sceneName: editScene,
+        type: type.value,
+        name: nameInput.value,
+        text: textInput.value,
+        url: urlInput.value,
+        width: Number(widthInput.value),
+        height: Number(heightInput.value),
+        file
+      });
+      say('Added ' + r.inputName + ' to ' + editScene + '.');
+      chooseRow.hidden = !r.property;
+      if (r.property) {
+        choose.replaceChildren(...r.items.map(i => new Option(i.name, String(i.value))));
+        if (r.current !== null && r.current !== undefined) choose.value = String(r.current);
+        choose.dataset.input = r.inputName;
+        choose.dataset.property = r.property;
+        choose.dataset.numeric = String(typeof r.items[0]?.value === 'number');
+        chooseLabel.firstChild.textContent = 'Use ';
+      }
+      nameInput.value = '';
+      file = '';
+      fileInfo.textContent = 'No file chosen';
+      await poll(true);
+    });
+    create.id = 'obsNewSourceCreate';
+    choose.onchange = () =>
+      run(async () => {
+        const value = choose.dataset.numeric === 'true' ? Number(choose.value) : choose.value;
+        await call('source-choose', {
+          inputName: choose.dataset.input,
+          property: choose.dataset.property,
+          value
+        });
+        say(choose.dataset.input + ': ' + choose.selectedOptions[0]?.textContent);
+      });
+    function showFields() {
+      extra.replaceChildren(...(fields[type.value] || []));
+      const t = [...type.options].find(o => o.value === type.value);
+      if (!nameInput.value || nameInput.dataset.auto === 'true') {
+        nameInput.value = t ? t.textContent.replace(/ \(.*\)$/, '') : '';
+        nameInput.dataset.auto = 'true';
+      }
+    }
+    nameInput.oninput = () => (nameInput.dataset.auto = 'false');
+    type.onchange = () => {
+      file = '';
+      fileInfo.textContent = 'No file chosen';
+      chooseRow.hidden = true;
+      showFields();
+    };
+    box.append(
+      node('h3', 'Create a new source'),
+      label('Kind', type),
+      label('Name', nameInput),
+      extra,
+      create,
+      chooseRow
+    );
+    $('obsSourceAdd').after(box);
+    // Which kinds this OBS has: read when OBS connects and each time the Add OBS source window opens.
+    async function loadTypes() {
+      if (!online) return;
+      const r = await call('source-types').catch(() => []);
+      const types = Array.isArray(r) ? r : [];
+      const keep = type.value;
+      type.replaceChildren(...types.map(t => new Option(t.label, t.type)));
+      if (types.some(t => t.type === keep)) type.value = keep;
+      box.hidden = !types.length;
+      showFields();
+    }
+    window.addEventListener('obs-connection', loadTypes);
+    window.refreshObsSourceTypes = loadTypes;
+  }
   $('obsSourceAdd').onclick = () =>
     run(async () => {
       await call('source-add', { sceneName: editScene, sourceName: $('obsExistingSource').value });
@@ -538,12 +856,23 @@
     fpsNumerator: 'obsFPSNum',
     fpsDenominator: 'obsFPSDen'
   };
+  async function settingsOnConnect() {
+    try {
+      await loadSettings();
+    } catch (e) {
+      $('obsSettingsState').textContent =
+        'Could not read the OBS settings: ' + (e?.message || 'no answer') + ' Choose Refresh OBS settings.';
+    }
+  }
   async function loadSettings() {
     if (!online) return;
     const s = await call('settings');
     for (const [k, id] of Object.entries(videoMap)) $(id).value = s.video[k];
     $('obsRecordDirectory').value = s.record?.recordDirectory || '';
-    $('obsRecordDirectorySave').disabled = !s.record;
+    for (const id of ['obsRecordDirectorySave', 'obsRecordDirectoryBrowse', 'obsRecordDirectoryOpen'])
+      $(id).disabled = !s.record;
+    void recordFolderInfo();
+    void recordSceneInfo();
     $('obsVideoFields').hidden = false;
     $('obsSettingsState').textContent = 'Connected to OBS. Changes apply to its current profile.';
   }
@@ -561,6 +890,42 @@
       await loadSettings();
       say('OBS video settings saved.');
     });
+  // Recordings folder: where OBS saves recordings and clips (record-folder.cjs checks it before OBS uses it).
+  async function recordFolderInfo() {
+    const info = $('obsRecordFolderInfo');
+    const r = await window.relayDesktop?.diskSpace?.().catch(() => null);
+    info.textContent = r?.ok
+      ? (r.data.freeBytes / 1073741824).toFixed(1) +
+        ' GB free on ' +
+        r.data.drive +
+        '. Applies to the next recording or clip; recordings already saved stay where they are.'
+      : 'Applies to the next recording or clip; recordings already saved stay where they are.';
+  }
+  async function recordFolderSaved(r) {
+    if (r?.canceled) return;
+    $('obsRecordDirectory').value = r.directory;
+    say('Recordings and clips will now be saved in ' + r.directory + '.');
+    note('Recordings folder: ' + r.directory);
+    await recordFolderInfo();
+  }
+  $('obsRecordDirectorySave').onclick = () =>
+    run(async () =>
+      recordFolderSaved(await call('record-directory', { directory: $('obsRecordDirectory').value }))
+    );
+  $('obsRecordDirectoryBrowse').onclick = () =>
+    run(async () => recordFolderSaved(await call('record-dir-browse')));
+  $('obsAutoRecord').checked = autoRecord.start;
+  $('obsAutoRecordStop').checked = autoRecord.stop;
+  $('obsAutoRecordStop').disabled = !autoRecord.start;
+  $('obsAutoRecord').onchange = () => {
+    autoRecord.start = $('obsAutoRecord').checked;
+    $('obsAutoRecordStop').disabled = !autoRecord.start;
+    saveAuto();
+  };
+  $('obsAutoRecordStop').onchange = () => {
+    autoRecord.stop = $('obsAutoRecordStop').checked;
+    saveAuto();
+  };
   // New file every N minutes (Settings → OBS): a crash or a full drive then loses at most one part.
   $('obsRecordSplit').value = String(splitMinutes);
   $('obsRecordSplit').onchange = () => {
@@ -592,11 +957,113 @@
       splitting = false;
     }
   }
-  $('obsRecordDirectorySave').onclick = () =>
-    run(async () => {
-      await call('record-directory', { directory: $('obsRecordDirectory').value });
-      say('OBS recording folder saved.');
-    });
+  $('obsRecordDirectoryOpen').onclick = () => run(async () => void (await call('record-dir-open')));
+  // Tools → Recordings folder (after Settings → OBS is open): bring the folder setting into view with the OBS
+  // settings freshly loaded.
+  window.openRecordingsFolderSettings = async () => {
+    // Read again each time: the folder may have been changed in OBS itself.
+    if (online) await settingsOnConnect();
+    if (!online)
+      $('obsSettingsState').textContent = 'Connect OBS to choose where recordings and clips are saved.';
+    setTimeout(() => {
+      $('obsRecordFolder').scrollIntoView({ block: 'center' });
+      $('obsRecordDirectoryBrowse').focus();
+    }, 50);
+  };
+  // Recording scene: which scene Source Record records, and whether the plugin is in OBS.
+  const saveRecScene = () => {
+    try {
+      localStorage.setItem(REC_KEY, JSON.stringify(recScene));
+    } catch {}
+  };
+  function fillRecordScenes() {
+    const names = (state?.scenes || []).map(x => x.sceneName);
+    const select = $('obsRecordSceneName');
+    const busy = !!state?.record?.outputActive;
+    select.disabled = $('obsRecordWhat').disabled = $('obsRecordAudio').disabled = busy;
+    $('obsRecordWhat').value = recScene.what;
+    $('obsRecordAudio').value = String(recScene.audio);
+    const sig = JSON.stringify([names, recScene.scene]);
+    if (sig === recScenesSig) return;
+    recScenesSig = sig;
+    const options = names.map(n => new Option(n, n));
+    if (recScene.scene && !names.includes(recScene.scene))
+      options.unshift(new Option(recScene.scene + ' (not in OBS now)', recScene.scene));
+    select.replaceChildren(
+      new Option(names.length ? 'Choose a scene…' : 'Connect OBS to list scenes', ''),
+      ...options
+    );
+    select.value = recScene.scene;
+  }
+  async function recordSceneInfo() {
+    fillRecordScenes();
+    const info = $('obsRecordSceneInfo'),
+      get = $('obsSourceRecordGet');
+    const scene = recScene.scene,
+      what = recScene.what;
+    let text = '',
+      bad = false,
+      r = null;
+    if (online)
+      try {
+        r = await call('scene-record-info');
+      } catch (e) {
+        text = 'Could not check Source Record: ' + e.message;
+        bad = true;
+      }
+    get.hidden = r?.installed === true;
+    if (!online) text = 'Connect OBS to set up a recording scene.';
+    else if (r?.installed === false) {
+      text =
+        'Source Record is not installed in OBS. Choose Get Source Record, download the installer for your OBS version, close OBS, run the installer, then start OBS again and choose Check again.';
+      bad = what !== 'program';
+    } else if (r) {
+      const plugin =
+        r.installed === true
+          ? 'Source Record is installed. '
+          : "This OBS can't tell UniversalCollab whether Source Record is installed (OBS 30.2 or newer can); Start Recording says so if it is missing. ";
+      if (what === 'program') text = plugin + 'Start Recording records what is on stream, as usual.';
+      else if (!scene) {
+        text = plugin + 'Choose the scene to record.';
+        bad = true;
+      } else
+        text =
+          plugin +
+          (r.active ? 'Recording "' + scene + '" now. ' : '') +
+          'Start Recording records "' +
+          scene +
+          '"' +
+          (what === 'both' ? ' and what is on stream, as two files,' : ' on its own,') +
+          ' in the recordings folder, ' +
+          (recScene.audio === 0
+            ? "with only the sound of the sources inside that scene (not OBS's Desktop Audio or Mic/Aux from Settings → Audio)."
+            : recScene.audio === 1
+              ? 'with the same sound as the stream (OBS audio Track 1).'
+              : 'with OBS audio Track ' +
+                recScene.audio +
+                ' (in OBS: Edit → Advanced Audio Properties chooses which sources are on each track).') +
+          ' The stream keeps sending the scene that is live.';
+    }
+    info.textContent = text;
+    info.classList.toggle('bad', bad);
+  }
+  $('obsRecordWhat').onchange = () => {
+    recScene.what = $('obsRecordWhat').value;
+    saveRecScene();
+    void recordSceneInfo();
+  };
+  $('obsRecordSceneName').onchange = () => {
+    recScene.scene = $('obsRecordSceneName').value;
+    saveRecScene();
+    void recordSceneInfo();
+  };
+  $('obsRecordAudio').onchange = () => {
+    recScene.audio = Number($('obsRecordAudio').value);
+    saveRecScene();
+    void recordSceneInfo();
+  };
+  $('obsRecordSceneCheck').onclick = () => run(recordSceneInfo);
+  $('obsSourceRecordGet').onclick = () => run(async () => void (await call('source-record-page')));
   $('obsPreviewEnabled').checked = pref.enabled;
   $('obsPreviewRate').value = String(pref.rate);
   $('obsPreviewWidth').value = String(pref.width);
@@ -860,6 +1327,170 @@
     stopLive(false);
     if (online) call('meters', { enabled: false }).catch(() => {});
   });
+  async function setupBundled() {
+    try {
+      bundled = await call('bundled-info');
+    } catch {
+      bundled = { available: false };
+    }
+    if (!bundled.available) return;
+    // Existing users who already paired their own OBS keep it until they switch.
+    if (!obsSource) {
+      obsSource = paired ? 'own' : 'bundled';
+      localStorage.setItem('uc-obs-source', obsSource);
+      if (obsSource === 'own')
+        say('This version includes OBS. Switch to it in Settings → OBS → OBS connection settings.');
+    }
+    const box = node('div');
+    box.id = 'bundledOBSBox';
+    box.className = 'bundled-obs';
+    const label = node('label', 'OBS to use');
+    const select = node('select');
+    select.id = 'obsSource';
+    for (const [v, t] of [
+      ['bundled', 'OBS included with UniversalCollab (recommended)'],
+      ['own', 'My own OBS installation']
+    ]) {
+      const o = node('option', t);
+      o.value = v;
+      select.append(o);
+    }
+    select.value = obsSource;
+    label.append(select);
+    const info = node('p');
+    info.id = 'bundledOBSStatus';
+    info.className = 'hint';
+    const start = btn('Start included OBS', async () => {
+      retryPaused = false;
+      say('Starting the included OBS…');
+      await connect(false, true);
+    });
+    start.id = 'bundledOBSStart';
+    const show = btn('Open OBS window', async () => {
+      const r = await call('bundled-show');
+      say(
+        r.shown
+          ? 'OBS window opened. When finished, choose Hide OBS window (or OBS tray icon → Hide); closing the OBS window closes OBS.'
+          : 'Open OBS from its icon in the system tray (near the clock): right-click → Show.'
+      );
+    });
+    show.id = 'bundledOBSShow';
+    const hide = btn('Hide OBS window', async () => {
+      const r = await call('bundled-hide');
+      say(
+        r.hidden
+          ? 'OBS window hidden; OBS keeps running in the system tray.'
+          : 'Hide OBS from its tray icon: right-click → Hide.'
+      );
+    });
+    hide.id = 'bundledOBSHide';
+    const stop = btn('Close included OBS', async () => {
+      retryPaused = true;
+      await call('bundled-stop');
+      connection(false);
+      say('Included OBS closed.');
+    });
+    stop.id = 'bundledOBSStop';
+    box.append(label, info, start, show, hide, stop);
+    const intro = $('automaticOBS').querySelector('p');
+    $('automaticOBS').insertBefore(box, intro);
+    const manual = [
+      intro,
+      $('obsPort').closest('label'),
+      $('obsPassword').closest('label'),
+      $('obsRemember').closest('label'),
+      $('obsConnect'),
+      $('obsReconnect')
+    ];
+    async function paintBundled() {
+      try {
+        bundled = { ...(await call('bundled-info')), available: true };
+      } catch {}
+      const on = useBundled();
+      for (const n of manual) if (n) n.hidden = on;
+      start.hidden = show.hidden = hide.hidden = stop.hidden = !on;
+      start.disabled = online && bundled.running;
+      show.disabled = hide.disabled = stop.disabled = !bundled.running;
+      info.hidden = !on;
+      info.textContent = bundled.running
+        ? 'The included OBS' +
+          (bundled.version ? ' ' + bundled.version : '') +
+          ' is running in the background (system tray). UniversalCollab starts it and closes it for you.'
+        : bundled.error ||
+          (bundled.closedByUser
+            ? 'The included OBS was closed. Start it again here.'
+            : 'The included OBS starts automatically with UniversalCollab.');
+    }
+    select.onchange = () =>
+      run(async () => {
+        obsSource = select.value;
+        localStorage.setItem('uc-obs-source', obsSource);
+        retryPaused = false;
+        if (online) {
+          await call('disconnect');
+          connection(false);
+        }
+        if (obsSource === 'own' && bundled.running) await call('bundled-stop');
+        await paintBundled();
+        if (useBundled()) await connect(false, true);
+        else say('Using your own OBS. Enable its WebSocket server and connect below.');
+      });
+    window.addEventListener('obs-connection', () => void paintBundled());
+    setInterval(() => {
+      if ($('obsPairWindow').open) void paintBundled();
+    }, 2000);
+    await paintBundled();
+  }
+  await setupBundled();
+  // Your own OBS (not the included one): optionally start it with UniversalCollab, minimized to the tray.
+  // Auto-reconnect then connects to it once its WebSocket server is up.
+  function setupOwnOBS() {
+    const box = node('div');
+    box.id = 'ownOBSBox';
+    box.className = 'own-obs';
+    const check = node('input');
+    check.type = 'checkbox';
+    check.id = 'ownOBSAutostart';
+    const label = node('label');
+    label.className = 'check-row';
+    label.append(check, ' Start my OBS with UniversalCollab, minimized to the tray');
+    const closeCheck = node('input');
+    closeCheck.type = 'checkbox';
+    closeCheck.id = 'ownOBSCloseOnQuit';
+    const closeLabel = node('label');
+    closeLabel.className = 'check-row';
+    closeLabel.append(closeCheck, ' Close my OBS when UniversalCollab closes');
+    const where = node('p');
+    where.className = 'hint';
+    where.id = 'ownOBSPath';
+    const find = btn('Choose OBS program…', async () => paint(await call('own-obs-browse')));
+    find.id = 'ownOBSBrowse';
+    box.append(label, closeLabel, where, find);
+    $('automaticOBS').insertBefore(box, $('obsFeedback'));
+    function paint(info) {
+      check.checked = !!info?.enabled;
+      closeCheck.checked = !!info?.closeOnQuit;
+      where.textContent = info?.found
+        ? 'OBS: ' + info.path + (info.chosen ? '' : ' (found automatically)')
+        : 'OBS was not found. Choose obs64.exe (usually in C:\\Program Files\\obs-studio\\bin\\64bit).';
+    }
+    check.onchange = () => run(async () => paint(await call('own-obs-set', { enabled: check.checked })));
+    closeCheck.onchange = () =>
+      run(async () => paint(await call('own-obs-set', { closeOnQuit: closeCheck.checked })));
+    const refresh = async () => {
+      box.hidden = useBundled();
+      if (!box.hidden) paint(await call('own-obs-info').catch(() => null));
+    };
+    setInterval(() => $('obsPairWindow').open && void refresh(), 2000);
+    void refresh();
+  }
+  setupOwnOBS();
+  if (!useBundled())
+    call('own-obs-autostart')
+      .then(r => {
+        if (r?.started) say('Starting your OBS in the system tray…');
+      })
+      .catch(e => say(e.message));
   $('obsAutoReconnect').checked = autoRetry;
   $('obsAutoReconnect').onchange = () => {
     autoRetry = $('obsAutoReconnect').checked;
@@ -867,16 +1498,80 @@
     localStorage.setItem('uc-ui7-obs-retry', String(autoRetry));
     connection(online);
   };
+  // OBS open but not accepting connections for 20 seconds: say why, from what OBS itself reports (obs-diagnose.cjs:
+  // Safe Mode, a question waiting, its connection failing to open, the wrong password or port, a crash or a plugin
+  // that failed to load), with Show OBS / Restart OBS for the included OBS. Checked again every 30 seconds.
+  const STUCK =
+    'OBS is open but not accepting connections. If OBS is asking whether to run in Safe Mode, choose Run Normally (open OBS from the system tray if you cannot see the question). If OBS is already in Safe Mode, close it and open it again normally.';
+  const stuckBox = node('div');
+  stuckBox.id = 'obsStuck';
+  stuckBox.className = 'obs-stuck';
+  stuckBox.setAttribute('role', 'alert');
+  stuckBox.hidden = true;
+  status.after(stuckBox);
+  let failedSince = 0,
+    stuckShown = false,
+    stuckText = '',
+    stuckAt = 0;
+  async function explainStuck() {
+    stuckAt = Date.now();
+    let d = await call('obs-diagnose', { bundled: useBundled() }).catch(() => null);
+    if (!d?.running) return false;
+    if (!d.text) d = { ...d, text: STUCK, actions: [] };
+    const text = node('p', d.text);
+    const row = node('div');
+    row.className = 'buttons';
+    if (d.actions?.includes('show'))
+      row.append(
+        btn('Show OBS', async () => {
+          if (!(await call('bundled-show'))?.shown)
+            say('OBS is in the system tray: right-click its icon → Show.');
+        })
+      );
+    if (d.actions?.includes('restart'))
+      row.append(
+        btn('Restart OBS', async () => {
+          say('Restarting the included OBS…');
+          await call('bundled-restart');
+          failedSince = Date.now();
+          stuckShown = false;
+          stuckText = '';
+          stuckBox.hidden = true;
+        })
+      );
+    if (d.facts) {
+      const copy = node('button', 'Copy details');
+      copy.type = 'button';
+      copy.onclick = () => navigator.clipboard?.writeText(JSON.stringify(d.facts, null, 2)).catch(() => {});
+      row.append(copy);
+    }
+    stuckBox.replaceChildren(text, row);
+    stuckBox.hidden = false;
+    if (d.text !== stuckText) {
+      stuckText = d.text;
+      say(d.text);
+      note(d.text);
+    }
+    return true;
+  }
   async function retry() {
     if (!bridge?.obs || online || retrying || working || !paired || !autoRetry || retryPaused) return;
     retrying = true;
     try {
-      await call('connect', { retry: true });
+      await call('connect', { retry: true, bundled: useBundled() });
       connection(true);
       say('OBS reconnected.');
+      failedSince = 0;
+      if (stuckShown && $('notice').textContent === stuckText) note('OBS connected.');
+      stuckShown = false;
+      stuckText = '';
+      stuckBox.hidden = true;
       await poll();
     } catch {
       connection(false);
+      failedSince ||= Date.now();
+      if (!stuckShown && Date.now() - failedSince > 20000) stuckShown = await explainStuck();
+      else if (stuckShown && Date.now() - stuckAt > 30000) await explainStuck();
     } finally {
       retrying = false;
     }

@@ -64,7 +64,7 @@ try {
         [...document.styleSheets].filter(s => !s.disabled).length
       ])
       .then(String),
-    '2,0'
+    '3,0'
   );
   assert.equal(await page.evaluate(() => localStorage.getItem('uc-theme')), 'blue');
   // Remembered: after a restart it is applied before the app's scripts run.

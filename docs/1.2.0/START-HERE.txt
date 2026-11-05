@@ -1,0 +1,70 @@
+UniversalCollab Private 1.2.0-preview.1 — Windows combined preview
+
+INSTALL
+Use UniversalCollab-Private-Setup.exe, or extract the entire Windows ZIP into a
+new folder and run StreamRelay.exe. Do not replace your old portable folder.
+The installer adds a separate UniversalCollab Private Start-menu shortcut and
+Windows Installed apps entry. Uninstall preserves saved accounts and preferences.
+
+FIRST RUN
+1. Exit the separate private UniversalStream Assist/Notify app, including its tray icon.
+2. Open UniversalCollab Private and choose Stream Assist in the navigation.
+3. Choose Start Assist, then Connect saved accounts. Use Manage accounts for sign-in.
+4. Try sample alerts and verify sound/pop-ups. Check combined chat and sending.
+5. Check Pulsoid, Streamer.bot/Lumia and Stream Deck before using event actions live.
+
+Assist runs as an included background component owned by UniversalCollab. You do
+not need a separate Assist installation running. After enabling it, future launches
+start it again; Connect saved accounts also enables reconnect on subsequent launches.
+Stop Assist stops chat, alerts and integrations, not the video relay.
+
+EXISTING SETTINGS
+Uses the existing Windows-protected private Notify settings folder on this same
+Windows account. No plaintext credential export or manual chat-link copying is needed.
+Settings changes also apply if you return to standalone private Assist later.
+Do not run the combined and standalone apps simultaneously. If the old app starts
+with Windows, disable that startup entry before adopting the combined version.
+Your existing UniversalCollab profile, layout and destination connections are reused.
+Broadcast account authorization and chat/alert authorization remain separate because
+they use different permissions and registrations. Manage Assist accounts in its tab.
+The existing UniversalCollab backup feature does not include the shared Notify store.
+
+RELAY SERVER UPDATE (needed for live video and layout sources on stream)
+Deploy the 1.2.0 relay source update to your relay server first (see
+UPDATE-1.2.0.txt in the relay source). Older relays still work: the layout
+editor keeps text, picture and browser sources on this computer until then.
+
+LIVE VIDEO IN THE LAYOUT PREVIEW
+While a relay broadcast runs, live relay video appears inside the Stream layout
+preview. Use Edit layout to return to editing. Source quality, muted. It now
+reconnects by itself if the stream ends or stalls, and stays near the live edge.
+
+STREAM LAYOUT (merged from rc.8, finished)
+Edit layouts offline; they save on this computer. When you next connect you are
+asked whether to apply the offline layout, use the relay's, or decide later.
+Add Text, Picture and Browser page sources (+ in Sources, or right-click).
+Text: font, size, colours, background, alignment, outline, shadow, wrapping.
+Pictures stay on this computer; only the rendered layout image goes to the relay.
+Browser pages render on this computer in an isolated, muted window; the stream
+shows a snapshot about once per second (not smooth animation). Four at most.
+Items snap to edges, centres and other items; hold Alt to place freely.
+Right-click for corner quarters, centre and a 2×2 split.
+
+FEATURES
+Integrated activity view, searchable recent alerts, docked alert summary, native
+alert/chat pop-outs, notifications, per-event preferences, emotes, combined chat
+and sending, OBS links, Pulsoid, Streamer.bot/Lumia, Stream Deck, collaboration tools.
+Detailed settings retain their native Windows dialogs in this first merged version.
+The full existing alert history/replay controls remain available in Pop out alerts.
+The workspace activity view shows the most recent 200 alerts.
+
+TEST STATUS
+See TESTING-1.2.0.md for what was and was not verified in 1.2.0.
+Compiled the bundled Windows component and checked JavaScript syntax (1.1.0).
+Tested component startup with isolated temporary settings, status/OBS link output,
+unknown-command rejection and shutdown. Tested interface navigation, account display,
+alert search and integration action dispatch using fixture data in a real browser.
+The sandbox cannot unlock your real Windows-protected settings, so live account
+connections, audio and complete desktop end-to-end behavior need your verification.
+No public beta, Linux, APK, receiver or relay deployment is included in this update.
+Nothing was deployed to your server.

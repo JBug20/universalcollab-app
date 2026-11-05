@@ -156,6 +156,8 @@
   pass.setAttribute('aria-label', 'Backup password');
   // Keep in step with the allowlist in backup.cjs.
   const workspaceKeys = [
+    'universalcollab-stream-profiles-v2',
+    'uc-collaboration-placement-v1',
     'uc-ui8-workspace',
     'uc-ui8-dock-sizes',
     'uc-ui8-panel-weights',

@@ -1,0 +1,66 @@
+#assistHub {
+  min-width: 320px;
+  padding: 10px 12px;
+}
+#assistHub > .dock-handle {
+  margin: -10px -12px 9px;
+}
+#assistHub > p {
+  margin: 6px 0;
+}
+#assistHub nav,
+.assist-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.assist-card {
+  padding: 16px;
+  background: #282035;
+  border: 1px solid #4a3a5e;
+  border-radius: 10px;
+  margin: 10px 0;
+}
+.assist-card p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.assist-account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+.assist-feed {
+  max-height: 380px;
+  overflow: auto;
+}
+.assist-muted {
+  color: #bfafce;
+}
+.assist-account-grid h3 {
+  margin: 0;
+}
+#assistHub input {
+  width: 100%;
+}
+#dockBottom > #assistHub {
+  flex: 2 1 0;
+}
+.studio-column > #assistHub {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+#assistHub > .dock-handle {
+  position: sticky;
+  top: -10px;
+  z-index: 5;
+}
+#assistHub .assist-feed {
+  max-height: none;
+}
+#assistHub button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

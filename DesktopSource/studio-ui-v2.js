@@ -312,6 +312,17 @@
       drawScenes();
     }
   }
+  // Stream Deck (remote-control.js): list relay scenes and switch by name, like clicking the scene button.
+  window.relayScenes = {
+    list: () =>
+      scenes.map(s => ({ name: s.name, selected: s.id === selectedScene, live: s.id === liveScene })),
+    switch: async name => {
+      const scene = scenes.find(s => s.name === name);
+      if (!scene) throw Error('There is no relay scene called "' + name + '".');
+      if (switching || busy) throw Error('A relay scene change is already in progress. Try again.');
+      await switchScene(scene.id);
+    }
+  };
   const sceneName = () => {
     const n = $('sceneName').value.trim();
     if (!n) throw Error('Enter a scene name.');
@@ -397,20 +408,10 @@
       button(window.streamCanvas.selected().locked ? 'Unlock item' : 'Lock item', () => {
         window.streamCanvas.toggleLock();
         context.hidden = true;
-      }),
-      ...['top-left', 'top-right', 'bottom-left', 'bottom-right'].map(c =>
-        button('Move to ' + c.replace('-', ' '), () => {
-          window.streamCanvas.placeCorner(c);
-          context.hidden = true;
-        })
-      ),
-      button('Make 2×2 split', () => {
-        window.streamCanvas.split();
-        context.hidden = true;
       })
     );
-    context.style.left = Math.max(0, Math.min(innerWidth - 180, e.detail.x)) + 'px';
-    context.style.top = Math.max(0, Math.min(innerHeight - 260, e.detail.y)) + 'px';
+    context.style.left = Math.max(0, Math.min(innerWidth - 160, e.detail.x)) + 'px';
+    context.style.top = Math.max(0, Math.min(innerHeight - 60, e.detail.y)) + 'px';
     context.hidden = false;
   });
   document.addEventListener('pointerdown', e => {
@@ -569,7 +570,7 @@
       dockLeft: ['chat'],
       dockCenter: ['layout'],
       dockRight: ['stream', 'obsSources'],
-      dockBottom: ['obsScenes', 'scenes', 'sources', 'obsMixer']
+      dockBottom: ['obsScenes', 'scenes', 'sources', 'obsMixer', 'assist']
     },
     hidden: ['obsSources'],
     width: 'balanced',

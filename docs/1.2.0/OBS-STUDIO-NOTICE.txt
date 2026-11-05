@@ -1,0 +1,8 @@
+This edition of UniversalCollab includes OBS Studio 32.2.2 (in the obs-studio folder),
+an unmodified copy of the official Windows release by the OBS Project.
+
+OBS Studio is free software licensed under the GNU General Public License, version 2 or later.
+Licence text: obs-studio/data/obs-studio/license/gplv2.txt
+Source code: https://github.com/obsproject/obs-studio/tree/32.2.2
+
+UniversalCollab starts and controls OBS Studio as a separate program through obs-websocket.

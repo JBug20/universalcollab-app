@@ -17,6 +17,12 @@ function target(url, key = '') {
       u.pathname = u.pathname.slice(0, at);
     }
     if (!/^[A-Za-z0-9_.-]{1,512}$/.test(key) || ['.', '..'].includes(key)) throw Error();
+    // Kick's dashboard and sign-in give its Amazon IVS server without the RTMP app; IVS needs
+    // rtmps://host:443/app (as OBS's Kick preset uses), otherwise it rejects the stream.
+    if (/(^|\.)live-video\.net$/i.test(u.hostname) && u.pathname.replace(/\//g, '') === '') {
+      u.pathname = '/app';
+      if (u.protocol === 'rtmps:' && !u.port) u.port = '443';
+    }
     return { url: u.href.replace(/\/$/, ''), key };
   } catch {
     throw new PlatformError('Enter a valid RTMP/RTMPS URL and stream key.');
@@ -60,6 +66,24 @@ class StudioService {
     return this.snapshot();
   }
   validate(input) {
+    for (const value of Object.values(input.resolutions || {}))
+      if (!['', '2560x1440', '1920x1080', '1600x900', '1280x720', '854x480', '640x360'].includes(value))
+        throw new PlatformError('Choose a supported output resolution.');
+    if (
+      input.qualities !== undefined &&
+      (typeof input.qualities !== 'object' || input.qualities === null || Array.isArray(input.qualities))
+    )
+      throw new PlatformError('Invalid destination quality.');
+    for (const q of Object.values(input.qualities || {})) {
+      if (!q || typeof q !== 'object') throw new PlatformError('Invalid destination quality.');
+      if (
+        q.bitrateKbps != null &&
+        (!Number.isInteger(q.bitrateKbps) || q.bitrateKbps < 500 || q.bitrateKbps > 20000)
+      )
+        throw new PlatformError('Destination bitrate must be 500–20000 kbps.');
+      if (q.fps != null && ![24, 25, 30, 48, 50, 60].includes(q.fps))
+        throw new PlatformError('Choose a supported destination frame rate.');
+    }
     safeText(input.title, 100);
     if (typeof input.description !== 'string' || input.description.length > 5000)
       throw new PlatformError('Description is too long.');
@@ -308,7 +332,12 @@ class StudioService {
       id: input.id,
       title: input.title,
       record: !!input.record,
-      destinations: input.selected.map(id => d.targets.find(t => t.id === id))
+      destinations: input.selected.map(id => ({
+        ...d.targets.find(t => t.id === id),
+        resolution: input.resolutions?.[id] || null,
+        bitrateKbps: input.qualities?.[id]?.bitrateKbps ?? null,
+        fps: input.qualities?.[id]?.fps ?? null
+      }))
     };
   }
   async update(input) {

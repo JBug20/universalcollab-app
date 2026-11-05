@@ -1,0 +1,124 @@
+// Show / hide the included OBS window (1.2.0): done like a click on OBS's tray icon (a message to Qt's tray window),
+// so OBS's own Show / Hide and minimise keep working; forcing the window from outside is only the fallback.
+const assert = require('node:assert/strict');
+const fs = require('node:fs'),
+  os = require('node:os'),
+  path = require('node:path');
+const {
+  windowScript,
+  BundledOBS,
+  geometryOnScreen,
+  repairGeometry,
+  prepare
+} = require('../DesktopSource/bundled-obs.cjs');
+// A Qt saveGeometry() blob (as OBS stores it, base64) for a window at left, top, right, bottom.
+function geometry(l, t, r, b) {
+  const buf = Buffer.alloc(66);
+  buf.writeUInt32BE(0x01d9d0cb, 0);
+  buf.writeUInt16BE(3, 4);
+  buf.writeUInt16BE(0, 6);
+  [l, t, r, b, l + 8, t + 31, r - 8, b - 8].forEach((v, i) => buf.writeInt32BE(v, 8 + i * 4));
+  return buf.toString('base64');
+}
+const screens = [
+  { x: 0, y: 0, width: 1920, height: 1080 },
+  { x: -1920, y: 0, width: 1920, height: 1080 }
+];
+assert.equal(geometryOnScreen(geometry(100, 100, 1380, 900), screens), true);
+assert.equal(geometryOnScreen(geometry(-1800, 50, -500, 900), screens), true, 'the left-hand screen');
+assert.equal(
+  geometryOnScreen(geometry(-32000, -32000, -31840, -31972), screens),
+  false,
+  'saved while minimised'
+);
+assert.equal(
+  geometryOnScreen(geometry(-32000, -32000, -31840, -31972), []),
+  false,
+  'even without screen info'
+);
+assert.equal(
+  geometryOnScreen(geometry(2000, 100, 3200, 900), screens),
+  false,
+  'on a screen that is not there now'
+);
+assert.equal(
+  geometryOnScreen(geometry(100, 1070, 1300, 1900), screens),
+  false,
+  'title bar below every screen'
+);
+assert.equal(geometryOnScreen('not a geometry', screens), true, 'not understood: left alone');
+// Removed from [BasicWindow] only when off-screen; everything else kept.
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uc-geom-'));
+try {
+  const ini = path.join(dir, 'user.ini');
+  const other = 'geometry=' + geometry(-32000, -32000, -31840, -31972);
+  fs.writeFileSync(
+    ini,
+    [
+      '[General]',
+      'FirstRun=true',
+      '[BasicWindow]',
+      'SysTrayEnabled=true',
+      other,
+      'DockState=abc',
+      '[Other]',
+      other
+    ].join('\r\n')
+  );
+  assert.equal(repairGeometry(ini, screens), true);
+  assert.deepEqual(fs.readFileSync(ini, 'utf8').split('\r\n'), [
+    '[General]',
+    'FirstRun=true',
+    '[BasicWindow]',
+    'SysTrayEnabled=true',
+    'DockState=abc',
+    '[Other]',
+    other
+  ]);
+  fs.writeFileSync(ini, '[BasicWindow]\r\ngeometry=' + geometry(100, 100, 1380, 900));
+  assert.equal(repairGeometry(ini, screens), false, 'a good position is kept');
+  // prepare() (each time the app starts the included OBS) does it for user.ini and global.ini.
+  const root = path.join(dir, 'obs');
+  const cfg = path.join(root, 'config', 'obs-studio');
+  fs.mkdirSync(cfg, { recursive: true });
+  fs.writeFileSync(path.join(cfg, 'user.ini'), '[BasicWindow]\r\n' + other);
+  prepare({ root }, { displays: screens });
+  assert.doesNotMatch(fs.readFileSync(path.join(cfg, 'user.ini'), 'utf8'), /geometry=/);
+} finally {
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+const show = windowScript(4321, 'show'),
+  hide = windowScript(4321, 'hide');
+for (const s of [show, hide]) {
+  assert.match(s, /\$p -eq 4321/, 'only this OBS');
+  assert.match(s, /QTrayIconMessageWindowClass/, "OBS's tray window");
+  assert.match(
+    s,
+    /PostMessage\(\$script:tray, 0x8065, \[IntPtr\]::Zero, \[IntPtr\]0x400\)/,
+    'WM_APP + 101, NIN_SELECT'
+  );
+  assert.match(
+    s,
+    /if \(\(Visible\) -ne \$wantShown\) \{ TrayClick \}/,
+    'a second click puts an out-of-step OBS right'
+  );
+}
+assert.match(show, /\$wantShown = \$true/);
+assert.match(hide, /\$wantShown = \$false/);
+// Already as wanted: nothing toggled (a shown window is only brought to the front).
+assert(show.indexOf('if ((Visible) -eq $wantShown) {') < show.indexOf('TrayClick\n'));
+assert.equal(
+  windowScript('1; Remove-Item C:\\', 'show').includes('Remove-Item'),
+  false,
+  'the process id is a number'
+);
+// Not running: a clear error.
+const b = new BundledOBS({ root: '/nonexistent' });
+assert
+  .rejects(b.hide(), /not running/)
+  .then(() =>
+    console.log(
+      "PASS OBS window: shown and hidden like OBS's tray icon, kept in step, brought on screen, off-screen position reset."
+    )
+  );

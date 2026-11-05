@@ -1,6 +1,10 @@
-// Clip button (1.2.0): OBS replay buffer start/save, the saved path and clear errors.
+// Clip button (1.2.0): OBS replay buffer start/save, the saved path, and the bundled OBS default.
 const assert = require('node:assert/strict'),
-  { OBSControls } = require('../DesktopSource/obs-controls.cjs');
+  fs = require('node:fs'),
+  os = require('node:os'),
+  path = require('node:path'),
+  { OBSControls } = require('../DesktopSource/obs-controls.cjs'),
+  { prepare } = require('../DesktopSource/bundled-obs.cjs');
 (async () => {
   const fake = ({ enabled = true, available } = {}) => {
     let active = false,
@@ -22,7 +26,15 @@ const assert = require('node:assert/strict'),
               'GetProfileParameter'
             ]
           };
-        if (t === 'GetReplayBufferStatus') return { outputActive: active };
+        if (t === 'GetReplayBufferStatus') {
+          // Real OBS: with the replay buffer switched off in the profile, it refuses even the status request.
+          if (!enabled)
+            throw Object.assign(Error('OBS rejected GetReplayBufferStatus.'), {
+              obsCode: 604,
+              obsComment: 'Replay buffer is not available.'
+            });
+          return { outputActive: active };
+        }
         if (t === 'StartReplayBuffer') {
           if (!enabled) throw Error('OutputDisabled');
           active = true;
@@ -64,13 +76,39 @@ const assert = require('node:assert/strict'),
 
   // Replay buffer turned off in OBS: a clear message on how to turn it on.
   ({ obs } = fake({ enabled: false }));
-  await assert.rejects(obs.handle('clip'), /Settings → Output → Replay Buffer/);
+  await assert.rejects(
+    obs.handle('clip'),
+    /switched off in this OBS profile.*Settings → Output → Replay Buffer/
+  );
+  assert.deepEqual(await obs.handle('replay-status'), { supported: true, enabled: false, active: false });
 
   // OBS without a replay buffer.
   ({ obs } = fake({ available: ['GetReplayBufferStatus'] }));
   assert.deepEqual(await obs.handle('replay-status'), { supported: false });
   await assert.rejects(obs.handle('clip'), /no replay buffer/);
-  console.log('PASS clip: replay buffer starts then saves, paths tracked, clear errors.');
+
+  // Bundled OBS: replay buffer on by default; a profile where it was turned off stays off.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'uc-clip-'));
+  try {
+    prepare({ root });
+    const first = fs.readFileSync(
+      path.join(root, 'config/obs-studio/basic/profiles/Untitled/basic.ini'),
+      'utf8'
+    );
+    assert.match(first, /\[SimpleOutput\][^[]*RecRB=true/);
+    assert.match(first, /\[AdvOut\][^[]*RecRBTime=60/);
+    const mine = path.join(root, 'config/obs-studio/basic/profiles/Mine/basic.ini');
+    fs.mkdirSync(path.dirname(mine), { recursive: true });
+    fs.writeFileSync(mine, '[SimpleOutput]\r\nRecRB=false\r\n');
+    prepare({ root });
+    assert.match(fs.readFileSync(mine, 'utf8'), /RecRB=false/);
+    assert.doesNotMatch(fs.readFileSync(mine, 'utf8'), /RecRB=true/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+  console.log(
+    'PASS clip: replay buffer starts then saves, paths tracked, clear errors, bundled OBS default.'
+  );
 })().catch(e => {
   console.error(e);
   process.exit(1);

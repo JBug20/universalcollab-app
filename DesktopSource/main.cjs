@@ -1,10 +1,44 @@
-const { app, BrowserWindow, ipcMain, clipboard, safeStorage, session, shell, dialog } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  clipboard,
+  safeStorage,
+  session,
+  shell,
+  dialog,
+  globalShortcut,
+  protocol
+} = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 // Preserve legacy credentials and Chromium localStorage during the rename.
 app.setPath('userData', path.join(app.getPath('appData'), 'Stream Relay'));
 app.setName('UniversalCollab');
+// Vertical clips (vertical-clips.cjs) read clips over a private address; it must be declared before the app is ready.
+require('./vertical-clips.cjs').registerScheme(protocol);
+// Automatic settings backups (settings-backup.cjs); a restore asked for last time is done now, before settings load.
+const settingsBackups = require('./settings-backup.cjs').create(app.getPath('userData'));
+let restoredBackup = null;
+if (!app.requestSingleInstanceLock()) {
+  app.exit(0);
+} else {
+  try {
+    restoredBackup = settingsBackups.applyPendingRestore();
+  } catch {}
+  app.on('second-instance', () => {
+    if (win && !win.isDestroyed()) {
+      win.restore();
+      win.show();
+      win.focus();
+    } else if (win) {
+      // Opened again while this copy is still closing (e.g. waiting for OBS to close): start again once it has.
+      relaunchAfterQuit = true;
+    }
+  });
+}
+let relaunchAfterQuit = false;
 const localProfiles = require('./local-profile.cjs').createLocalProfileStore(app.getPath('userData'));
 
 const servers = require('./server-store.cjs').createServerStore(
@@ -12,9 +46,15 @@ const servers = require('./server-store.cjs').createServerStore(
   safeStorage,
   process.platform
 );
+const relayOwner = require('./relay-owner.cjs'),
+  ownerLabel = relayOwner.label;
+let ownerKeys = null;
 const home = path.join(__dirname, 'portal.html');
 let win, platforms, studio;
 let obs,
+  bundledOBS = null,
+  ownOBS = null,
+  appUpdate = null,
   obsControls,
   obsPrevious,
   obsCredentials,
@@ -62,6 +102,7 @@ function getPlatforms() {
   return platforms;
 }
 app.whenReady().then(() => {
+  // Camera access is limited to the app's own top-level page, video only. It is used for the live OBS Virtual Camera preview.
   const appFrame = (wc, url, mainFrame) =>
     !!win &&
     !win.isDestroyed() &&
@@ -88,7 +129,7 @@ app.whenReady().then(() => {
     height: 920,
     minWidth: 460,
     minHeight: 640,
-    title: 'UniversalCollab',
+    title: 'UniversalCollab · ' + app.getVersion(),
     backgroundColor: '#101017',
     autoHideMenuBar: true,
     webPreferences: {
@@ -98,17 +139,27 @@ app.whenReady().then(() => {
       sandbox: true
     }
   });
+  require('./relay-video.cjs').start({ app, ipcMain, guard });
   require('./browser-sources.cjs').start({ app, ipcMain, guard, BrowserWindow, session, mainWindow: win });
   layoutMedia = require('./layout-media.cjs').start({ app, ipcMain, guard });
-  // Go-live announcements to Discord (announce.cjs / announce.js).
-  require('./announce.cjs').start({ app, ipcMain, guard, safeStorage });
-  // Appearance themes (theme.js): the app's own stylesheets, read-only, fixed names.
+  require('./assist-engine.cjs').start({ app, ipcMain, guard, getWindow: () => win });
+  require('./remote-control.cjs').start({
+    app,
+    ipcMain,
+    guard,
+    getWindow: () => win,
+    safeStorage,
+    clipboard
+  });
+  require('./collaboration-service.cjs').start({ app, ipcMain, guard, servers });
+  require('./local-storage.cjs').start({ app, ipcMain, guard, getOBS: () => obs });
+  // Appearance themes (theme.js): the app's three stylesheets, read-only.
   ipcMain.on('theme-styles', e => {
     try {
       guard(e);
       e.returnValue = {
         ok: true,
-        data: ['portal.css', 'studio-ui-v2.css'].map(name => ({
+        data: ['portal.css', 'studio-ui-v2.css', 'integrated-assist.css'].map(name => ({
           name,
           text: fs.readFileSync(path.join(__dirname, name), 'utf8')
         }))
@@ -117,6 +168,83 @@ app.whenReady().then(() => {
       e.returnValue = { ok: false };
     }
   });
+  require('./overlays.cjs').start({ app, ipcMain, guard, clipboard });
+  // Go-live announcements to Discord (announce.cjs / announce.js).
+  require('./announce.cjs').start({ app, ipcMain, guard, safeStorage });
+  // Vertical (9:16) copies of clips (vertical-clips.cjs / vertical-clip-ui.js).
+  require('./vertical-clips.cjs').start({
+    ipcMain,
+    guard,
+    BrowserWindow,
+    session,
+    isClip: file => !!obsControls?.clips?.includes(file),
+    getWindow: () => win,
+    logFile: path.join(app.getPath('userData'), 'vertical-clips.log'),
+    addClip: file => obsControls && (obsControls.clips = [file, ...(obsControls.clips || [])].slice(0, 50))
+  });
+  // Post-stream reports (stream-reports.cjs / stream-report.js): saved next to OBS's recordings.
+  require('./stream-reports.cjs').start({
+    app,
+    ipcMain,
+    guard,
+    shell,
+    recordingsFolder: async () =>
+      obs?.ready ? (await obsControls.handle('settings')).record?.recordDirectory || '' : ''
+  });
+  require('./hotkeys.cjs').start({ app, ipcMain, guard, getWindow: () => win, globalShortcut });
+  // App updates from GitHub Releases (app-update.cjs): checked shortly after start and every 6 hours when
+  // automatic checks are on, installed when the app closes or with Restart to update.
+  appUpdate = require('./app-update.cjs').create({
+    appDir: __dirname,
+    userData: app.getPath('userData'),
+    currentVersion: app.getVersion(),
+    electronVersion: process.versions.electron,
+    notify: state => {
+      if (win && !win.isDestroyed()) win.webContents.send('app-update-state', state);
+    }
+  });
+  ipcMain.handle('app-update', async (e, input = {}) => {
+    guard(e);
+    try {
+      if (input.op === 'status') return { ok: true, data: appUpdate.status() };
+      if (input.op === 'check') return { ok: true, data: await appUpdate.check() };
+      if (input.op === 'set-auto') return { ok: true, data: appUpdate.setAuto(input.auto) };
+      if (input.op === 'backups')
+        return {
+          ok: true,
+          data: {
+            restored: restoredBackup && { label: restoredBackup.label, at: restoredBackup.at },
+            backups: settingsBackups.list().map(({ id, label, at, bytes }) => ({ id, label, at, bytes }))
+          }
+        };
+      if (input.op === 'restore-backup') {
+        if (typeof input.id !== 'string') throw Error('Choose a backup.');
+        settingsBackups.requestRestore(input.id);
+        app.relaunch();
+        app.quit();
+        return { ok: true, data: null };
+      }
+      if (input.op === 'open-page') {
+        const page = appUpdate.status().latest?.page;
+        if (page) await shell.openExternal(page);
+        return { ok: true, data: appUpdate.status() };
+      }
+      if (input.op === 'restart') {
+        if (appUpdate.status().state !== 'ready') throw Error('No update is ready.');
+        app.relaunch();
+        app.quit();
+        return { ok: true, data: appUpdate.status() };
+      }
+      throw Error('Unknown request.');
+    } catch (err) {
+      return { ok: false, error: err.message || 'Update failed.' };
+    }
+  });
+  {
+    const auto = () => appUpdate.status().auto && void appUpdate.check();
+    setTimeout(auto, 20000);
+    setInterval(auto, 6 * 60 * 60 * 1000);
+  }
   // Recover from a crashed or frozen display process instead of leaving a blank window. Reasons are logged to userData/renderer-problems.log.
   {
     let crashes = 0,
@@ -129,9 +257,12 @@ app.whenReady().then(() => {
         );
       } catch {}
     };
+    // Closing always works, even with a crashed or frozen window (shutdown.cjs); it is never reloaded while closing.
+    const { closing } = require('./shutdown.cjs').closeGuard({ win, app, note });
     win.webContents.on('render-process-gone', (_e, d) => {
       note('gone ' + d.reason + ' ' + d.exitCode);
       if (d.reason === 'clean-exit' || win.isDestroyed()) return;
+      if (closing()) return win.destroy();
       if (++crashes > 3) {
         note('not reloading after 3 recoveries');
         return;
@@ -142,6 +273,7 @@ app.whenReady().then(() => {
     });
     win.on('unresponsive', () => {
       note('unresponsive');
+      if (closing()) return win.destroy();
       clearTimeout(hangTimer);
       hangTimer = setTimeout(() => {
         if (!win.isDestroyed()) {
@@ -162,17 +294,36 @@ app.whenReady().then(() => {
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', e => e.preventDefault());
   win.webContents.on('will-attach-webview', e => e.preventDefault());
+  ownerKeys = new relayOwner.OwnerKeys({ directory: app.getPath('userData'), safeStorage });
+  // Installs the relay release bundled with this app on the selected relay (owner only, signed).
+  ipcMain.handle('relay-update', async (e, input = {}) => {
+    guard(e);
+    try {
+      const release = relayOwner.bundledRelease(__dirname);
+      if (input.op === 'bundled')
+        return { ok: true, data: release ? { version: release.version, build: release.build } : null };
+      if (input.op !== 'install') throw Error();
+      if (!release) return { ok: false, error: 'This app does not include a relay update.' };
+      return await relayOwner.installRelease(ownerKeys, {
+        appDir: __dirname,
+        origin: parseAddress(input.address),
+        token: input.token
+      });
+    } catch {
+      return { ok: false, error: 'Could not reach the relay to update it.' };
+    }
+  });
   ipcMain.handle('relay-request', async (e, input) => {
     guard(e);
     try {
       const origin = parseAddress(input.address);
       if (
-        !/^\/api\/(v3\/(info|register|view|secrets|destination|settings|request|respond|collab-warning|collab-request|collab-respond|display-name|chat-frame|media-frame|production|production-clear|output-control|recordings|recording-delete|invites|invite|invite-revoke|host-claim|host-view|host-settings|host-member|host-action|host-rotate|health)|end|allow|pip-on|pip-off|collab-on|collab-off|force-fallback|restore-primary)$/.test(
+        !/^\/api\/(v3\/(info|register|view|secrets|destination|settings|request|respond|collab-warning|collab-request|collab-respond|display-name|chat-frame|media-frame|production|production-clear|output-control|recordings|recording-delete|invites|invite|invite-revoke|host-claim|host-claim-device|host-device|host-view|host-settings|host-member|host-action|host-rotate|health)|end|allow|pip-on|pip-off|collab-on|collab-off|force-fallback|restore-primary)$/.test(
           input.route
         )
       )
         throw Error();
-      const body = input.body === undefined ? undefined : JSON.stringify(input.body);
+      let body = input.body === undefined ? undefined : JSON.stringify(input.body);
       if (
         body &&
         body.length >
@@ -186,12 +337,24 @@ app.whenReady().then(() => {
       )
         throw Error();
       if (input.token && !/^[A-Za-z0-9_-]{1,32}:[A-Za-z0-9_-]{24,64}$/.test(input.token)) throw Error();
+      // Owner requests are signed with this PC's owner key for the relay (see relay-owner.cjs).
+      const prepared = relayOwner.prepareOwnerRequest(ownerKeys, {
+        origin,
+        route: input.route,
+        token: input.token,
+        body,
+        input: input.body
+      });
+      if (prepared.error) return { ok: false, error: prepared.error };
+      body = prepared.body;
+      const ownerHeaders = prepared.headers;
       const response = await fetch(origin + input.route, {
         method: body === undefined ? 'GET' : 'POST',
         headers: {
           Origin: origin,
           ...(input.token ? { Authorization: 'Bearer ' + input.token } : {}),
-          ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+          ...ownerHeaders
         },
         body,
         redirect: 'error',
@@ -214,7 +377,19 @@ app.whenReady().then(() => {
       // Never display arbitrary server strings: they could contain a secret or address.
       if (!response.ok) {
         const reasons = {
-          HOST_HTTPS: 'Host administration requires an HTTPS control address.',
+          HOST_HTTPS:
+            'Owner tools need this PC to hold the relay owner key (relay 1.2.0 or newer, claimed from this PC) or an HTTPS relay address.',
+          CLAIM_CODE_NEEDED:
+            'Only the first account created on this relay can claim it with one click. Enter the setup code from data/host-setup-code.txt instead.',
+          CLAIM_CODE_WRONG: 'That setup code is not correct.',
+          CLAIMED: 'This relay already has an owner.',
+          OWNER_CLOCK: 'Your PC clock is more than 5 minutes off. Correct the time and try again.',
+          OWNER_SIGNATURE: 'The relay did not accept this PC as its owner.',
+          UPDATE_BUSY: 'A relay update is already running.',
+          UPDATE_LIVE: 'End all broadcasts on this relay before updating it.',
+          UPDATE_UNSUPPORTED:
+            'This relay cannot update itself yet. Upload the update files to the server once.',
+          UPDATE_REJECTED: 'The relay rejected the update files and kept its current version.',
           HOST_ONLY: 'Sign in with the relay owner account.',
           MEMBER_LIMIT: 'All host-configured member slots are occupied.',
           GUEST_LIMIT: 'Guest slots are reserved or full.'
@@ -263,6 +438,69 @@ app.whenReady().then(() => {
           fs.renameSync(file + '.tmp', file);
         };
         if (op === 'state') return { ok: true, data: { connected: obs.ready } };
+        // "With OBS" builds: the included copy of OBS (see bundled-obs.cjs).
+        // The screens now, so an off-screen OBS window position is reset before OBS starts (bundled-obs.cjs).
+        bundledOBS ||= new (require('./bundled-obs.cjs').BundledOBS)({
+          displays: () =>
+            require('electron')
+              .screen.getAllDisplays()
+              .map(d => d.bounds)
+        });
+        if (op === 'bundled-info') return { ok: true, data: bundledOBS.info() };
+        // The user's own OBS: optional start with UniversalCollab, minimized to the tray (own-obs.cjs).
+        // Is OBS open (the included one, or any OBS on this PC)? Used to explain a connection that keeps failing.
+        if (op === 'obs-process')
+          return {
+            ok: true,
+            data: {
+              running: input.bundled ? !!bundledOBS?.running : await require('./own-obs.cjs').running()
+            }
+          };
+        // OBS open but not accepting connections: why, from OBS's log, its windows and the connection error
+        // (obs-diagnose.cjs).
+        if (op === 'obs-diagnose') {
+          const bundled = !!input.bundled;
+          const isRunning = bundled ? !!bundledOBS?.running : await require('./own-obs.cjs').running();
+          if (!isRunning) return { ok: true, data: { running: false } };
+          const data = await require('./obs-diagnose.cjs').diagnose({
+            bundledRoot: bundled ? bundledOBS.found?.root || '' : '',
+            pid: bundled ? bundledOBS.child?.pid || 0 : 0,
+            failure: obs?.lastFailure || '',
+            expectedPort: bundled ? bundledOBS.credentials?.port || 0 : read().credentials?.port || 0
+          });
+          return { ok: true, data: { running: true, ...data } };
+        }
+        // Restart OBS (the included one): close it (forcefully if it does not answer); reconnecting starts it again.
+        if (op === 'bundled-restart') {
+          obs.close();
+          await bundledOBS.stop();
+          bundledOBS.closedByUser = false;
+          return { ok: true, data: bundledOBS.info() };
+        }
+        if (op.startsWith('own-obs-')) {
+          ownOBS ||= require('./own-obs.cjs').create({ app, dialog, getWindow: () => win });
+          const data = await ownOBS.handle(op, input);
+          if (data) return { ok: true, data };
+        }
+        if (op === 'bundled-show') return { ok: true, data: { shown: await bundledOBS.show() } };
+        if (op === 'bundled-hide') return { ok: true, data: { hidden: await bundledOBS.hide() } };
+        if (op === 'bundled-stop') {
+          obs.close();
+          await bundledOBS.stop();
+          return { ok: true, data: bundledOBS.info() };
+        }
+        if (op === 'connect' && input.bundled === true && bundledOBS.available) {
+          // Retries do not reopen OBS after the user closed it; Connect and Start do.
+          if (input.retry && bundledOBS.closedByUser && !bundledOBS.running)
+            throw Error('The included OBS was closed. Start it again from Settings → OBS.');
+          const creds = await bundledOBS.start();
+          obsCredentials = creds;
+          await obs.connect(creds);
+          obsControls.available = null;
+          const data = await obsControls.init();
+          await firstRunScene().catch(() => {});
+          return { ok: true, data: { ...data, bundled: true } };
+        }
         if (op === 'connect') {
           const creds = input.discover
             ? obsCredentials ||
@@ -282,6 +520,7 @@ app.whenReady().then(() => {
           return { ok: true, data };
         }
         if (op === 'disconnect') {
+          if (bundledOBS?.available && obsCredentials === bundledOBS.credentials) obsCredentials = null;
           obs.close();
           return { ok: true, data: { connected: false } };
         }
@@ -300,6 +539,53 @@ app.whenReady().then(() => {
           if (!fs.existsSync(file)) return { ok: true, data: { shown: false, path: file } };
           shell.showItemInFolder(file);
           return { ok: true, data: { shown: true, path: file } };
+        }
+        // Recordings folder (record-folder.cjs): checked on this PC before OBS is told to use it.
+        if (op === 'record-directory' || op === 'record-dir-browse') {
+          let directory = input.directory;
+          if (op === 'record-dir-browse') {
+            const current =
+              (await obsControls.handle('settings')).record?.recordDirectory || app.getPath('videos');
+            const r = await dialog.showOpenDialog(win, {
+              title: 'Choose where recordings and clips are saved',
+              defaultPath: current,
+              properties: ['openDirectory', 'createDirectory', 'promptToCreate']
+            });
+            if (r.canceled || !r.filePaths[0]) return { ok: true, data: { canceled: true } };
+            directory = r.filePaths[0];
+          }
+          directory = require('./record-folder.cjs').check(directory);
+          await obsControls.handle('record-directory', { directory });
+          return { ok: true, data: { directory } };
+        }
+        // New image or media source (obs-sources.cjs): the file is chosen in the Windows file picker.
+        if (op === 'source-pick-file') {
+          const t = require('./obs-sources.cjs').TYPES[input.type];
+          if (!t?.file) throw Error('That kind of source has no file.');
+          const r = await dialog.showOpenDialog(win, {
+            title: 'Choose the ' + t.label.toLowerCase(),
+            properties: ['openFile'],
+            filters: [{ name: t.label, extensions: t.file }]
+          });
+          return { ok: true, data: r.canceled ? { canceled: true } : { file: r.filePaths[0] } };
+        }
+        // Pre-stream readiness: read-only.
+        if (op === 'readiness') {
+          const data = await obsControls.handle('readiness', input);
+          const dir = (await obsControls.handle('settings').catch(() => null))?.record?.recordDirectory;
+          return { ok: true, data: { ...data, recordFolder: require('./record-folder.cjs').status(dir) } };
+        }
+        // Settings → OBS → Recording scene → Get Source Record: the plugin's page on obsproject.com.
+        if (op === 'source-record-page') {
+          await shell.openExternal(require('./obs-controls.cjs').SOURCE_RECORD_PAGE);
+          return { ok: true, data: {} };
+        }
+        if (op === 'record-dir-open') {
+          const dir = (await obsControls.handle('settings')).record?.recordDirectory;
+          if (!dir || !fs.existsSync(dir)) throw Error('The recordings folder does not exist yet.');
+          const failed = await shell.openPath(dir);
+          if (failed) throw Error(failed);
+          return { ok: true, data: { directory: dir } };
         }
         if (!['configure', 'start'].includes(op))
           return { ok: true, data: await obsControls.handle(op, input) };
@@ -417,7 +703,9 @@ app.whenReady().then(() => {
     if (studioBusy || backupBusy)
       return { ok: false, error: 'Wait for the current preparation or backup to finish.' };
     backupBusy = true;
-    const backup = require('./backup.cjs');
+    const backup = require('./backup.cjs'),
+      reminders = require('./reminder-backup.cjs'),
+      reminderDirectory = path.join(app.getPath('userData'), 'collaboration-reminders');
     try {
       if (op === 'export') {
         const chosen = await dialog.showSaveDialog(win, {
@@ -440,6 +728,7 @@ app.whenReady().then(() => {
           servers: servers.load(),
           platforms: getPlatforms().db,
           workspace: workspaceValue,
+          reminders: reminders.read(reminderDirectory),
           layoutMedia: pictures.media
         };
         const encrypted = backup.seal(payload, input.password);
@@ -485,6 +774,7 @@ app.whenReady().then(() => {
         require('./server-store.cjs').validate(v.servers);
         backup.validatePlatforms(v.platforms);
         const workspace = backup.workspace(v.workspace);
+        if (v.reminders !== undefined) reminders.validate(v.reminders);
         const pictures = layoutMedia ? layoutMedia.validate(v.layoutMedia) : {};
         const result = await dialog.showMessageBox(win, {
           type: 'question',
@@ -497,11 +787,17 @@ app.whenReady().then(() => {
         });
         if (result.response !== 1) return { ok: true, data: { cancelled: true } };
         const vault = createVault(app.getPath('userData'), safeStorage),
-          old = { servers: servers.load(), local: localProfiles.load(), platforms: getPlatforms().db };
+          old = {
+            servers: servers.load(),
+            local: localProfiles.load(),
+            platforms: getPlatforms().db,
+            reminders: reminders.read(reminderDirectory)
+          };
         try {
           servers.save(v.servers);
           localProfiles.save(v.local);
           vault.save(v.platforms);
+          if (v.reminders !== undefined) reminders.write(reminderDirectory, v.reminders);
           try {
             layoutMedia?.write(pictures);
           } catch {}
@@ -510,6 +806,7 @@ app.whenReady().then(() => {
             servers.save(old.servers);
             if (old.local) localProfiles.save(old.local);
             vault.save(old.platforms);
+            reminders.write(reminderDirectory, old.reminders);
           } catch {}
           throw Error('Restore failed. Existing settings were kept where possible; unlock your keyring.');
         }
@@ -561,6 +858,26 @@ app.whenReady().then(() => {
         if (JSON.stringify(input).length > 32768) throw new PlatformError('Request too large.');
         studio ??= new StudioService(getPlatforms());
         if (op === 'state') return { ok: true, data: studio.snapshot() };
+        if (op === 'kick-connect') {
+          let details;
+          try {
+            details = await require('./kick-connect.cjs').connectKick(url => shell.openExternal(url));
+          } catch (e) {
+            throw new PlatformError(e.message);
+          }
+          const data = studio.custom({
+            id: 'kick-oauth',
+            name: 'Kick · ' + details.name,
+            url: details.url,
+            key: details.key
+          });
+          if (win && !win.isDestroyed()) {
+            win.restore();
+            win.show();
+            win.focus();
+          }
+          return { ok: true, data };
+        }
         if (op === 'custom') return { ok: true, data: studio.custom(input) };
         if (op === 'remove-custom') return { ok: true, data: studio.remove(input.id) };
         if (op === 'open-tool') {
@@ -598,6 +915,23 @@ app.whenReady().then(() => {
         if (op === 'prepare') {
           studioBusy = true;
           const view = await request('/api/v3/view');
+          const chosen = (input.draft.selected || []).map(id => ({
+            r: input.draft.resolutions?.[id] || '',
+            q: input.draft.qualities?.[id] || {}
+          }));
+          if (chosen.some(x => x.r) && !view.capabilities?.destinationResolution)
+            throw new PlatformError(
+              'Update the relay to support per-destination resolution before preparing this stream.'
+            );
+          if (
+            chosen.some(
+              x => x.q.bitrateKbps || x.q.fps || ['2560x1440', '1600x900', '640x360'].includes(x.r)
+            ) &&
+            !(view.capabilities?.destinationQuality >= 2)
+          )
+            throw new PlatformError(
+              'Update the relay to 1.2.0 to use per-destination bitrate, frame rate, 1440p, 900p or 360p.'
+            );
           if (view.capabilities?.verifiedProduction !== 2)
             throw new PlatformError('Update your relay server to 0.7.1 first.');
           if (view.status.broadcast || ['starting', 'ending', 'held'].includes(view.status.state))
@@ -619,6 +953,16 @@ app.whenReady().then(() => {
           await request('/api/v3/production', production);
           report({ message: 'Verifying the server saved your destinations…' });
           const confirmed = (await request('/api/v3/view')).me?.production;
+          if (
+            confirmed &&
+            JSON.stringify(
+              confirmed.destinations.map(d => [d.resolution || null, d.bitrateKbps ?? null, d.fps ?? null])
+            ) !==
+              JSON.stringify(
+                production.destinations.map(d => [d.resolution || null, d.bitrateKbps ?? null, d.fps ?? null])
+              )
+          )
+            throw new PlatformError('Relay resolution settings could not be confirmed. Do not start OBS.');
           if (
             !confirmed ||
             confirmed.id !== production.id ||
@@ -691,9 +1035,102 @@ app.whenReady().then(() => {
   });
   win.loadFile(home);
 });
-let quitAfterCamera = false;
+// First start of the included OBS: add a Display Capture to the empty default scene so the
+// stream shows something straight away. Runs once (marker file in the OBS config folder).
+async function firstRunScene() {
+  const marker = path.join(bundledOBS.found.root, 'config', 'obs-studio', 'universalcollab-setup.json');
+  if (fs.existsSync(marker)) return;
+  const { currentProgramSceneName: sceneName } = await obs.request('GetCurrentProgramScene');
+  const { sceneItems } = await obs.request('GetSceneItemList', { sceneName });
+  if (!sceneItems.length) {
+    const kind = process.platform === 'win32' ? 'monitor_capture' : 'xshm_input';
+    await obs.request('CreateInput', {
+      sceneName,
+      inputName: 'Display Capture',
+      inputKind: kind,
+      inputSettings: {}
+    });
+  }
+  fs.writeFileSync(marker, JSON.stringify({ setup: new Date().toISOString() }));
+}
+let quitAfterCamera = false,
+  quitAfterOBS = false;
+// Quitting never hangs: once the app is closing OBS (or OBS is not answering), it exits within 20 seconds whatever
+// happens (shutdown.cjs). A downloaded update is still installed, and the app reopens when that was asked for.
+const forceQuitSoon = require('./shutdown.cjs').forceQuit({
+  app,
+  note: text => {
+    try {
+      fs.appendFileSync(
+        path.join(app.getPath('userData'), 'renderer-problems.log'),
+        new Date().toISOString() + ' ' + text + '\n'
+      );
+    } catch {}
+  },
+  before: () => {
+    try {
+      appUpdate?.apply();
+    } catch {}
+    if (relaunchAfterQuit) app.relaunch();
+  }
+});
 app.on('before-quit', e => {
-  // Switch off the OBS Virtual Camera if this app started it, so it is not left running after quitting.
+  // Close OBS with the app: the included OBS always, your own OBS when "Close my OBS when UniversalCollab
+  // closes" is on (own-obs.cjs). Stop its stream and recording first so files are finished.
+  let closeOwn = false;
+  try {
+    closeOwn =
+      !bundledOBS?.running &&
+      (ownOBS ||= require('./own-obs.cjs').create({ app, dialog, getWindow: () => win })).closeOnQuit;
+  } catch {}
+  if (!quitAfterOBS && (bundledOBS?.running || closeOwn)) {
+    quitAfterOBS = true;
+    e.preventDefault();
+    (async () => {
+      let busy = false;
+      // OBS crashed or frozen: asking it can take a while; the question to the user is not timed.
+      const asked = setTimeout(forceQuitSoon, 12000);
+      if (obs?.ready)
+        try {
+          const [st, rec] = await Promise.all([
+            obs.request('GetStreamStatus'),
+            obs.request('GetRecordStatus')
+          ]);
+          busy = !!(st.outputActive || rec.outputActive || obsControls?.sceneRec);
+        } catch {}
+      clearTimeout(asked);
+      if (busy) {
+        const { response } = await dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
+          type: 'question',
+          // No Cancel: the window may already be closed when the app quits.
+          buttons: ['Stop and quit', 'Keep OBS running'],
+          defaultId: 0,
+          cancelId: 1,
+          title: 'UniversalCollab',
+          message: 'OBS is still streaming or recording.',
+          detail:
+            'Stop and quit ends the stream and recording and closes OBS. Keep OBS running leaves it going in the system tray; the app reconnects to it next time.'
+        });
+        if (response === 1) return app.quit();
+        forceQuitSoon();
+        await Promise.race([
+          Promise.all([
+            obs.request('StopStream').catch(() => {}),
+            obs.request('StopRecord').catch(() => {}),
+            // The recording scene (Source Record), so its file is finished too.
+            obsControls?.sceneStop(obsControls.sceneRec?.scene).catch(() => {})
+          ]),
+          new Promise(r => setTimeout(r, 3000))
+        ]);
+      }
+      forceQuitSoon();
+      obs?.close();
+      if (bundledOBS?.running) await bundledOBS.stop();
+      else await ownOBS.close();
+      app.quit();
+    })().catch(() => app.quit());
+    return;
+  }
   if (!quitAfterCamera && obsControls?.ownVirtualCam && obs?.ready) {
     quitAfterCamera = true;
     e.preventDefault();
@@ -705,5 +1142,32 @@ app.on('before-quit', e => {
   }
   obs?.close();
   platforms?.dispose();
+});
+// Install a downloaded app update once everything else has closed.
+app.on('will-quit', () => {
+  if (relaunchAfterQuit) app.relaunch();
+  try {
+    // Back up the settings first (settings-backup.cjs), so they can be restored if the new version has a problem.
+    const pendingUpdate = appUpdate?.status();
+    if (pendingUpdate?.state === 'ready') {
+      try {
+        session.defaultSession.flushStorageData();
+      } catch {}
+      try {
+        settingsBackups.snapshot('Before updating to ' + pendingUpdate.latest.version, {
+          from: app.getVersion(),
+          to: pendingUpdate.latest.version
+        });
+      } catch {}
+    }
+    appUpdate?.apply();
+  } catch (e) {
+    try {
+      fs.appendFileSync(
+        path.join(app.getPath('userData'), 'app-update.log'),
+        new Date().toISOString() + ' ' + e.message + '\n'
+      );
+    } catch {}
+  }
 });
 app.on('window-all-closed', () => app.quit());

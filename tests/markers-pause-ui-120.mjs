@@ -1,5 +1,5 @@
 // Stream markers and pause / split (1.2.0), window: Mark appears while live or recording and adds a Twitch marker,
-// a recording chapter and a list entry with times; Pause / Resume
+// a recording chapter and a list entry with times; the shortcut / Stream Deck action does the same; Pause / Resume
 // shows while recording; "new file every" splits once the recording reaches the time, and stops trying if OBS
 // cannot.
 import assert from 'node:assert/strict';
@@ -11,7 +11,9 @@ try {
     window.live = false;
     document.getElementById('serverConnect').click();
   });
-  await page.waitForFunction(() => connected && window.obsConnected && window.streamMarkers);
+  await page.waitForFunction(
+    () => connected && window.obsConnected && window.streamMarkers && window.streamControls
+  );
   await page.waitForFunction(() => document.getElementById('streamMark'));
   await page.waitForTimeout(1200);
   assert.equal(await page.locator('#streamMark').isHidden(), true, 'nothing to mark yet');
@@ -40,7 +42,7 @@ try {
     window.recordMs = 3725000;
   });
   await page.waitForFunction(() => window.obsOutputs?.record?.outputActive);
-  const r = await page.evaluate(() => window.streamMarkers.add());
+  const r = await page.evaluate(() => window.runControlAction('marker', {}));
   assert.match(
     r,
     /^Marker 2 at stream 0:\d\d, recording 1:02:0\d \(added to Twitch and recording chapter\)\.$/
@@ -66,13 +68,11 @@ try {
   await page.locator('#obsRecordPause').click();
   await page.waitForFunction(() => document.getElementById('obsRecordPause').textContent === 'Resume');
   assert.equal(await page.locator('#obsRecordPause').getAttribute('aria-pressed'), 'true');
-  await page.locator('#obsRecordPause').click();
+  assert.equal(await page.evaluate(() => window.runControlAction('record-pause', {})), 'Recording resumed.');
   await page.waitForFunction(() => document.getElementById('obsRecordPause').textContent === 'Pause');
 
   // New file every 30 minutes: the 62-minute recording is split once, not again until 30 minutes later.
   await page.evaluate(() => window.workspaceUI.openSettings('obs'));
-  await page.evaluate(() => document.getElementById('obsSettingsLoad').click());
-  await page.locator('#obsRecordSplit').waitFor({ state: 'visible' });
   await page.locator('#obsRecordSplit').selectOption('30');
   assert.equal(await page.evaluate(() => localStorage.getItem('uc-record-split')), '30');
   await page.waitForFunction(() => window.splits === 1, null, { timeout: 15000 });

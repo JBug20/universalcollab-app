@@ -2,3 +2,4 @@ DesktopSource/vendor/
 docs/
 build/
 node_modules/
+streamdeck/stream.universalcollab.app.sdPlugin/bin/ws/

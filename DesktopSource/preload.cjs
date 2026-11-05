@@ -1,14 +1,53 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('relayDesktop', {
+  relayVideo: input => ipcRenderer.invoke('relay-video', input),
   layoutMedia: input => ipcRenderer.invoke('layout-media', input),
   browserSource: input => ipcRenderer.invoke('browser-source', input),
-  // Go-live announcements (announce.cjs / announce.js).
-  announce: input => ipcRenderer.invoke('announce', input),
+  assist: input => ipcRenderer.invoke('integrated-assist', input),
+  // Stream Deck control (remote-control.cjs / remote-control.js).
+  remote: input => ipcRenderer.invoke('remote-control', input),
+  onRemoteCommand: callback => {
+    const fn = (_event, data) => callback(data);
+    ipcRenderer.on('remote-command', fn);
+    return () => ipcRenderer.removeListener('remote-command', fn);
+  },
+  remoteReply: result => ipcRenderer.send('remote-result', result),
+  remoteState: state => ipcRenderer.send('remote-state', state),
   // Appearance themes (theme.js): the text of the app's own stylesheets, once, before the first paint.
   themeStyles: () => {
     const r = ipcRenderer.sendSync('theme-styles');
     return r?.ok ? r.data : null;
   },
+  // End credits and alerts overlays for OBS (overlays.cjs / end-credits.js).
+  overlays: input => ipcRenderer.invoke('overlays', input),
+  // Vertical copies of clips (vertical-clips.cjs / vertical-clip-ui.js).
+  verticalClip: input => ipcRenderer.invoke('vertical-clip', input),
+  onVerticalClip: callback => {
+    const fn = (_event, data) => callback(data);
+    ipcRenderer.on('vertical-clip', fn);
+    return () => ipcRenderer.removeListener('vertical-clip', fn);
+  },
+  // Post-stream reports (stream-reports.cjs / stream-report.js).
+  streamReports: input => ipcRenderer.invoke('stream-reports', input),
+  // Go-live announcements (announce.cjs / announce.js).
+  announce: input => ipcRenderer.invoke('announce', input),
+  // Keyboard shortcuts (hotkeys.cjs / keyboard-shortcuts.js).
+  hotkeys: input => ipcRenderer.invoke('hotkeys', input),
+  onHotkey: callback => {
+    const fn = (_event, data) => callback(data);
+    ipcRenderer.on('hotkey', fn);
+    return () => ipcRenderer.removeListener('hotkey', fn);
+  },
+  // Free space on this PC's recording drive (local-storage.cjs).
+  diskSpace: () => ipcRenderer.invoke('local-storage'),
+  // App updates (app-update.cjs / app-update.js).
+  appUpdate: input => ipcRenderer.invoke('app-update', input),
+  onAppUpdate: callback => {
+    const fn = (_event, data) => callback(data);
+    ipcRenderer.on('app-update-state', fn);
+    return () => ipcRenderer.removeListener('app-update-state', fn);
+  },
+  collaboration: input => ipcRenderer.invoke('notify-collaboration', input),
   maintenance: async op => {
     const r = await ipcRenderer.invoke('app-maintenance', op);
     if (!r.ok) throw Error(r.error);
@@ -55,6 +94,11 @@ contextBridge.exposeInMainWorld('relayDesktop', {
   saveServers: v => ipcRenderer.invoke('servers-save', v),
   request: async input => {
     const r = await ipcRenderer.invoke('relay-request', input);
+    if (!r.ok) throw Error(r.error);
+    return r.data;
+  },
+  relayUpdate: async input => {
+    const r = await ipcRenderer.invoke('relay-update', input);
     if (!r.ok) throw Error(r.error);
     return r.data;
   },

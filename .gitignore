@@ -9,3 +9,6 @@ private-build-keys/
 # Owner-only OAuth config overrides; the committed release-oauth.json must keep blank IDs
 release-oauth.local.json
 node_modules
+
+# Private relay copy bundled only into owner builds; never commit it
+DesktopSource/relay-release/

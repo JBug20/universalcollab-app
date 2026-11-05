@@ -1,0 +1,9 @@
+using System;using System.IO;using System.Drawing;using System.Drawing.Drawing2D;using System.Drawing.Imaging;using System.Collections.Generic;
+class CreateIcon {
+ static GraphicsPath Round(float x,float y,float w,float h,float d){var p=new GraphicsPath();p.AddArc(x,y,d,d,180,90);p.AddArc(x+w-d,y,d,d,270,90);p.AddArc(x+w-d,y+h-d,d,d,0,90);p.AddArc(x,y+h-d,d,d,90,90);p.CloseFigure();return p;}
+ static void Main(string[] args){var images=new List<byte[]>();int[] sizes={16,24,32,48,64,128,256};foreach(int size in sizes){using(var bitmap=new Bitmap(size,size)){using(var g=Graphics.FromImage(bitmap)){g.SmoothingMode=SmoothingMode.AntiAlias;g.ScaleTransform(size/256f,size/256f);g.Clear(Color.Transparent);using(var shape=Round(8,8,240,240,64))using(var brush=new SolidBrush(Color.FromArgb(43,25,66)))g.FillPath(brush,shape);using(var shape=Round(28,28,200,200,48))using(var brush=new SolidBrush(Color.FromArgb(67,39,94)))g.FillPath(brush,shape);int[] heights={62,128,94};for(int i=0;i<3;i++){using(var shape=Round(61+i*48,176-heights[i],30,heights[i],28))using(var brush=new SolidBrush(Color.FromArgb(239-i*12,213-i*16,255)))g.FillPath(brush,shape);}using(var b=new SolidBrush(Color.FromArgb(247,240,255)))g.FillEllipse(b,177,47,22,22);}
+ if(size==256)bitmap.Save(Path.Combine(args[0],"Notify-icon.png"),ImageFormat.Png);using(var ms=new MemoryStream()){bitmap.Save(ms,ImageFormat.Png);images.Add(ms.ToArray());}}}
+ using(var output=new BinaryWriter(File.Create(Path.Combine(args[0],"Notify.ico")))){output.Write((ushort)0);output.Write((ushort)1);output.Write((ushort)sizes.Length);int offset=6+16*sizes.Length;for(int i=0;i<sizes.Length;i++){output.Write((byte)(sizes[i]==256?0:sizes[i]));output.Write((byte)(sizes[i]==256?0:sizes[i]));output.Write((byte)0);output.Write((byte)0);output.Write((ushort)1);output.Write((ushort)32);output.Write(images[i].Length);output.Write(offset);offset+=images[i].Length;}foreach(var bytes in images)output.Write(bytes);}
+ }
+}
+

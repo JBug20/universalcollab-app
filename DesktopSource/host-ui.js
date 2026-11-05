@@ -165,6 +165,7 @@
       'pictureInPicture',
       'collaboratorFallback',
       'chatOverlays',
+      'mediaSources',
       'multipleDestinations',
       'manualFallback',
       'fallbackTimeout',
@@ -185,6 +186,7 @@
           pictureInPicture: 'Allow picture in picture',
           collaboratorFallback: 'Allow collaborator fallback',
           chatOverlays: 'Allow chat overlays',
+          mediaSources: 'Allow text, picture and browser sources',
           multipleDestinations: 'Allow multiple destinations',
           manualFallback: 'Allow manual fallback',
           fallbackTimeout: 'Allow disconnect timeout',
@@ -337,7 +339,8 @@
       content.replaceChildren();
       feedback.textContent = 'Load controls for the selected server.';
     }
-    claim.hidden = !!(connected && view?.me?.isHost);
+    claim.hidden = !!(connected && view?.me?.isHost) || window.relayDeviceClaim === true;
+    intro.hidden = window.relayDeviceClaim === true;
     refreshButton.hidden = !connected;
   }, 1000);
 })();

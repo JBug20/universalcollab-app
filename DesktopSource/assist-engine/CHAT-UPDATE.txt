@@ -1,0 +1,9 @@
+COMBINED CHAT UPDATE
+
+Open Combined chat in the sidebar. Twitch, YouTube and Kick messages share one feed, in arrival order. Chat does not trigger alert sounds and is not saved to desktop history. The newest 500 messages are retained in memory. Search, pause/resume, clear and sample chat are available. In Windows, double-click a message to read its full text if it is clipped.
+
+Connect Twitch and YouTube as before. YouTube needs an active live broadcast; messages can arrive in batches about every 20 seconds. Native Twitch and Kick emote images are supported, with text fallback if an image cannot load. Existing Twitch 7TV emotes are reused. YouTube custom emoji image metadata is not available from this API and may remain text. This first chat version is read-only; sending, moderation, OBS and mobile are not included.
+
+KICK SETUP: BOTH receiver updates must be deployed before Kick chat works. After deployment, stop and reconnect Kick in the app. The app opens Kick approval when the receiver reports that chat has not yet been enabled. Approve once. Public beta uses assist-beta.universalcollab.stream; private uses assist.universalcollab.stream. Chat relay data is bounded and kept for at most about five minutes plus cleanup scheduling when idle. Alerts have their own queue limit so chat cannot evict alerts.
+
+Validation: Windows compiles; isolated Windows chat UI checks pass for combined feed, pause/resume, search and buffer limit. Provider parsing and backend isolation/signature/retention tests pass. Real account chat delivery and Garuda runtime still need live testing.

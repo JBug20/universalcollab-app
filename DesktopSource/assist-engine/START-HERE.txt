@@ -1,0 +1,46 @@
+UNIVERSALSTREAM ASSIST - PRIVATE EDITION
+
+Close the running app before installing an update. Saved account credentials and
+sound preferences remain in the existing Windows-protected Notify data folder.
+
+CONNECTIONS
+Open Connections in the sidebar, or use a platform card to open its account tab.
+Twitch, Kick and Streamlabs have been tested successfully with your accounts.
+YouTube is authorized; paid live-chat and membership alerts still need a live test.
+Ordinary YouTube subscriber alerts are not included. Google quota limits apply.
+
+NOTIFICATIONS
+Open Notifications for sound, desktop pop-ups and always-on-top controls.
+Choose sound opens the WAV file picker. Sound/pop-up switches apply to this session.
+Emotes opens Twitch/7TV settings. Bridge settings is only for optional Streamer.bot.
+
+ACTIVITY
+Try sample alerts adds clearly marked samples. Filter or search your feed.
+Double-click an alert for full details. Save session exports your alerts.
+The latest 2,000 alerts are kept in memory; save before closing the app.
+
+YOUR KICK RECEIVER
+Your personal receiver is deployed at https://assist.universalcollab.stream.
+Keep the receiver key private. It is separate from the public backend in development.
+
+Pop out alerts: click Pop out alerts below the feed. The alerts window stays
+visible when the main app is minimised. Use Always on top to pin it,
+or Dock alerts to return it to the main app. Closing the main app exits both.
+
+New in 1.0.2.0
+- Alert preferences in the sidebar: compact view, history retention, event-specific WAV sounds,
+  individual volume, event sound/pop-up switches, pause/resume and update checks.
+- History is protected with Windows account encryption; default retention is 7 days,
+  capped at 2,000 real alerts. Samples are not saved. Disable saving or delete history there.
+- Window positions, pop-out size, filter, search and notification preferences are remembered.
+- Right-click an alert and choose Replay notification. Replay does not duplicate the event.
+- Health below the feed shows provider status and last received event time.
+- Compact mode hides time/platform columns; details remain available by double-clicking.
+- Update checks show version and release notes. Downloads remain supplied by the operator;
+  this build does not install updates automatically.
+- Deploy the current backend with npm run deploy to enable the release-information endpoint.
+
+Verification: both desktop builds compile; backend 15 tests pass. UI and persistence logic
+were tested with an isolated fixture. Windows DPAPI encryption is kept in production but
+could not be exercised under the restricted test account. Verify saved settings after restart,
+plus actual sound volume and playback on your PC.

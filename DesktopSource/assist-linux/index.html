@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://cdn.7tv.app https://static-cdn.jtvnw.net https://files.kick.com https://cdn.betterttv.net https://cdn.frankerfacez.com; media-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'"
+    />
+    <title>UniversalStream Assist Beta</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <aside id="sidebar">
+      <img src="assets/icon.png" width="54" alt="" />
+      <h2>UniversalStream<br />Assist</h2>
+      <p>PUBLIC BETA · LINUX</p>
+      <button data-view="activity">Activity</button><button data-view="chat">Combined chat</button
+      ><button data-view="integrations">Integrations</button
+      ><button data-view="connections">Connections</button
+      ><button data-view="preferences">Alert preferences</button
+      ><button data-view="health">Connection health</button>
+      <p id="account-identity"></p>
+      <label><input id="remember" type="checkbox" checked />Remember this device</label
+      ><button id="login">Sign in</button><button id="signout">Sign out</button>
+    </aside>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">EVERY MOMENT, TOGETHER</p>
+          <h1 id="heading">Your community, in one place.</h1>
+        </div>
+        <button id="samples">Try sample alerts</button>
+      </header>
+      <div id="connection-notice" role="status" hidden></div>
+      <div id="message" role="status"></div>
+      <div id="device"></div>
+      <section id="activity" class="view">
+        <div class="toolbar">
+          <select id="filter">
+            <option>All</option>
+            <option>Twitch</option>
+            <option>YouTube</option>
+            <option>Kick</option>
+            <option>Streamlabs</option></select
+          ><input id="search" placeholder="Search viewer, event or message" /><button id="pop">
+            Pop out alerts</button
+          ><button id="dock">Dock alerts</button><button id="showmain">Show main app</button
+          ><button id="minimise">Minimise main app</button
+          ><label><input type="checkbox" id="pintop" />Always on top</label>
+        </div>
+        <div id="feed" class="feed"></div>
+        <footer>
+          <span id="count"></span><button id="export">Export</button
+          ><button id="clear">Delete history</button>
+        </footer>
+      </section>
+      <section id="chat" class="view" hidden>
+        <h2>All your conversations, together</h2>
+        <div class="toolbar">
+          <input id="chat-search" placeholder="Search chat" /><label
+            ><input type="checkbox" id="chat-pause" />Pause feed</label
+          ><button id="chat-clear">Clear</button><button id="chat-sample">Sample chat</button>
+        </div>
+        <p>
+          Twitch, YouTube and Kick in one feed. Messages appear as received. Connect your accounts in
+          Connections.
+        </p>
+        <details class="panel">
+          <summary>Chat appearance &amp; OBS</summary>
+          <label
+            >Font
+            <select id="chat-font">
+              <option>Arial</option>
+              <option>Verdana</option>
+              <option>Georgia</option>
+              <option>Trebuchet MS</option>
+              <option>DejaVu Sans</option>
+              <option>Noto Sans</option>
+              <option>Liberation Sans</option>
+              <option>monospace</option>
+            </select></label
+          ><label>Text size <input id="chat-size" type="number" min="12" max="40" /></label
+          ><label>Emote size <input id="chat-emote" type="number" min="16" max="64" /></label
+          ><label>Text colour <input id="chat-text" type="color" /></label
+          ><label>Sender colour <input id="chat-name" type="color" /></label
+          ><label>Background <input id="chat-background" type="color" /></label
+          ><label><input id="chat-transparent" type="checkbox" />Transparent OBS overlay</label
+          ><label><input id="chat-timestamps" type="checkbox" />Show times</label
+          ><label><input id="chat-platforms" type="checkbox" />Show platforms</label
+          ><label>Overlay message limit <input id="chat-limit" type="number" min="1" max="100" /></label
+          ><label
+            >Hide overlay messages after seconds (0 = keep)
+            <input id="chat-duration" type="number" min="0" max="600" /></label
+          ><button id="chat-apply">Apply appearance</button>
+          <h3>OBS connection</h3>
+          <p>
+            Keep this app open on the same computer as OBS. Use the dock link under Docks &gt; Custom Browser
+            Docks; use the overlay link in a Browser source.
+          </p>
+          <button id="obs-start">Enable OBS</button><button id="obs-stop">Stop OBS</button
+          ><button id="obs-reset">Reset links</button>
+          <p id="obs-status"></p>
+          <button id="obs-dock">Copy dock link</button><button id="obs-overlay">Copy overlay link</button
+          ><button id="obs-send" title="Keep this link private: it can post chat as you">
+            Copy chat + send dock link
+          </button>
+        </details>
+        <div id="chat-feed" class="feed" aria-label="Combined chat"></div>
+        <form id="chat-send" class="toolbar send-bar">
+          <select id="chat-target" aria-label="Send to">
+            <option value="all">All platforms</option>
+            <option>Twitch</option>
+            <option>YouTube</option>
+            <option>Kick</option></select
+          ><input
+            id="chat-message"
+            maxlength="200"
+            autocomplete="off"
+            aria-label="Chat message"
+            placeholder="Message your connected channels"
+          /><button id="chat-send-button">Send</button>
+        </form>
+        <p id="chat-send-result" role="status"></p>
+        <p>
+          Latest 500 messages, kept only while the app is open. YouTube chat requires a live broadcast and may
+          arrive in batches.
+        </p>
+      </section>
+      <section id="integrations" class="view" hidden>
+        <h2>Integrations</h2>
+        <p>Connect your tools and personalise your stream.</p>
+        <div class="integration-list" tabindex="0" role="region" aria-label="Integrations">
+          <article class="integration-card">
+            <div>
+              <h2>Pulsoid</h2>
+              <p>Heart-rate rules for sounds, animated overlays and OBS scenes.</p>
+            </div>
+            <button data-view="pulsoid">Open Pulsoid</button>
+          </article>
+          <article class="integration-card">
+            <div>
+              <h2>Streamer.bot &amp; Lumia</h2>
+              <p>Run Streamer.bot actions and Lumia lighting commands from stream events.</p>
+            </div>
+            <button data-view="tools-settings">Configure</button>
+          </article>
+          <article class="integration-card">
+            <div>
+              <h2>UniversalCollab</h2>
+              <p>Connect UniversalCollab and manage your collaboration tools.</p>
+            </div>
+            <button data-view="collab-settings">Open UniversalCollab</button>
+          </article>
+          <article class="integration-card">
+            <div>
+              <h2>Stream Deck</h2>
+              <p>Set up quick controls for your stream from Stream Deck.</p>
+            </div>
+            <button data-view="deck-settings">Open Stream Deck</button>
+          </article>
+        </div>
+      </section>
+      <section id="deck-settings" class="view" hidden>
+        <button data-view="integrations">Back to integrations</button>
+        <div class="panel">
+          <h2>Stream Deck controls</h2>
+          <p>
+            Enable local controls, then paste the copied token into the Stream Deck plugin. Linux port: 18746.
+          </p>
+          <p id="controls-status"></p>
+          <button id="controls-start">Enable &amp; copy token</button
+          ><button id="controls-stop">Stop controls</button><button id="controls-reset">Reset token</button>
+        </div>
+      </section>
+      <section id="tools-settings" class="view" hidden>
+        <button data-view="integrations">Back to integrations</button>
+        <div class="panel">
+          <h2>Streamer.bot &amp; Lumia Stream</h2>
+          <p>
+            Map real alerts and heart-rate rules to actions in your local tools. Samples and replay do not
+            trigger these actions.
+          </p>
+          <label><input id="tools-bot" type="checkbox" />Enable Streamer.bot actions</label
+          ><label>Streamer.bot port <input id="tools-port" type="number" value="8080" /></label
+          ><label
+            >WebSocket password
+            <input
+              id="tools-password"
+              type="password"
+              placeholder="Leave blank to keep saved password" /></label
+          ><button id="tools-refresh">Refresh action list</button
+          ><label><input id="tools-lumia" type="checkbox" />Enable Lumia commands</label
+          ><label
+            >Lumia API token
+            <input id="tools-token" type="password" placeholder="Leave blank to keep saved token"
+          /></label>
+          <details>
+            <summary>Choose event actions</summary>
+            <div id="tools-mappings"></div>
+          </details>
+          <button id="tools-save">Save mappings &amp; settings</button>
+          <p id="tools-status"></p>
+        </div>
+      </section>
+      <section id="collab-settings" class="view" hidden>
+        <button data-view="integrations">Back to integrations</button>
+        <div class="panel">
+          <h2>UniversalCollab</h2>
+          <p>
+            Read collaboration requests and teammate stream status using your personal UniversalCollab server
+            login.
+          </p>
+          <label
+            >Server address <input id="collab-origin" placeholder="https://your-server or http://IP:port"
+          /></label>
+          <p class="hint" id="collab-transport" role="status"></p>
+          <label
+            >Personal username:token
+            <input id="collab-token" type="password" placeholder="Leave blank to keep saved login" /></label
+          ><button id="collab-connect">Save &amp; connect</button><button id="collab-stop">Disconnect</button>
+          <p id="collab-status"></p>
+          <div id="collab-entries"></div>
+          <h3>Local session reminder</h3>
+          <p>This app must be open at the reminder time.</p>
+          <input id="collab-title" aria-label="Reminder title" placeholder="Session name" /><input
+            id="collab-due"
+            aria-label="Reminder time"
+            type="datetime-local"
+          /><button id="collab-reminder">Save reminder</button>
+        </div>
+      </section>
+      <section id="pulsoid" class="view" hidden>
+        <button data-view="integrations">Back to integrations</button
+        ><button data-view="integrations">Back to integrations</button>
+        <h2>Pulsoid · Heart-rate actions</h2>
+        <p id="pulse-status"></p>
+        <p id="pulse-action"></p>
+        <div class="panel">
+          <label
+            >Pulsoid API token
+            <input
+              id="pulse-token"
+              type="password"
+              placeholder="Leave blank to keep saved token"
+              autocomplete="off" /></label
+          ><label
+            >OBS WebSocket password
+            <input
+              id="pulse-password"
+              type="password"
+              autocomplete="off"
+              placeholder="Leave blank to keep saved password" /></label
+          ><label>OBS port <input id="pulse-port" type="number" value="4455" min="1024" max="65535" /></label>
+          <p>
+            Create a personal Pulsoid token with data:heart_rate:read. In OBS, enable Tools → WebSocket Server
+            Settings on this computer.
+          </p>
+          <button id="pulse-test">Test OBS connection</button
+          ><button id="pulse-effects">Copy effects overlay</button>
+        </div>
+        <p>
+          Rules start stopped. A fresh reading must reach the reset side before a rule can fire. Above rules
+          reset below the threshold; Below rules reset above it. Only the first matching scene change runs
+          when multiple rules fire together.
+        </p>
+        <div id="pulse-rules"></div>
+        <button id="pulse-add">Add rule</button><button id="pulse-save">Save &amp; start rules</button
+        ><button id="pulse-stop">Stop rules</button><button id="pulse-forget">Forget credentials</button>
+      </section>
+      <section id="connections" class="view" hidden>
+        <div id="cards"></div>
+        <div class="panel">
+          <h2>YouTube setup</h2>
+          <p>
+            YouTube sign-in is built in: choose Connect on the YouTube card. While the app is in Google
+            testing, your Google account must be on the project's test-user list. Live monetisation events
+            require an active broadcast.
+          </p>
+          <details>
+            <summary>Advanced: use your own Google credentials</summary>
+            <p>
+              Import a Google Desktop app credentials JSON to use your own Google project instead. Switching
+              signs YouTube out.
+            </p>
+            <button id="google">Import Google JSON</button>
+            <button id="google-default">Use built-in sign-in</button>
+          </details>
+          <h2>Streamlabs tips</h2>
+          <p>Paste your Socket API token. It is saved only through your desktop keyring.</p>
+          <input
+            id="token"
+            type="password"
+            autocomplete="off"
+            placeholder="Streamlabs Socket API token"
+          /><button id="token-save">Save token</button>
+        </div>
+      </section>
+      <section id="preferences" class="view" hidden>
+        <div class="panel">
+          <h2>Make it feel like yours</h2>
+          <label><input type="checkbox" id="sound" />Notification sounds</label
+          ><label><input type="checkbox" id="popup" />Desktop notifications</label
+          ><label><input type="checkbox" id="compact" />Compact alerts</label
+          ><label><input type="checkbox" id="top" />Main window always on top</label
+          ><label
+            >Saved history
+            <select id="retention">
+              <option value="0">Do not save</option>
+              <option value="1">1 day</option>
+              <option value="7">7 days</option>
+              <option value="30">30 days</option>
+            </select></label
+          >
+          <p>Up to 2,000 real alerts, protected by your desktop keyring.</p>
+          <button id="pause">Pause sounds for 15 minutes</button><button id="resume">Resume sounds</button>
+          <h2>Event rules</h2>
+          <select id="kind"></select
+          ><label><input id="event-sound" type="checkbox" />Play sound</label
+          ><label><input id="event-popup" type="checkbox" />Show desktop notification</label
+          ><label
+            >Volume <input id="volume" type="range" min="0" max="100" /><span id="volume-value"></span
+          ></label>
+          <p id="sound-file"></p>
+          <button id="choose-sound">Choose WAV</button><button id="default-sound">Use default chime</button>
+          <h2>Updates</h2>
+          <label><input id="updates" type="checkbox" />Check on startup</label
+          ><button id="check-updates">Check for updates</button>
+        </div>
+      </section>
+      <section id="health" class="view" hidden>
+        <div class="panel">
+          <h2>Connection health</h2>
+          <div id="health-list"></div>
+        </div>
+      </section>
+    </main>
+    <script src="renderer.js"></script>
+  </body>
+</html>

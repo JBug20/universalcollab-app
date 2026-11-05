@@ -13,14 +13,14 @@ try {
   await page.evaluate(() => {
     window.live = false;
     document.getElementById('serverConnect').click();
-    // Destinations of the broadcast, as the relay reports them (present from the first status, so there is
-    // no gap between "live" and the destinations appearing).
-    window.statusExtra = {
-      outputs: [
-        { id: 'twitch', name: 'Twitch', state: 'sending' },
-        { id: 'youtube', name: 'YouTube', state: 'sending' }
-      ]
-    };
+    // Destinations of the broadcast, as the relay reports them.
+    setInterval(() => {
+      if (view?.status?.broadcast)
+        view.status.outputs = [
+          { id: 'twitch', name: 'Twitch', state: 'sending' },
+          { id: 'youtube', name: 'YouTube', state: 'sending' }
+        ];
+    }, 100);
   });
   await page.waitForFunction(() => connected && window.openAnnouncements && view?.status);
 

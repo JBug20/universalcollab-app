@@ -121,8 +121,22 @@
     ],
     Panels: [],
     Tools: [
+      ['Collaboration centre', () => window.openAssistCollaboration?.()],
+      ['Stream Deck', () => window.openStreamDeckSettings?.()],
+      ['Keyboard shortcuts', () => window.openKeyboardShortcuts?.()],
+      ['Check stream readiness', () => window.openReadiness?.()],
+      ['End credits & alerts', () => window.openEndCredits?.()],
       ['Go-live announcements', () => window.openAnnouncements?.()],
+      ['Stream reports', () => window.openStreamReports?.()],
+      ['Edit OBS scene on screen', () => window.openObsSceneEditor?.()],
       ['OBS Connection', settings('obs')],
+      [
+        'Recordings folder',
+        () => {
+          settings('obs')();
+          window.openRecordingsFolderSettings?.();
+        }
+      ],
       ['Platform connections', settings('connections')],
       ['Relay connection', settings('relay')],
       ['Fallback & output', settings('output')],
@@ -136,6 +150,7 @@
     ],
     Help: [
       ['Quick guide', () => open('quickHelp')],
+      ['Check for updates', () => window.openAppUpdates?.()],
       ['About UniversalCollab', () => open('aboutApp')]
     ]
   };
@@ -184,7 +199,7 @@
   );
   info(
     'aboutApp',
-    'UniversalCollab · rc.8',
+    'UniversalCollab · 1.2.0-preview.20',
     'Self-hosted collaboration and streaming workspace. OBS preview is local, without audio, and does not show the final relay composite.'
   );
   const prop = make('dialog');
@@ -589,8 +604,18 @@
   obsBar.append(
     btn('+', 'Add OBS scene', () => sceneAction('New', true)),
     btn('−', 'Delete OBS scene', () => sceneAction('Delete', true)),
-    btn('⋯', 'More OBS scene actions', e => contextMenu(e, [['Rename', () => sceneAction('Rename', true)]]))
+    btn('⋯', 'More OBS scene actions', e =>
+      contextMenu(e, [
+        ['Add source to this scene…', addObsSource],
+        ['Rename', () => sceneAction('Rename', true)]
+      ])
+    )
   );
+  // Add OBS source (existing or new) for the scene being edited; also from the OBS scenes panel.
+  function addObsSource() {
+    open('obsSourceAddWindow');
+    void window.refreshObsSourceTypes?.();
+  }
   $('obsScenes').oncontextmenu = e => {
     const b = e.target.closest('button');
     if (b) {
@@ -599,6 +624,7 @@
     }
     contextMenu(e, [
       ['Add scene', () => sceneAction('New', true)],
+      ['Add source to this scene…', addObsSource],
       ['Rename', () => sceneAction('Rename', true)],
       ['Delete', () => sceneAction('Delete', true)]
     ]);
@@ -610,6 +636,7 @@
       ['Add source', () => $('addItem').click()],
       ...(sel.media ? [['Source settings…', () => window.streamCanvas.openProperties(), fixed]] : []),
       ['Position & size…', () => open('sourceProperties')],
+      ['Undo', () => window.streamCanvas.undo(), !window.streamCanvas.canUndo()],
       ['Lock / unlock', () => window.streamCanvas.toggleLock()],
       ['Move forward', () => $('canvasFront').click()],
       ['Move backward', () => $('canvasBack').click()],
@@ -618,8 +645,15 @@
         ['top-right', 'Top right quarter'],
         ['bottom-left', 'Bottom left quarter'],
         ['bottom-right', 'Bottom right quarter'],
-        ['center', 'Centre']
+        ['center', 'Centre'],
+        ['reset', 'Reset position & size']
       ].map(([c, label]) => [label, () => window.streamCanvas.placeCorner(c), fixed]),
+      ...[
+        ['fit', 'Fit to screen (keep shape)'],
+        ['stretch', 'Stretch to screen'],
+        ['centreH', 'Centre horizontally'],
+        ['centreV', 'Centre vertically']
+      ].map(([k, label]) => [label, () => window.streamCanvas.transform(k), fixed]),
       ['Make 2×2 split', () => window.streamCanvas.split()],
       ['Remove', () => $('canvasRemove').click(), fixed || sel.kind === 'main']
     ];
@@ -644,9 +678,9 @@
   const obsProps = dialog('obsSourceProperties', 'OBS source properties');
   obsProps.append($('obsTransform'));
   const obsAdd = dialog('obsSourceAddWindow', 'Add OBS source');
-  obsAdd.append($('obsExistingSource').parentElement, $('obsSourceAdd'));
+  obsAdd.append($('obsExistingSource').parentElement, $('obsSourceAdd'), $('obsNewSource'));
   bar($('obsSourcesPanel')).append(
-    btn('+', 'Add existing OBS source', () => open('obsSourceAddWindow')),
+    btn('+', 'Add OBS source (existing or new)', addObsSource),
     btn('⚙', 'OBS source properties', () => open('obsSourceProperties'))
   );
   $('obsSources').oncontextmenu = e => {
@@ -700,7 +734,17 @@
   $('streamsPanel').append(more);
   // End Relay sits under Start/Stop Stream. Its gear holds the auto-end timer and the fallback choices.
   const endRelay = btn('End Relay', 'End the relay broadcast', () => {
-    if (confirm('End the relay broadcast now? Every destination will see the stream end.')) $('end').click();
+    if (
+      confirm(
+        'End the relay broadcast and stop OBS streaming now? Every destination will see the stream end.'
+      )
+    )
+      window.endRelayBroadcast
+        ? window.endRelayBroadcast().then(
+            done => done || note('End Relay could not run: the relay is busy or not connected. Try again.'),
+            () => {}
+          )
+        : $('end').click();
   });
   endRelay.id = 'endRelay';
   endRelay.className = 'danger';
@@ -819,10 +863,12 @@
     for (const id of ['dockLeft', 'dockCenter', 'dockRight', 'dockBottom']) {
       const column = $(id);
       column.querySelectorAll(':scope>.panel-separator').forEach(n => n.remove());
-      const visible = [...column.children].filter(n => n.dataset.dock && !n.hidden);
+      const visible = [...column.children].filter(
+        n => n.dataset.dock && !n.hidden && (n.tagName !== 'DIALOG' || n.open)
+      );
       visible.forEach(p => {
         p.style.height = '';
-        p.style.flex = (weights[p.dataset.dock] || 1) + ' 1 0px';
+        p.style.flex = (weights[p.dataset.dock] || (p.dataset.dock === 'assist' ? 2 : 1)) + ' 1 0px';
       });
       for (let i = 0; i < visible.length - 1; i++) {
         const a = visible[i],
