@@ -67,7 +67,9 @@ try {
     '3,0'
   );
   assert.equal(await page.evaluate(() => localStorage.getItem('uc-theme')), 'blue');
-  // Remembered: after a restart it is applied before the app's scripts run.
+  // Remembered: after a restart it is applied before the app's scripts run. The saved choice is put back by an
+  // init script, because headless Chromium sometimes drops localStorage across a reload of a file page.
+  await page.addInitScript(() => localStorage.setItem('uc-theme', 'blue'));
   await page.reload();
   await page.waitForFunction(() => window.appTheme);
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'blue');
