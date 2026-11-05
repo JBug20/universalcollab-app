@@ -1,3 +1,4 @@
+import { lenientElectron } from './helpers/fake-electron.mjs';
 import vm from 'node:vm';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -32,6 +33,7 @@ try {
   let copied = '';
   const electron = {
     app: {
+      requestSingleInstanceLock: () => true,
       setName() {},
       setPath() {},
       whenReady: () => ({
@@ -46,7 +48,7 @@ try {
     BrowserWindow: class {
       constructor() {
         window = this;
-        this.webContents = { setWindowOpenHandler() {}, on() {} };
+        this.webContents = { setWindowOpenHandler() {}, on() {}, send() {} };
       }
       setMenu() {}
       loadFile() {}
@@ -56,6 +58,7 @@ try {
       }
     },
     ipcMain: { handle: (name, fn) => handlers.set(name, fn), on() {} },
+    protocol: { registerSchemesAsPrivileged() {}, handle() {} },
     clipboard: { writeText: text => (copied = text) },
     safeStorage: {
       isEncryptionAvailable: () => encrypted,
@@ -67,9 +70,21 @@ try {
   };
   vm.runInNewContext(fs.readFileSync(root + '/main.cjs', 'utf8'), {
     require: n =>
-      n === 'electron' ? electron : n.startsWith('./') ? require(root + '/' + n.slice(2)) : require(n),
+      n === 'electron'
+        ? lenientElectron(electron)
+        : n.startsWith('./')
+          ? require(root + '/' + n.slice(2))
+          : require(n),
     __dirname: root,
-    process: { platform: 'linux' },
+    process: { platform: 'linux', versions: {}, env: {}, argv: [], on() {} },
+    setTimeout: (fn, ms, ...args) => {
+      const t = setTimeout(fn, ms, ...args);
+      if (ms >= 5000) t.unref();
+      return t;
+    },
+    clearTimeout,
+    setInterval: () => 0,
+    clearInterval: () => {},
     fetch,
     URL,
     AbortSignal,
@@ -203,3 +218,5 @@ try {
   await server?.close();
   fs.rmSync(dir, { recursive: true, force: true });
 }
+// The app code started timers and network checks of its own; the test is over.
+process.exit(process.exitCode ?? 0);

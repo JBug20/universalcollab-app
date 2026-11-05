@@ -40,7 +40,11 @@ const setup = ({ modern, outputs, healthReport }) => {
 };
 
 async function open(modern) {
-  const studio = await openStudio({ initScript: setup, initArg: { modern, outputs, healthReport } });
+  const studio = await openStudio({
+    viewport: { width: 2400, height: 1000 }, // wide enough that no part of the bar is hidden to fit
+    initScript: setup,
+    initArg: { modern, outputs, healthReport }
+  });
   await studio.page.evaluate(() => document.getElementById('serverConnect').click());
   await studio.page.waitForFunction(() => document.querySelector('#statusBar .status-seg.relay.ok'));
   return studio;

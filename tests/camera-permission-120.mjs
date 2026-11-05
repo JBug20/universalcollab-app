@@ -1,6 +1,7 @@
 // Camera permission: the app's own page may use a video-only camera (for the live OBS preview) and nothing
 // else may use any camera, microphone or other permission. Also: a Virtual Camera the app started is switched
 // off when the app quits. Runs main.cjs against a fake Electron.
+import { lenientElectron } from './helpers/fake-electron.mjs';
 import vm from 'node:vm';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -43,6 +44,7 @@ class TestOBS extends OBSLink {
 }
 const electron = {
   app: {
+    requestSingleInstanceLock: () => true,
     setName() {},
     setPath() {},
     whenReady: () => ({ then: fn => (ready = fn) }),
@@ -63,6 +65,7 @@ const electron = {
     }
   },
   ipcMain: { handle: (name, fn) => handlers.set(name, fn), on() {} },
+  protocol: { registerSchemesAsPrivileged() {}, handle() {} },
   clipboard: { writeText() {} },
   safeStorage: { isEncryptionAvailable: () => false, getSelectedStorageBackend: () => 'basic_text' },
   session: {
@@ -75,14 +78,16 @@ const electron = {
 vm.runInNewContext(fs.readFileSync(root + '/main.cjs', 'utf8'), {
   require: n =>
     n === 'electron'
-      ? electron
+      ? lenientElectron(electron)
       : n === './obs-link.cjs'
         ? { OBSLink: TestOBS }
         : n.startsWith('./')
           ? require(root + '/' + n.slice(2))
           : require(n),
   __dirname: root,
-  process: { platform: 'linux' },
+  process: { platform: 'linux', versions: {}, env: {}, argv: [], on() {} },
+  setInterval: () => 0,
+  clearInterval: () => {},
   setTimeout,
   clearTimeout,
   fetch,

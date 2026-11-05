@@ -23,7 +23,10 @@ try {
   // Pressing Clip shows the instruction where the user will see it, and nothing claims a clip was saved.
   await clip.click();
   await page.waitForFunction(m => document.getElementById('obsControlStatus').innerText.includes(m), message);
-  assert.equal(await page.locator('#obsClipNote').isHidden(), true, 'no "Clip saved" message');
+  // The reason also appears under the button (not only in the OBS settings), and nothing claims a clip was saved.
+  const note = await page.locator('#obsClipNote').innerText();
+  assert(note.includes(message), note);
+  assert(!note.includes('Clip saved'), note);
   await page.waitForFunction(() => !document.getElementById('obsClip').disabled);
 
   // Start Stream still starts: the replay buffer is only a bonus, and its failure is not shown as an error.

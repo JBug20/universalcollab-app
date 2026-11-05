@@ -1,5 +1,6 @@
 // "Show file" for a saved clip opens only a path OBS reported for a clip saved in this session. Nothing else
 // can be revealed through it. Runs main.cjs against a fake Electron and a fake OBS replay buffer.
+import { lenientElectron } from './helpers/fake-electron.mjs';
 import vm from 'node:vm';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -49,6 +50,7 @@ class TestOBS extends OBSLink {
 let nextPath = saved;
 const electron = {
   app: {
+    requestSingleInstanceLock: () => true,
     setName() {},
     setPath() {},
     whenReady: () => ({ then: fn => (ready = fn) }),
@@ -69,6 +71,7 @@ const electron = {
     }
   },
   ipcMain: { handle: (name, fn) => handlers.set(name, fn), on() {} },
+  protocol: { registerSchemesAsPrivileged() {}, handle() {} },
   clipboard: { writeText() {} },
   shell: { showItemInFolder: file => shown.push(file) },
   safeStorage: { isEncryptionAvailable: () => false, getSelectedStorageBackend: () => 'basic_text' },
@@ -77,14 +80,16 @@ const electron = {
 vm.runInNewContext(fs.readFileSync(root + '/main.cjs', 'utf8'), {
   require: n =>
     n === 'electron'
-      ? electron
+      ? lenientElectron(electron)
       : n === './obs-link.cjs'
         ? { OBSLink: TestOBS }
         : n.startsWith('./')
           ? require(root + '/' + n.slice(2))
           : require(n),
   __dirname: root,
-  process: { platform: 'linux' },
+  process: { platform: 'linux', versions: {}, env: {}, argv: [], on() {} },
+  setInterval: () => 0,
+  clearInterval: () => {},
   setTimeout,
   clearTimeout,
   fetch,

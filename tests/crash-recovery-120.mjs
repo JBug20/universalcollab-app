@@ -1,5 +1,6 @@
 // Crash recovery: a crashed or frozen display process is reloaded instead of leaving a blank window, and
 // the reasons are written to renderer-problems.log. Runs main.cjs against a fake Electron and a fake clock.
+import { lenientElectron } from './helpers/fake-electron.mjs';
 import vm from 'node:vm';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -43,6 +44,7 @@ const loads = [],
   contentsEvents = {};
 const electron = {
   app: {
+    requestSingleInstanceLock: () => true,
     setName() {},
     setPath() {},
     whenReady: () => ({ then: fn => (ready = fn) }),
@@ -72,6 +74,7 @@ const electron = {
     }
   },
   ipcMain: { handle() {}, on() {} },
+  protocol: { registerSchemesAsPrivileged() {}, handle() {} },
   clipboard: { writeText() {} },
   safeStorage: {
     isEncryptionAvailable: () => false,
@@ -81,9 +84,15 @@ const electron = {
 };
 vm.runInNewContext(fs.readFileSync(root + '/main.cjs', 'utf8'), {
   require: n =>
-    n === 'electron' ? electron : n.startsWith('./') ? require(root + '/' + n.slice(2)) : require(n),
+    n === 'electron'
+      ? lenientElectron(electron)
+      : n.startsWith('./')
+        ? require(root + '/' + n.slice(2))
+        : require(n),
   __dirname: root,
-  process: { platform: 'linux' },
+  process: { platform: 'linux', versions: {}, env: {}, argv: [], on() {} },
+  setInterval: () => 0,
+  clearInterval: () => {},
   setTimeout: fakeSetTimeout,
   clearTimeout: id => timers.delete(id),
   fetch,
@@ -145,3 +154,5 @@ assert(log().includes('load failed -6 ERR_FILE_NOT_FOUND'));
 console.log(
   'PASS crash recovery: reload after a crash (up to three), forced restart after a 10 second hang, no reload on clean exit or destroyed window, problems logged.'
 );
+// The app code started timers and network checks of its own; the test is over.
+process.exit(process.exitCode ?? 0);
