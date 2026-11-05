@@ -76,6 +76,14 @@ try {
   // The volume sits in the audio panel, with Mute.
   assert.equal(await page.locator('#obsMixerPanel #chatVoiceVolume').count(), 1);
   assert.equal(await page.locator('#obsMixerPanel #chatVoiceMute').count(), 1);
+  // The volume is an ordinary sideways slider in the audio panel, not the mixer's tall faders.
+  const sliderBox = await page.locator('#chatVoiceVolume').evaluate(n => ({
+    mode: getComputedStyle(n).writingMode,
+    width: n.getBoundingClientRect().width,
+    height: n.getBoundingClientRect().height
+  }));
+  assert.equal(sliderBox.mode, 'horizontal-tb');
+  assert(sliderBox.height < 60, JSON.stringify(sliderBox));
   // The Linux install steps are written under the dropdown (this browser reports Linux).
   assert.equal(await page.locator('#chatVoiceLinux').evaluate(el => el.hidden), false);
   const help = await page.locator('#chatVoiceLinux').textContent();

@@ -663,6 +663,7 @@
       const f = workspace.floating?.[id];
       if (!f || e.button || e.target.closest('button,input,select,a')) return;
       e.preventDefault();
+      note('Moving ' + titles[id] + '. Hold it still over a section until it lights up to dock it.');
       const r = panel.getBoundingClientRect(),
         dx = e.clientX - r.left,
         dy = e.clientY - r.top;
@@ -721,13 +722,71 @@
       window.addEventListener('pointerup', up);
       window.addEventListener('pointercancel', up);
     });
-    heading.ondragstart = e => {
-      if (!workspace.unlocked || workspace.floating?.[id]) {
-        e.preventDefault();
+    // A docked panel is moved the same way (no browser drag-and-drop, which some systems do not support): drag the
+    // header onto another section, or above or below another panel, and let go.
+    heading.addEventListener('pointerdown', e => {
+      if (
+        workspace.floating?.[id] ||
+        !workspace.unlocked ||
+        e.button ||
+        e.target.closest('button,input,select,a')
+      )
         return;
-      }
-      e.dataTransfer.setData('text/plain', id);
-    };
+      e.preventDefault();
+      const columns = ['dockLeft', 'dockCenter', 'dockRight', 'dockBottom'].map(c => $(c)),
+        under = ev => document.elementsFromPoint(ev.clientX, ev.clientY),
+        column = ev => under(ev).find(n => n.classList?.contains('studio-column')),
+        x0 = e.clientX,
+        y0 = e.clientY;
+      let ghost = null;
+      try {
+        heading.setPointerCapture(e.pointerId);
+      } catch {}
+      const move = ev => {
+        if (!ghost && Math.hypot(ev.clientX - x0, ev.clientY - y0) > 6) {
+          ghost = make('div', titles[id]);
+          ghost.className = 'panel-ghost';
+          document.body.append(ghost);
+        }
+        if (!ghost) return;
+        ghost.style.left = ev.clientX + 12 + 'px';
+        ghost.style.top = ev.clientY + 12 + 'px';
+        const over = column(ev);
+        for (const c of columns) c.classList.toggle('drop-target', c === over);
+      };
+      const up = ev => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', up);
+        ghost?.remove();
+        for (const c of columns) c.classList.remove('drop-target');
+        const over = ghost && ev.type === 'pointerup' ? column(ev) : null;
+        if (over) {
+          const before = under(ev).find(n => n.dataset?.dock && n !== panel && n.parentElement === over);
+          if (before) over.insertBefore(panel, before);
+          else over.append(panel);
+          saveWorkspace();
+        }
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', up);
+    });
+    // Keyboard: with a floating panel's header focused, the arrow keys move it (Shift for bigger steps).
+    heading.addEventListener('keydown', e => {
+      const f = workspace.floating?.[id],
+        step = e.shiftKey ? 50 : 10,
+        d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[
+          e.key
+        ];
+      if (!f || !d) return;
+      e.preventDefault();
+      f.x = Math.max(0, Math.min(innerWidth - 80, f.x + d[0]));
+      f.y = Math.max(0, Math.min(innerHeight - 40, f.y + d[1]));
+      panel.style.left = f.x + 'px';
+      panel.style.top = f.y + 'px';
+      write('uc-ui8-workspace', workspace);
+    });
   }
   for (const [id, panel] of panels) decorate(id, panel);
   function workspacePaint() {
@@ -765,7 +824,7 @@
         (Array.isArray(workspace.hidden) && workspace.hidden.includes(id)) ||
         (p.classList.contains('obs-panel') && !window.obsConnected);
       p.classList.toggle('resizable', !!workspace.unlocked);
-      p.firstElementChild.draggable = !!workspace.unlocked && !floating[id];
+      p.firstElementChild.draggable = false;
       p.style.setProperty(
         '--panel-color',
         workspace.colors?.[id] ||

@@ -1868,3 +1868,25 @@ body.onboarding #manageOBS {
   white-space: nowrap;
   pointer-events: none;
 }
+/* The panel being moved by its header: a small label that follows the pointer. */
+.panel-ghost {
+  position: fixed;
+  z-index: 200;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #6c4bb0;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+  box-shadow: 0 4px 14px #0008;
+}
+#obsMixerPanel .chat-voice-row strong {
+  font-size: 12px;
+  white-space: nowrap;
+}
+#obsMixerPanel .chat-voice-row button {
+  min-height: 26px;
+  padding: 3px 10px;
+  font-size: 11px;
+}

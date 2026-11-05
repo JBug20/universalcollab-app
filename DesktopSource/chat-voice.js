@@ -169,7 +169,7 @@
     else dialog.append(box);
 
     // ---- Audio panel: the volume ----
-    const volumeRow = make('div', null, 'obs-mixer-row chat-voice-row'),
+    const volumeRow = make('div', null, 'chat-voice-row'),
       slider = make('input'),
       mute = make('button', 'Mute');
     slider.type = 'range';

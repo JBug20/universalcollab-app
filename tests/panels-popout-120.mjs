@@ -92,6 +92,43 @@ try {
   );
   assert.equal(await where('chat'), 'dockCenter');
   assert.equal(await page.locator('.studio-column.dock-ready').count(), 0, 'the highlight is gone');
+  // A docked panel is moved with the same pointer drag (no browser drag-and-drop): header onto another section.
+  assert.equal(await where('scenes'), 'dockBottom');
+  assert.equal(await handle('scenes').evaluate(n => n.draggable), false, 'no HTML5 drag-and-drop is needed');
+  const sh = await handle('scenes').boundingBox(),
+    right = await page.locator('#dockRight').boundingBox();
+  await page.mouse.move(sh.x + 30, sh.y + 8);
+  await page.mouse.down();
+  await page.mouse.move(right.x + right.width / 2, right.y + 120, { steps: 10 });
+  assert.equal(await page.locator('.panel-ghost').count(), 1, 'a label follows the pointer');
+  await page.mouse.up();
+  await page.waitForFunction(
+    () => document.querySelector('[data-dock="scenes"]').parentElement.id === 'dockRight'
+  );
+  assert.equal(await page.locator('.panel-ghost').count(), 0);
+  // A click on a header without moving does nothing.
+  const sh2 = await handle('scenes').boundingBox();
+  await page.mouse.click(sh2.x + 30, sh2.y + 8);
+  assert.equal(await where('scenes'), 'dockRight');
+
+  // Keyboard: arrow keys move a floating panel.
+  await handle('scenes').click({ button: 'right' });
+  await menu.locator('button', { hasText: 'Pop out' }).click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-dock="scenes"]').classList.contains('panel-floating')
+  );
+  const k0 = await page.locator('[data-dock="scenes"]').boundingBox();
+  await handle('scenes').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Shift+ArrowDown');
+  const k1 = await page.locator('[data-dock="scenes"]').boundingBox();
+  assert(Math.abs(k1.x - k0.x - 10) <= 1 && Math.abs(k1.y - k0.y - 50) <= 1, JSON.stringify([k0, k1]));
+  await handle('scenes').click({ button: 'right' });
+  await menu.locator('button', { hasText: 'Dock bottom' }).click();
+  await page.waitForFunction(
+    () => !document.querySelector('[data-dock="scenes"]').classList.contains('panel-floating')
+  );
+
   // Right-click a floating panel: Dock right.
   await handle('chat').click({ button: 'right' });
   await menu.locator('button', { hasText: 'Pop out' }).click();
