@@ -45,20 +45,75 @@ try {
   // It survives a repaint and is remembered.
   assert(await page.evaluate(() => !!JSON.parse(localStorage.getItem('uc-ui8-workspace')).floating.chat));
 
-  // Floating panels offer Dock back; dragging the header onto a column docks it.
+  // Floating panels offer Dock back and a choice of section.
   await handle('chat').click({ button: 'right' });
-  assert.deepEqual(await menu.locator('button').allTextContents(), ['Dock back', 'Remove']);
+  assert.deepEqual(await menu.locator('button').allTextContents(), [
+    'Dock back',
+    'Dock left',
+    'Dock center',
+    'Dock right',
+    'Dock bottom',
+    'Remove'
+  ]);
   await page.keyboard.press('Escape');
-  const h = await handle('chat').boundingBox();
+
+  // Dragging moves it and it stays where it is let go, even over the section it came from or any other.
+  const at = () => page.locator('[data-dock="chat"]').boundingBox();
+  const grab = async () => {
+    const h = await handle('chat').boundingBox();
+    await page.mouse.move(h.x + 30, h.y + 8);
+    await page.mouse.down();
+  };
+  const start = await at();
+  const grabAt = await handle('chat').boundingBox();
+  await grab();
+  await page.mouse.move(grabAt.x + 30 + 150, grabAt.y + 8 + 90, { steps: 8 });
+  await page.mouse.up();
+  const moved = await at();
+  assert(
+    Math.abs(moved.x - start.x - 150) <= 2 && Math.abs(moved.y - start.y - 90) <= 2,
+    JSON.stringify([start, moved])
+  );
+  assert.equal(await where('chat'), 'BODY', 'a quick drag over a section does not dock it');
+  // Passing across the sections without stopping never docks it either.
   const col = await page.locator('#dockCenter').boundingBox();
-  await page.mouse.move(h.x + 30, h.y + 8);
-  await page.mouse.down();
-  await page.mouse.move(col.x + col.width / 2, col.y + 80, { steps: 8 });
+  await grab();
+  await page.mouse.move(col.x + col.width / 2, col.y + 80, { steps: 4 });
+  await page.mouse.move(col.x + col.width / 2 + 200, col.y + 200, { steps: 4 });
+  await page.mouse.up();
+  assert.equal(await where('chat'), 'BODY');
+  // Held still over a section it lights up, and letting go docks it there.
+  await grab();
+  await page.mouse.move(col.x + col.width / 2, col.y + 80, { steps: 6 });
+  await page.waitForFunction(() => document.getElementById('dockCenter').classList.contains('dock-ready'));
   await page.mouse.up();
   await page.waitForFunction(
     () => !document.querySelector('[data-dock="chat"]').classList.contains('panel-floating')
   );
   assert.equal(await where('chat'), 'dockCenter');
+  assert.equal(await page.locator('.studio-column.dock-ready').count(), 0, 'the highlight is gone');
+  // Right-click a floating panel: Dock right.
+  await handle('chat').click({ button: 'right' });
+  await menu.locator('button', { hasText: 'Pop out' }).click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-dock="chat"]').classList.contains('panel-floating')
+  );
+  await handle('chat').click({ button: 'right' });
+  await menu.locator('button', { hasText: 'Dock right' }).click();
+  await page.waitForFunction(
+    () => !document.querySelector('[data-dock="chat"]').classList.contains('panel-floating')
+  );
+  assert.equal(await where('chat'), 'dockRight');
+  await handle('chat').click({ button: 'right' });
+  await menu.locator('button', { hasText: 'Pop out' }).click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-dock="chat"]').classList.contains('panel-floating')
+  );
+  await handle('chat').click({ button: 'right' });
+  await menu.locator('button', { hasText: 'Dock back' }).click();
+  await page.waitForFunction(
+    () => !document.querySelector('[data-dock="chat"]').classList.contains('panel-floating')
+  );
 
   // Remove hides it; Add panel brings it back as a floating panel.
   await handle('chat').click({ button: 'right' });

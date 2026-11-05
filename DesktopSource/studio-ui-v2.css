@@ -1846,3 +1846,25 @@ body.onboarding #manageOBS {
   flex: 1;
   min-width: 60px;
 }
+/* A floating panel held over a section: the section lights up and says what releasing does. */
+.studio-column.dock-ready {
+  outline: 3px solid #6ee7a8;
+  background: #1f3a2f;
+  position: relative;
+}
+.studio-column.dock-ready::after {
+  content: 'Release to dock here';
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 4px 12px;
+  border-radius: 6px;
+  background: #6ee7a8;
+  color: #0e1a14;
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}

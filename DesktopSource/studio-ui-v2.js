@@ -656,7 +656,9 @@
     heading.tabIndex = 0;
     heading.setAttribute('aria-label', 'Move ' + titles[id] + ' panel');
     panel.prepend(heading);
-    // A popped-out panel moves by pointer; dropping it on a column docks it there.
+    // A popped-out panel moves by pointer and stays wherever it is let go. To dock it, hold it still over a section
+    // until the section lights up ("Release to dock here"), then let go. Moving quickly across the sections never
+    // docks it, so a floating panel can be placed anywhere, including over the section it came from.
     heading.addEventListener('pointerdown', e => {
       const f = workspace.floating?.[id];
       if (!f || e.button || e.target.closest('button,input,select,a')) return;
@@ -667,21 +669,46 @@
       const columns = () => ['dockLeft', 'dockCenter', 'dockRight', 'dockBottom'].map(c => $(c));
       const under = ev => document.elementsFromPoint(ev.clientX, ev.clientY);
       const column = ev => under(ev).find(n => n.classList?.contains('studio-column'));
-      heading.setPointerCapture(e.pointerId);
+      // Where the pointer has been still, over which section, and whether that has lasted long enough.
+      let hold = { column: null, x: 0, y: 0, ready: false, timer: 0 };
+      const mark = () => {
+        for (const c of columns()) {
+          c.classList.toggle('drop-target', c === hold.column);
+          c.classList.toggle('dock-ready', c === hold.column && hold.ready);
+        }
+      };
+      const settle = (over, ev) => {
+        const still = Math.hypot(ev.clientX - hold.x, ev.clientY - hold.y) <= 12;
+        if (over === hold.column && still) return;
+        clearTimeout(hold.timer);
+        hold = { column: over, x: ev.clientX, y: ev.clientY, ready: false, timer: 0 };
+        if (over)
+          hold.timer = setTimeout(() => {
+            hold.ready = true;
+            mark();
+          }, 350);
+      };
+      try {
+        heading.setPointerCapture(e.pointerId);
+      } catch {}
       const move = ev => {
         f.x = Math.max(0, Math.min(innerWidth - 80, ev.clientX - dx));
         f.y = Math.max(0, Math.min(innerHeight - 40, ev.clientY - dy));
         panel.style.left = f.x + 'px';
         panel.style.top = f.y + 'px';
-        const over = column(ev);
-        for (const c of columns()) c.classList.toggle('drop-target', c === over);
+        settle(column(ev), ev);
+        mark();
       };
       const up = ev => {
-        heading.removeEventListener('pointermove', move);
-        heading.removeEventListener('pointerup', up);
-        heading.removeEventListener('pointercancel', up);
-        for (const c of columns()) c.classList.remove('drop-target');
-        const over = ev.type === 'pointerup' ? column(ev) : null;
+        // Listening on the window as well as the header keeps the drag working over frames (chat, tools).
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', up);
+        clearTimeout(hold.timer);
+        const over = ev.type === 'pointerup' && hold.ready && column(ev) === hold.column ? hold.column : null;
+        hold.column = null;
+        hold.ready = false;
+        mark();
         if (over) {
           delete workspace.floating[id];
           const before = under(ev).find(n => n.dataset?.dock && n !== panel && n.parentElement === over);
@@ -690,9 +717,9 @@
         }
         saveWorkspace();
       };
-      heading.addEventListener('pointermove', move);
-      heading.addEventListener('pointerup', up);
-      heading.addEventListener('pointercancel', up);
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', up);
     });
     heading.ondragstart = e => {
       if (!workspace.unlocked || workspace.floating?.[id]) {
@@ -898,13 +925,30 @@
           } else popOut(id);
         })
       ),
+      ...(floating
+        ? [
+            ['Dock left', 'dockLeft'],
+            ['Dock center', 'dockCenter'],
+            ['Dock right', 'dockRight'],
+            ['Dock bottom', 'dockBottom']
+          ].map(([label, column]) =>
+            button(
+              label,
+              done(() => {
+                delete workspace.floating[id];
+                $(column).append(panels.get(id));
+                saveWorkspace();
+              })
+            )
+          )
+        : []),
       button(
         'Remove',
         done(() => removePanel(id))
       )
     );
     panelContext.style.left = Math.max(0, Math.min(innerWidth - 150, e.clientX)) + 'px';
-    panelContext.style.top = Math.max(0, Math.min(innerHeight - 90, e.clientY)) + 'px';
+    panelContext.style.top = Math.max(0, Math.min(innerHeight - (floating ? 230 : 90), e.clientY)) + 'px';
     panelContext.hidden = false;
   });
   document.addEventListener('pointerdown', e => {
