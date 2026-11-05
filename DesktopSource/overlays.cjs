@@ -14,6 +14,8 @@ const STATIC = {
   alerts: ['alerts.html', 'text/html; charset=utf-8'],
   'credits.js': ['credits.js', 'text/javascript; charset=utf-8'],
   'alerts.js': ['alerts.js', 'text/javascript; charset=utf-8'],
+  voice: ['voice.html', 'text/html; charset=utf-8'],
+  'voice.js': ['voice.js', 'text/javascript; charset=utf-8'],
   'overlay.css': ['overlay.css', 'text/css; charset=utf-8']
 };
 const text = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
@@ -51,7 +53,15 @@ function clean(input) {
 
 exports.PORT = PORT;
 exports.clean = clean;
-exports.start = ({ app, ipcMain, guard, clipboard, dir = path.join(__dirname, 'overlays'), port = PORT }) => {
+exports.start = ({
+  app,
+  ipcMain,
+  guard,
+  clipboard,
+  voice = null,
+  dir = path.join(__dirname, 'overlays'),
+  port = PORT
+}) => {
   const file = path.join(app.getPath('userData'), 'overlays.json');
   let token = '';
   try {
@@ -77,18 +87,30 @@ exports.start = ({ app, ipcMain, guard, clipboard, dir = path.join(__dirname, 'o
     const host = String(req.headers.host || '');
     if (req.method !== 'GET' || (host !== '127.0.0.1:' + listening && host !== 'localhost:' + listening))
       return deny(403);
-    const m = /^\/o\/([A-Za-z0-9_-]+)\/([a-z.-]+)$/.exec((req.url || '').split('?')[0]);
+    const m = /^\/o\/([A-Za-z0-9_-]+)\/([A-Za-z0-9._-]+)$/.exec((req.url || '').split('?')[0]);
     if (!m || !same(m[1], token)) return deny();
     const headers = {
       'cache-control': 'no-store',
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'no-referrer',
       'content-security-policy':
-        "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'"
+        "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'"
     };
     if (m[2] === 'data.json') {
       res.writeHead(200, { ...headers, 'content-type': 'application/json' });
       return res.end(JSON.stringify(data));
+    }
+    // Chat voice (tts.cjs): the order and volume of the speech files, and the files themselves.
+    if (voice && m[2] === 'voice.json') {
+      res.writeHead(200, { ...headers, 'content-type': 'application/json' });
+      return res.end(JSON.stringify({ items: voice.queue() }));
+    }
+    const wav = voice && /^voice-([A-Za-z0-9_-]+)\.wav$/.exec(m[2]);
+    if (wav) {
+      const audio = voice.audio(wav[1]);
+      if (!audio) return deny();
+      res.writeHead(200, { ...headers, 'content-type': 'audio/wav' });
+      return res.end(audio);
     }
     const s = STATIC[m[2]];
     if (!s) return deny();
@@ -116,7 +138,8 @@ exports.start = ({ app, ipcMain, guard, clipboard, dir = path.join(__dirname, 'o
     listening
       ? {
           credits: `http://127.0.0.1:${listening}/o/${token}/credits`,
-          alerts: `http://127.0.0.1:${listening}/o/${token}/alerts`
+          alerts: `http://127.0.0.1:${listening}/o/${token}/alerts`,
+          voice: `http://127.0.0.1:${listening}/o/${token}/voice`
         }
       : null;
   ipcMain.handle('overlays', (e, input = {}) => {

@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('relayDesktop', {
   },
   // Post-stream reports (stream-reports.cjs / stream-report.js).
   streamReports: input => ipcRenderer.invoke('stream-reports', input),
+  // Chat voice (tts.cjs / chat-voice.js).
+  chatVoice: input => ipcRenderer.invoke('chat-voice', input),
   // Go-live announcements (announce.cjs / announce.js).
   announce: input => ipcRenderer.invoke('announce', input),
   // Keyboard shortcuts (hotkeys.cjs / keyboard-shortcuts.js).

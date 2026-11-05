@@ -168,7 +168,9 @@ app.whenReady().then(() => {
       e.returnValue = { ok: false };
     }
   });
-  require('./overlays.cjs').start({ app, ipcMain, guard, clipboard });
+  // Chat voice (tts.cjs / chat-voice.js): speech files for the OBS browser source served by the overlays.
+  const chatVoice = require('./tts.cjs').start({ app, ipcMain, guard });
+  require('./overlays.cjs').start({ app, ipcMain, guard, clipboard, voice: chatVoice });
   // Go-live announcements to Discord (announce.cjs / announce.js).
   require('./announce.cjs').start({ app, ipcMain, guard, safeStorage });
   // Vertical (9:16) copies of clips (vertical-clips.cjs / vertical-clip-ui.js).

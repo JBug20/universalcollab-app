@@ -134,6 +134,12 @@ export async function openStudio({
         window.remoteStateLast = state;
       },
       themeStyles: () => window.fakeThemeStyles,
+      // Chat voice for the stream: tests set window.chatVoiceFail (an error text) to make it fail.
+      chatVoice: async input => {
+        calls.push({ chatVoice: input.op, input });
+        if (window.chatVoiceFail) return { ok: false, error: window.chatVoiceFail };
+        return { ok: true, data: { queued: true } };
+      },
       // End credits and alerts overlays: tests read window.overlayUpdates.
       overlays: async input => {
         calls.push({ overlays: input.op, input });

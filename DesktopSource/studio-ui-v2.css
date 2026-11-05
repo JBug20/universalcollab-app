@@ -1808,3 +1808,22 @@ body.onboarding #manageOBS {
 #panelContext[hidden] {
   display: none;
 }
+/* Chat voice (chat-voice.js): the dropdown in Chat settings and the volume in the audio panel. */
+.chat-voice-settings {
+  margin-top: 12px;
+}
+.chat-voice-settings label {
+  display: block;
+}
+#obsMixerPanel .chat-voice-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #4a415e;
+}
+#obsMixerPanel .chat-voice-row input[type='range'] {
+  flex: 1;
+  min-width: 60px;
+}
