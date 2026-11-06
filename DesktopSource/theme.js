@@ -116,8 +116,8 @@
     }
     return out;
   }
-  function themed(text, theme) {
-    const sheet = new CSSStyleSheet();
+  function themed(text, theme, Sheet = CSSStyleSheet) {
+    const sheet = new Sheet();
     sheet.replaceSync(text);
     for (const rule of rules(sheet.cssRules))
       for (const prop of [...rule.style]) {
@@ -152,6 +152,18 @@
   } catch {}
   current = apply(current);
   window.appTheme.current = () => current;
+  // A panel moved to its own window (studio-ui-v2.js) gets the same look: true when the theme's recoloured copies
+  // were given to that window (it then needs no stylesheet links), false for the default theme.
+  window.appTheme.styleWindow = win => {
+    if (current === 'purple' || !sources?.length) return false;
+    try {
+      win.document.adoptedStyleSheets = sources.map(f => themed(f.text, current, win.CSSStyleSheet));
+      win.document.documentElement.dataset.theme = current;
+      return true;
+    } catch {
+      return false;
+    }
+  };
   window.appTheme.set = theme => {
     current = apply(theme);
     for (const r of document.querySelectorAll('input[name=appTheme]')) r.checked = r.value === current;

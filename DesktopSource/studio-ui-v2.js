@@ -581,6 +581,8 @@
   let workspace = read('uc-ui8-workspace', structuredClone(defaults));
   if (!workspace || typeof workspace !== 'object') workspace = structuredClone(defaults);
   const panels = new Map([...document.querySelectorAll('[data-dock]')].map(p => [p.dataset.dock, p]));
+  // Panels living in their own window: id -> { win, from } (see "A panel in its own window" below).
+  const detached = new Map();
   const titles = {
     sources: 'Sources · relay layout',
     obsScenes: 'OBS scenes',
@@ -652,12 +654,14 @@
   for (const t of customTools) toolCard(t);
   // Where a dragged panel would go in a section: before the first panel whose middle the pointer has not passed,
   // or after the last one. Sections run top to bottom, except the bottom row, which runs left to right.
+  // Sections whose panels sit side by side (left to right); the others stack top to bottom.
+  const SIDE_BY_SIDE = new Set(['dockBottom', 'dockCenter']);
   const dropLine = make('div');
   dropLine.className = 'drop-line';
   dropLine.hidden = true;
   document.body.append(dropLine);
   function dropSlot(column, panel, ev) {
-    const horizontal = column.id === 'dockBottom',
+    const horizontal = SIDE_BY_SIDE.has(column.id),
       pointer = horizontal ? ev.clientX : ev.clientY,
       others = [...column.children].filter(n => n.dataset?.dock && n !== panel && !n.hidden);
     let before = null;
@@ -842,7 +846,7 @@
       if (!panels.has(id) || workspace.hidden?.includes(id)) delete floating[id];
     for (const column of ['dockLeft', 'dockCenter', 'dockRight', 'dockBottom'])
       for (const id of Array.isArray(workspace.order?.[column]) ? workspace.order[column] : []) {
-        if (panels.has(id) && !seen.has(id) && !floating[id]) {
+        if (panels.has(id) && !seen.has(id) && !floating[id] && !detached.has(id)) {
           $(column).append(panels.get(id));
           seen.add(id);
         }
@@ -860,10 +864,13 @@
       } else {
         if (p.classList.contains('panel-floating')) {
           p.classList.remove('panel-floating');
-          for (const k of ['left', 'top', 'width']) p.style[k] = '';
+          // Back in a section it takes the room the section gives it, not the size it had floating.
+          delete workspace.heights?.[id];
+          p.style.height = '';
         }
+        for (const k of ['left', 'top', 'width', 'maxHeight']) p.style[k] = '';
       }
-      if (!seen.has(id) && !floating[id])
+      if (!seen.has(id) && !floating[id] && !detached.has(id))
         $(id === 'scenes' ? 'dockLeft' : id === 'layout' ? 'dockCenter' : 'dockRight').append(p);
       p.hidden =
         (Array.isArray(workspace.hidden) && workspace.hidden.includes(id)) ||
@@ -1004,6 +1011,131 @@
     delete workspace.floating?.[id];
     saveWorkspace();
   }
+  // ---- A panel in its own window (for a second monitor) ----
+  // The panel is moved into a separate window; its buttons and sliders keep working because the same page code
+  // runs them. While it is away, lookups by id and selector in the main window also look in those windows, so the
+  // rest of the app still finds it. Closing the window, or "Return to main window", puts the panel back where it
+  // was. Windows are not remembered across restarts: after a restart the panel is back in its section.
+  const realDoc = {
+    getElementById: document.getElementById,
+    querySelector: document.querySelector,
+    querySelectorAll: document.querySelectorAll
+  };
+  const openDocs = () => [...detached.values()].map(d => d.win.document).filter(d => d);
+  document.getElementById = function (name) {
+    return (
+      realDoc.getElementById.call(document, name) ||
+      openDocs()
+        .map(d => d.getElementById(name))
+        .find(Boolean) ||
+      null
+    );
+  };
+  document.querySelector = function (selector) {
+    return (
+      realDoc.querySelector.call(document, selector) ||
+      openDocs()
+        .map(d => d.querySelector(selector))
+        .find(Boolean) ||
+      null
+    );
+  };
+  document.querySelectorAll = function (selector) {
+    const found = [...realDoc.querySelectorAll.call(document, selector)];
+    for (const d of openDocs()) found.push(...d.querySelectorAll(selector));
+    return found;
+  };
+  // The focused element, wherever it is (sliders being dragged must not be redrawn under the pointer).
+  const realActive = Object.getOwnPropertyDescriptor(Document.prototype, 'activeElement').get;
+  Object.defineProperty(document, 'activeElement', {
+    configurable: true,
+    get() {
+      for (const d of openDocs())
+        if (d.hasFocus() && d.activeElement && d.activeElement !== d.body) return d.activeElement;
+      return realActive.call(document);
+    }
+  });
+  function detach(id) {
+    const panel = panels.get(id);
+    if (!panel || detached.has(id)) return;
+    if (id === 'layout') return note('The stream layout editor has to stay in the main window.');
+    const slot = panel.getBoundingClientRect(),
+      size = `popup=yes,width=${Math.round(Math.max(300, slot.width || 360))},height=${Math.round(Math.max(260, slot.height || 420))},left=${Math.round(window.screenX + 60)},top=${Math.round(window.screenY + 60)}`;
+    let win = null;
+    try {
+      win = window.open('about:blank', 'uc-panel-' + id, size);
+    } catch {}
+    if (!win?.document) return note('The new window could not be opened.');
+    const doc = win.document;
+    doc.title = titles[id] + ' · UniversalCollab';
+    const head = doc.head || doc.documentElement.appendChild(doc.createElement('head')),
+      body = doc.body || doc.documentElement.appendChild(doc.createElement('body'));
+    for (const [k, v] of Object.entries({ charset: 'utf-8' }))
+      head.append(Object.assign(doc.createElement('meta'), { [k]: v }));
+    // The same look: the theme's recoloured copies, or the app's own stylesheets.
+    if (!window.appTheme?.styleWindow?.(win))
+      for (const link of document.querySelectorAll('link[rel=stylesheet]')) {
+        const copy = doc.createElement('link');
+        copy.rel = 'stylesheet';
+        copy.href = link.href;
+        head.append(copy);
+      }
+    body.className = 'detached-window';
+    const bar = doc.createElement('div'),
+      back = doc.createElement('button');
+    bar.className = 'detached-bar';
+    back.type = 'button';
+    back.textContent = 'Return to main window';
+    bar.append(back);
+    body.append(bar);
+    const from = {
+      column: panel.parentElement?.id || '',
+      next:
+        [...(panel.parentElement?.children || [])]
+          .slice([...(panel.parentElement?.children || [])].indexOf(panel) + 1)
+          .find(n => n.dataset?.dock)?.dataset.dock || '',
+      floating: workspace.floating?.[id] ? { ...workspace.floating[id] } : null
+    };
+    delete workspace.floating?.[id];
+    detached.set(id, { win, from });
+    panel.classList.remove('panel-floating');
+    panel.classList.add('panel-detached');
+    for (const k of ['left', 'top', 'width', 'height', 'flex']) panel.style[k] = '';
+    body.append(panel);
+    back.onclick = () => attach(id);
+    win.addEventListener('pagehide', () => attach(id, true));
+    saveWorkspace();
+    note(titles[id] + ' is in its own window. Drag that window to another monitor.');
+  }
+  function attach(id, closing = false) {
+    const entry = detached.get(id),
+      panel = panels.get(id);
+    if (!entry) return;
+    detached.delete(id);
+    panel.classList.remove('panel-detached');
+    if (entry.from.floating) workspace.floating[id] = entry.from.floating;
+    else {
+      const column = $(entry.from.column) || $('dockRight'),
+        next = [...column.children].find(n => n.dataset?.dock === entry.from.next);
+      if (next) column.insertBefore(panel, next);
+      else column.append(panel);
+    }
+    saveWorkspace();
+    if (!closing)
+      try {
+        entry.win.close();
+      } catch {}
+  }
+  // Closing the main window closes the panel windows with it.
+  window.addEventListener('beforeunload', () => {
+    for (const [id, entry] of [...detached]) {
+      detached.delete(id);
+      try {
+        entry.win.close();
+      } catch {}
+    }
+  });
+
   // Right-click a panel header: Pop out (or Dock back) and Remove.
   const panelContext = make('div');
   panelContext.id = 'panelContext';
@@ -1029,6 +1161,14 @@
           } else popOut(id);
         })
       ),
+      ...(id === 'layout'
+        ? []
+        : [
+            button(
+              'Open in a new window',
+              done(() => detach(id))
+            )
+          ]),
       ...(floating
         ? [
             ['Dock left', 'dockLeft'],
@@ -1052,7 +1192,7 @@
       )
     );
     panelContext.style.left = Math.max(0, Math.min(innerWidth - 150, e.clientX)) + 'px';
-    panelContext.style.top = Math.max(0, Math.min(innerHeight - (floating ? 230 : 90), e.clientY)) + 'px';
+    panelContext.style.top = Math.max(0, Math.min(innerHeight - (floating ? 260 : 120), e.clientY)) + 'px';
     panelContext.hidden = false;
   });
   document.addEventListener('pointerdown', e => {
@@ -1242,6 +1382,9 @@
     getWorkspace: () => workspace,
     popOut,
     removePanel,
+    detach,
+    attach,
+    detached: id => detached.has(id),
     setPanelVisible: (id, show) => {
       workspace.hidden = (workspace.hidden || []).filter(n => n !== id);
       if (!show) workspace.hidden.push(id);

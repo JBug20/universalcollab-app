@@ -873,7 +873,7 @@
       for (let i = 0; i < visible.length - 1; i++) {
         const a = visible[i],
           b = visible[i + 1],
-          horizontal = id === 'dockBottom',
+          horizontal = id === 'dockBottom' || id === 'dockCenter',
           sep = make('div');
         sep.className = 'panel-separator';
         sep.tabIndex = 0;

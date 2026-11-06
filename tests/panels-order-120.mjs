@@ -76,6 +76,39 @@ try {
   await drag('scenes', r.x + r.width / 2, r.y + r.height * 0.9);
   assert.deepEqual(await order('dockLeft'), ['chat', 'scenes']);
 
+  // The centre section is a row too: panels sit side by side and share its height.
+  assert.deepEqual(await order('dockCenter'), ['layout']);
+  r = await box('layout');
+  await drag('stream', r.x + r.width * 0.9, r.y + 150);
+  assert.deepEqual(await order('dockCenter'), ['layout', 'stream'], 'right of the layout');
+  const lay = await box('layout'),
+    str = await box('stream'),
+    centre = await page.locator('#dockCenter').boundingBox();
+  assert(str.x >= lay.x + lay.width - 2, 'side by side: ' + JSON.stringify([lay, str]));
+  assert(Math.abs(str.height - lay.height) <= 2 && str.height > centre.height - 20, 'both fill the height');
+  r = await box('layout');
+  await drag('stream', r.x + r.width * 0.1, r.y + 150);
+  assert.deepEqual(await order('dockCenter'), ['stream', 'layout'], 'left of the layout');
+  // Popped out and put back, it takes the room its section gives it.
+  await page.locator('[data-dock="stream"] > .dock-handle').click({ button: 'right' });
+  await page.locator('#panelContext button', { hasText: 'Pop out' }).click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-dock="stream"]').classList.contains('panel-floating')
+  );
+  await page.locator('[data-dock="stream"] > .dock-handle').click({ button: 'right' });
+  await page.locator('#panelContext button', { hasText: 'Dock right' }).click();
+  await page.waitForFunction(
+    () => !document.querySelector('[data-dock="stream"]').classList.contains('panel-floating')
+  );
+  const back = await box('stream'),
+    col = await page.locator('#dockRight').boundingBox();
+  assert(back.height >= col.height - 12 && back.width >= col.width - 12, JSON.stringify([back, col]));
+  assert.equal(
+    await page.evaluate(() => document.querySelector('[data-dock="stream"]').style.width),
+    '',
+    'no leftover floating size'
+  );
+
   // The bar is gone afterwards, and the order is remembered.
   assert.equal(await page.locator('.drop-line').evaluate(n => n.hidden), true);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('uc-ui8-workspace')).order);

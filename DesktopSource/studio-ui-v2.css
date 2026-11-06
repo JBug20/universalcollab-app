@@ -792,6 +792,7 @@ main {
 #dockCenter {
   grid-column: 2;
   grid-row: 1;
+  flex-direction: row;
 }
 #dockRight {
   grid-column: 3;
@@ -1324,7 +1325,8 @@ body.onboarding #manageOBS {
   cursor: row-resize;
   min-height: 7px;
 }
-#dockBottom > .panel-separator {
+#dockBottom > .panel-separator,
+#dockCenter > .panel-separator {
   cursor: col-resize;
   min-width: 7px;
   min-height: 0;
@@ -1903,5 +1905,43 @@ body.onboarding #manageOBS {
   pointer-events: none;
 }
 .drop-line[hidden] {
+  display: none;
+}
+/* Panels in a section fill its height (side-by-side sections) or its width (stacked ones). */
+.studio-column > .card {
+  align-self: stretch;
+}
+/* A panel in its own window (studio-ui-v2.js): the panel fills the window under a thin bar. */
+body.detached-window {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  margin: 0;
+  overflow: hidden;
+  background: #101017;
+}
+.detached-window .detached-bar {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 6px;
+  background: #181a24;
+  border-bottom: 1px solid #444050;
+}
+.detached-window .detached-bar button {
+  font-size: 11px;
+  padding: 3px 10px;
+}
+.detached-window .panel-detached {
+  flex: 1 1 0;
+  min-height: 0;
+  width: auto;
+  max-height: none;
+  margin: 0;
+  border-radius: 0;
+  overflow: auto;
+  resize: none;
+}
+.detached-window .panel-detached[hidden] {
   display: none;
 }

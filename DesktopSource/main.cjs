@@ -293,7 +293,8 @@ app.whenReady().then(() => {
     });
   }
   win.setMenu(null);
-  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  // Panels in their own windows, e.g. on a second monitor (panel-windows.cjs).
+  require('./panel-windows.cjs').start(win);
   win.webContents.on('will-navigate', e => e.preventDefault());
   win.webContents.on('will-attach-webview', e => e.preventDefault());
   ownerKeys = new relayOwner.OwnerKeys({ directory: app.getPath('userData'), safeStorage });
