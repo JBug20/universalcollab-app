@@ -30,7 +30,11 @@ try {
   // Right-click a header: Pop out.
   assert.equal(await where('chat'), 'dockLeft');
   await handle('chat').click({ button: 'right' });
-  assert.deepEqual(await menu.locator('button').allTextContents(), ['Pop out', 'Remove']);
+  assert.deepEqual(await menu.locator('button').allTextContents(), [
+    'Pop out',
+    'Open in a new window',
+    'Remove'
+  ]);
   await menu.locator('button', { hasText: 'Pop out' }).click();
   await page.waitForFunction(() =>
     document.querySelector('[data-dock="chat"]').classList.contains('panel-floating')
@@ -49,6 +53,7 @@ try {
   await handle('chat').click({ button: 'right' });
   assert.deepEqual(await menu.locator('button').allTextContents(), [
     'Dock back',
+    'Open in a new window',
     'Dock left',
     'Dock center',
     'Dock right',
