@@ -201,6 +201,16 @@ export async function openStudio({ viewport = { width: 1500, height: 1000 } } = 
           return { ok: true, data: { report: r.report, path: r.path, file: 'Stream report.txt' } };
         return { ok: true, data: {} };
       },
+      // Stream labels: the files written are kept in window.labelFiles; Add to OBS is recorded.
+      streamLabels: async input => {
+        calls.push({ labels: input.op, input });
+        if (input.op === 'write') window.labelFiles = { ...(window.labelFiles || {}), ...input.labels };
+        if (input.op === 'add-to-obs') {
+          if (window.labelsOBSFail) return { ok: false, error: window.labelsOBSFail };
+          return { ok: true, data: { source: 'Label: ' + input.id, scene: 'Live', file: 'x.txt' } };
+        }
+        return { ok: true, data: { folder: 'C:\\Users\\me\\Documents\\UniversalCollab\\Stream Labels' } };
+      },
       // Go-live announcements: tests set window.fakeDiscord ({ id }) or window.announceFail (an error text).
       announce: async input => {
         calls.push({ announce: input.op, input });

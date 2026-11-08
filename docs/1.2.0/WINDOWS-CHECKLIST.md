@@ -148,6 +148,15 @@ You need:
 - [ ] Starting a new relay broadcast starts a new list.
 - [ ] Optional: add the credits link to the relay layout as a browser source; it shows in the relay picture.
 
+## 6b2. Stream labels (Tools → Stream labels)
+
+- [ ] `Documents\UniversalCollab\Stream Labels` holds one .txt file per label (Open folder shows it).
+- [ ] With Stream Assist running, a follow, sub, cheer, Super Chat, Kicks or Streamlabs tip updates the matching file within a few seconds, and the window shows it.
+- [ ] Add to OBS puts a "Label: …" Text source in the current scene that shows the label; its font and colour can be changed in OBS and it updates live. Pressing Add to OBS again does not make a second source.
+- [ ] An own format (e.g. `Follower: {name}`) and the "None yet" text appear in the file and in OBS.
+- [ ] A new relay broadcast puts the "this stream" counts back to 0; the latest follower etc. stay, also after restarting the app.
+- [ ] Choose folder… moves the files; Add to OBS then uses the new folder.
+
 ## 6c. Go-live announcements (Tools → Go-live announcements)
 
 - [ ] In Discord: Server Settings → Integrations → Webhooks → New Webhook → pick a channel → Copy Webhook URL. Paste it and Save webhook: it says "connected", and the link is not shown again.

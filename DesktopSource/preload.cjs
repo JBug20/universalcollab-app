@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('relayDesktop', {
   streamReports: input => ipcRenderer.invoke('stream-reports', input),
   // Go-live announcements (announce.cjs / announce.js).
   announce: input => ipcRenderer.invoke('announce', input),
+  streamLabels: input => ipcRenderer.invoke('stream-labels', input),
   // Keyboard shortcuts (hotkeys.cjs / keyboard-shortcuts.js).
   hotkeys: input => ipcRenderer.invoke('hotkeys', input),
   onHotkey: callback => {

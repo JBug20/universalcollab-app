@@ -126,6 +126,7 @@
       ['Keyboard shortcuts', () => window.openKeyboardShortcuts?.()],
       ['Check stream readiness', () => window.openReadiness?.()],
       ['End credits & alerts', () => window.openEndCredits?.()],
+      ['Stream labels', () => window.openStreamLabels?.()],
       ['Go-live announcements', () => window.openAnnouncements?.()],
       ['Stream reports', () => window.openStreamReports?.()],
       ['Edit OBS scene on screen', () => window.openObsSceneEditor?.()],
@@ -199,7 +200,7 @@
   );
   info(
     'aboutApp',
-    'UniversalCollab · 1.2.0-preview.21',
+    'UniversalCollab · 1.2.0-preview.22',
     'Self-hosted collaboration and streaming workspace. OBS preview is local, without audio, and does not show the final relay composite.'
   );
   const prop = make('dialog');

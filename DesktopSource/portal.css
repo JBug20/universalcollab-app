@@ -2231,3 +2231,43 @@ dialog.stream-report {
 .obs-stuck p {
   margin: 0 0 8px;
 }
+/* Stream labels (stream-labels.js). */
+#streamLabelsWindow {
+  width: min(860px, calc(100vw - 32px));
+  max-width: none;
+}
+.labels-folder {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  color: var(--muted, #b9b6c9);
+}
+.labels-table h3 {
+  margin: 14px 0 6px;
+}
+.labels-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.2fr) minmax(100px, 1fr) minmax(120px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--edge);
+}
+.labels-row strong {
+  font-weight: 600;
+  font-size: 14px;
+}
+.labels-now {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+}
+.labels-row input {
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .labels-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}

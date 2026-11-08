@@ -171,6 +171,16 @@ app.whenReady().then(() => {
   require('./overlays.cjs').start({ app, ipcMain, guard, clipboard });
   // Go-live announcements to Discord (announce.cjs / announce.js).
   require('./announce.cjs').start({ app, ipcMain, guard, safeStorage });
+  // Stream labels (stream-labels.cjs / stream-labels.js): text files for OBS Text sources.
+  require('./stream-labels.cjs').start({
+    app,
+    ipcMain,
+    guard,
+    dialog,
+    shell,
+    getWindow: () => win,
+    obsRequest: () => (obs?.ready ? (type, data) => obs.request(type, data) : null)
+  });
   // Vertical (9:16) copies of clips (vertical-clips.cjs / vertical-clip-ui.js).
   require('./vertical-clips.cjs').start({
     ipcMain,
