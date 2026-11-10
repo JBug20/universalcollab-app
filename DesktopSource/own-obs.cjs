@@ -67,7 +67,24 @@ function clearSentinels({ platform = process.platform, env = process.env } = {})
   return removed;
 }
 
+// Your own OBS's saved window position (%APPDATA%\obs-studio\user.ini / global.ini), reset when it is off every
+// screen, as for the included OBS (bundled-obs.cjs). Only done while OBS is closed (OBS writes it when it closes).
+function repairOwnGeometry({ platform = process.platform, env = process.env, displays = () => [] } = {}) {
+  const base = platform === 'win32' ? env.APPDATA : env.HOME && path.join(env.HOME, '.config');
+  if (!base) return 0;
+  let screens = [];
+  try {
+    screens = displays() || [];
+  } catch {}
+  const { repairGeometry } = require('./bundled-obs.cjs');
+  let fixed = 0;
+  for (const f of ['user.ini', 'global.ini'])
+    if (repairGeometry(path.join(base, 'obs-studio', f), screens)) fixed++;
+  return fixed;
+}
+
 exports.ARGS = ARGS;
+exports.repairOwnGeometry = repairOwnGeometry;
 exports.clearSentinels = clearSentinels;
 exports.isOBS = isOBS;
 exports.find = find;
@@ -79,7 +96,8 @@ exports.create = ({
   spawnProcess = spawn,
   platform = process.platform,
   query = run,
-  env = process.env
+  env = process.env,
+  displays = () => []
 }) => {
   const file = path.join(app.getPath('userData'), 'own-obs.json');
   let settings = { enabled: false, closeOnQuit: false, path: '' };
@@ -180,6 +198,8 @@ exports.create = ({
         if (!target) throw Error('Your OBS was not found. Choose obs64.exe in Connect OBS.');
         if (await running({ platform, query }))
           return { started: false, alreadyRunning: true, ...(await info()) };
+        // A window position saved on a screen that is no longer there would open OBS off-screen: reset it.
+        repairOwnGeometry({ platform, env, displays });
         const child = spawnProcess(target, ARGS, {
           cwd: path.dirname(target),
           detached: true,

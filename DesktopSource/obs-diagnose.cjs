@@ -161,7 +161,7 @@ function explain(d) {
       text: `OBS is showing a window waiting for an answer: "${dialogs[0]}". ${
         d.bundled ? 'Show OBS to answer it' : 'Answer it in OBS'
       } (if it asks about Safe Mode, choose Run Normally).`,
-      actions: d.bundled ? ['show', 'restart'] : []
+      actions: d.bundled ? ['show', 'restart'] : ['show']
     };
   if (d.wsFailed)
     return {
@@ -214,7 +214,7 @@ function explain(d) {
       text:
         'OBS is open but not answering (busy or frozen). ' +
         (d.bundled ? 'Show OBS to check it, or restart it.' : 'Check OBS, or close and reopen it.'),
-      actions: d.bundled ? ['show', 'restart'] : []
+      actions: d.bundled ? ['show', 'restart'] : ['show']
     };
   if (d.logFile && !d.logStale && !d.loaded && !d.shutDown)
     return {
@@ -224,7 +224,7 @@ function explain(d) {
         (d.modulesFailed.length ? ` (it could not load ${d.modulesFailed.join(', ')})` : '') +
         '. ' +
         (d.bundled ? 'Show OBS to check it, or restart it.' : 'Check OBS, or close and reopen it.'),
-      actions: d.bundled ? ['show', 'restart'] : []
+      actions: d.bundled ? ['show', 'restart'] : ['show']
     };
   if (own)
     return {
@@ -235,12 +235,12 @@ function explain(d) {
         ` Tick Enable WebSocket server${d.expectedPort ? ' and check the Server Port is ' + d.expectedPort : ''}, then OK. ` +
         'If OBS asked about Safe Mode when it opened, close it and open it again, choosing Run Normally.' +
         (d.logStale ? " (UniversalCollab could not read this OBS's log, so it cannot tell more.)" : ''),
-      actions: ['settings']
+      actions: ['show', 'settings']
     };
   return {
     reason: 'unknown',
     text: 'OBS is open but not accepting connections. If OBS is asking whether to run in Safe Mode, choose Run Normally (open OBS from the system tray if you cannot see the question). If OBS is already in Safe Mode, close it and open it again normally.',
-    actions: d.bundled ? ['show', 'restart'] : []
+    actions: d.bundled ? ['show', 'restart'] : ['show']
   };
 }
 

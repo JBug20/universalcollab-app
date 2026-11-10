@@ -126,12 +126,92 @@ assert.match(byExe, /\$exe = 'C:\\Program Files\\Bob''s\\obs64\.exe'/);
 assert.match(byExe, /Get-Process obs64/);
 assert.doesNotMatch(byExe, /\$script:pids \+= 0/);
 assert.equal(windowScript({ exe: "x'\n; Remove-Item" }, 'show').includes("x'\n"), false);
-// Not running: a clear error.
-const b = new BundledOBS({ root: '/nonexistent' });
-assert
-  .rejects(b.hide(), /not running/)
-  .then(() =>
-    console.log(
-      "PASS OBS window: shown and hidden like OBS's tray icon, kept in step, brought on screen, off-screen position reset."
-    )
-  );
+// Your own OBS: every OBS running on this PC.
+const any = windowScript({ any: true }, 'show');
+assert.match(
+  any,
+  /Get-Process obs64 -ErrorAction SilentlyContinue \| ForEach-Object \{ \$script:pids \+= \$_\.Id \}/
+);
+assert.doesNotMatch(
+  show,
+  /ForEach-Object \{ \$script:pids \+= \$_\.Id \}\n/,
+  'the included OBS only: not every OBS'
+);
+// Off-screen is judged by the middle of the title bar (a window overlapping a screen by a few pixels cannot be
+// grabbed) and by size; it is then moved to the main screen.
+assert.match(show, /MonitorFromPoint\(p, 0\) == IntPtr\.Zero \|\| r\.Rt - r\.L < 200/);
+assert.match(show, /GetMonitorInfo\(MonitorFromPoint\(new PT\(\), 1\), ref i\)/);
+// Shown already (OBS thinks so) but off-screen: brought on screen without toggling.
+assert.match(show, /if \(\(Visible\) -eq \$wantShown\) \{\n  if \(\$wantShown\) \{ \[W\]::Bring/);
+// Your own OBS's saved window position is reset before UniversalCollab starts it.
+{
+  const { repairOwnGeometry } = require('../DesktopSource/own-obs.cjs');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'uc-ownobs-'));
+  try {
+    fs.mkdirSync(path.join(home, 'obs-studio'));
+    const off = Buffer.alloc(24);
+    off.writeUInt32BE(0x01d9d0cb, 0);
+    off.writeInt32BE(-32000, 8);
+    off.writeInt32BE(-32000, 12);
+    off.writeInt32BE(-30720, 16);
+    off.writeInt32BE(-31200, 20);
+    fs.writeFileSync(
+      path.join(home, 'obs-studio', 'user.ini'),
+      '[BasicWindow]\ngeometry=' + off.toString('base64') + '\n'
+    );
+    assert.equal(
+      repairOwnGeometry({
+        platform: 'win32',
+        env: { APPDATA: home },
+        displays: () => [{ x: 0, y: 0, width: 1920, height: 1080 }]
+      }),
+      1
+    );
+    assert.doesNotMatch(fs.readFileSync(path.join(home, 'obs-studio', 'user.ini'), 'utf8'), /geometry=/);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+// Reset OBS window position: the saved position is removed even when it looks on-screen.
+{
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'uc-reset-'));
+  try {
+    const cfg = path.join(home, 'config', 'obs-studio');
+    fs.mkdirSync(cfg, { recursive: true });
+    const on = Buffer.alloc(24);
+    on.writeUInt32BE(0x01d9d0cb, 0);
+    on.writeInt32BE(100, 8);
+    on.writeInt32BE(100, 12);
+    on.writeInt32BE(1300, 16);
+    on.writeInt32BE(900, 20);
+    const ini = '[General]\nName=x\n[BasicWindow]\ngeometry=' + on.toString('base64') + '\nDockState=abc\n';
+    fs.writeFileSync(path.join(cfg, 'user.ini'), ini);
+    const b = new BundledOBS({ root: '/nonexistent' });
+    b.found = { root: home, exe: path.join(home, 'obs64.exe') };
+    b.stop = async () => {};
+    return b
+      .resetWindow()
+      .then(removed => {
+        assert.equal(removed, true);
+        const after = fs.readFileSync(path.join(cfg, 'user.ini'), 'utf8');
+        assert.doesNotMatch(after, /geometry=/);
+        assert.match(after, /DockState=abc/, 'the rest is kept');
+      })
+      .finally(() => fs.rmSync(home, { recursive: true, force: true }))
+      .then(rest);
+  } catch (e) {
+    fs.rmSync(home, { recursive: true, force: true });
+    throw e;
+  }
+}
+function rest() {
+  // Not running: a clear error.
+  const b = new BundledOBS({ root: '/nonexistent' });
+  assert
+    .rejects(b.hide(), /not running/)
+    .then(() =>
+      console.log(
+        "PASS OBS window: shown and hidden like OBS's tray icon, kept in step, brought on screen, off-screen position reset."
+      )
+    );
+}

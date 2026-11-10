@@ -1385,6 +1385,23 @@
       );
     });
     hide.id = 'bundledOBSHide';
+    // Last resort when OBS will not appear: restart it with its saved window position removed, then show it.
+    const reset = btn('Reset OBS window position', async () => {
+      if (!confirm('Close the included OBS, reset where its window opens, and start it again?')) return;
+      say('Restarting OBS with its window in the middle of your main screen…');
+      retryPaused = false;
+      await call('bundled-reset-window');
+      connection(false);
+      await connect(false, true);
+      const r = await call('bundled-show').catch(() => null);
+      say(
+        r?.shown
+          ? 'OBS window opened in the middle of your main screen.'
+          : 'OBS restarted. Open it from its tray icon: right-click → Show.'
+      );
+      await paintBundled();
+    });
+    reset.id = 'bundledOBSReset';
     const stop = btn('Close included OBS', async () => {
       retryPaused = true;
       await call('bundled-stop');
@@ -1392,7 +1409,7 @@
       say('Included OBS closed.');
     });
     stop.id = 'bundledOBSStop';
-    box.append(label, info, start, show, hide, stop);
+    box.append(label, info, start, show, hide, reset, stop);
     const intro = $('automaticOBS').querySelector('p');
     $('automaticOBS').insertBefore(box, intro);
     const manual = [
@@ -1409,7 +1426,7 @@
       } catch {}
       const on = useBundled();
       for (const n of manual) if (n) n.hidden = on;
-      start.hidden = show.hidden = hide.hidden = stop.hidden = !on;
+      start.hidden = show.hidden = hide.hidden = reset.hidden = stop.hidden = !on;
       start.disabled = online && bundled.running;
       show.disabled = hide.disabled = stop.disabled = !bundled.running;
       info.hidden = !on;
@@ -1514,6 +1531,21 @@
     stuckShown = false,
     stuckText = '',
     stuckAt = 0;
+  // Tools → Show OBS window (and Show OBS above): the included OBS, or your own OBS, shown on a screen and in front,
+  // also when OBS thinks it is already showing but its window is off every screen.
+  window.showOBSWindow = async () => {
+    const r = await call('obs-window-show', { bundled: useBundled() }).catch(e => ({ error: e.message }));
+    if (r?.shown) say('OBS window shown. If you still cannot see it, press Alt+Tab.');
+    else
+      say(
+        r?.how === 'no-obs'
+          ? 'OBS is not running.'
+          : 'Could not show OBS (' +
+              (r?.how || r?.error || 'unknown') +
+              '). Click OBS on the taskbar, then press Windows+Shift+Left arrow to move it to your screen.'
+      );
+    return r;
+  };
   async function explainStuck() {
     stuckAt = Date.now();
     let d = await call('obs-diagnose', { bundled: useBundled() }).catch(() => null);
@@ -1522,13 +1554,7 @@
     const text = node('p', d.text);
     const row = node('div');
     row.className = 'buttons';
-    if (d.actions?.includes('show'))
-      row.append(
-        btn('Show OBS', async () => {
-          if (!(await call('bundled-show'))?.shown)
-            say('OBS is in the system tray: right-click its icon → Show.');
-        })
-      );
+    if (d.actions?.includes('show')) row.append(btn('Show OBS', () => window.showOBSWindow()));
     if (d.actions?.includes('restart'))
       row.append(
         btn('Restart OBS', async () => {

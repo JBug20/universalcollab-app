@@ -20,9 +20,9 @@ try {
       facts: { safeMode: true, logFile: '2026-11-01 10-00-00.txt' }
     };
     bridge.obs = async (op, input = {}) => {
-      if (op === 'obs-diagnose' || op === 'bundled-restart' || op === 'bundled-show') {
+      if (op === 'obs-diagnose' || op === 'bundled-restart' || op === 'obs-window-show') {
         calls.push({ obs: op, input });
-        return op === 'obs-diagnose' ? window.diagnosis : op === 'bundled-show' ? { shown: true } : {};
+        return op === 'obs-diagnose' ? window.diagnosis : op === 'obs-window-show' ? { shown: true } : {};
       }
       if (window.obsBlocked && op === 'state') return { connected: false };
       if (window.obsBlocked && (op === 'connect' || op === 'snapshot'))
@@ -61,7 +61,7 @@ try {
     }
   );
   await page.locator('#obsStuck button', { hasText: 'Show OBS' }).click();
-  await page.waitForFunction(() => window.calls.some(c => c.obs === 'bundled-show'));
+  await page.waitForFunction(() => window.calls.some(c => c.obs === 'obs-window-show'));
   // Your own OBS, reason unknown: a button to the OBS connection settings.
   await page.evaluate(() => {
     window.diagnosis = {

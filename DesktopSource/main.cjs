@@ -482,6 +482,11 @@ app.whenReady().then(() => {
           return { ok: true, data: { running: true, ...data } };
         }
         // Restart OBS (the included one): close it (forcefully if it does not answer); reconnecting starts it again.
+        if (op === 'bundled-reset-window') {
+          obs.close();
+          const removed = await bundledOBS.resetWindow();
+          return { ok: true, data: { removed, ...bundledOBS.info() } };
+        }
         if (op === 'bundled-restart') {
           obs.close();
           await bundledOBS.stop();
@@ -489,9 +494,23 @@ app.whenReady().then(() => {
           return { ok: true, data: bundledOBS.info() };
         }
         if (op.startsWith('own-obs-')) {
-          ownOBS ||= require('./own-obs.cjs').create({ app, dialog, getWindow: () => win });
+          ownOBS ||= require('./own-obs.cjs').create({
+            app,
+            dialog,
+            getWindow: () => win,
+            displays: () =>
+              require('electron')
+                .screen.getAllDisplays()
+                .map(d => d.bounds)
+          });
           const data = await ownOBS.handle(op, input);
           if (data) return { ok: true, data };
+        }
+        // Show OBS's window, whichever OBS is in use: the included one, or any OBS running on this PC (your own).
+        if (op === 'obs-window-show') {
+          if (input.bundled && bundledOBS?.running)
+            return { ok: true, data: { shown: await bundledOBS.show(), how: bundledOBS.lastWindow || '' } };
+          return { ok: true, data: await require('./bundled-obs.cjs').showAnyOBS() };
         }
         if (op === 'bundled-show')
           return { ok: true, data: { shown: await bundledOBS.show(), how: bundledOBS.lastWindow || '' } };
@@ -1094,7 +1113,15 @@ app.on('before-quit', e => {
   try {
     closeOwn =
       !bundledOBS?.running &&
-      (ownOBS ||= require('./own-obs.cjs').create({ app, dialog, getWindow: () => win })).closeOnQuit;
+      (ownOBS ||= require('./own-obs.cjs').create({
+        app,
+        dialog,
+        getWindow: () => win,
+        displays: () =>
+          require('electron')
+            .screen.getAllDisplays()
+            .map(d => d.bounds)
+      })).closeOnQuit;
   } catch {}
   if (!quitAfterOBS && (bundledOBS?.running || closeOwn)) {
     quitAfterOBS = true;

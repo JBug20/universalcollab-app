@@ -83,7 +83,7 @@ const LOG = {
   assert.equal(e.reason, 'unknown');
   assert.match(e.text, /cannot reach your OBS on port 4455\. In OBS: Tools → WebSocket Server Settings\./);
   assert.match(e.text, /check the Server Port is 4455/);
-  assert.deepEqual(e.actions, ['settings']);
+  assert.deepEqual(e.actions, ['show', 'settings'], 'your own OBS can be shown too');
   assert.match(
     D.explain({ ...D.analyseLog(''), bundled: false, logStale: true, windows: [] }).text,
     /could not read this OBS's log/

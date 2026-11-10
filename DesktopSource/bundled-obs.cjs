@@ -88,7 +88,8 @@ function geometryOnScreen(b64, displays = []) {
       Math.min(top + 40, d.y + d.height) - Math.max(top, d.y) >= 20
   );
 }
-function repairGeometry(file, displays) {
+// force: remove the saved position even if it looks on-screen (Reset OBS window position).
+function repairGeometry(file, displays, { force = false } = {}) {
   let text;
   try {
     text = fs.readFileSync(file, 'utf8');
@@ -101,7 +102,7 @@ function repairGeometry(file, displays) {
     const m = /^\s*\[([^\]]+)\]\s*$/.exec(line);
     if (m) section = m[1];
     const g = /^\s*geometry\s*=(.*)$/.exec(line);
-    if (section === 'BasicWindow' && g && !geometryOnScreen(g[1], displays)) {
+    if (section === 'BasicWindow' && g && (force || !geometryOnScreen(g[1], displays))) {
       changed = true;
       return false;
     }
@@ -201,12 +202,14 @@ const listening = (port, ms = 400) =>
 // OBS started in the tray has no main window until it is first shown, so the windows are looked up again after each
 // click and the result is waited for (up to 3 seconds) before deciding anything; a second click is only sent when
 // the main window exists and is still the wrong way round. If there is no tray window it shows the window directly.
-// target: OBS's process id, or { pid, exe } (exe also finds an OBS left running from an earlier session).
+// target: OBS's process id, or { pid, exe } (exe also finds an OBS left running from an earlier session), or
+// { any: true } for every OBS running on this PC (your own OBS).
 function windowScript(target, mode) {
   const show = mode !== 'hide';
   const t = typeof target === 'object' && target ? target : { pid: target };
   const pid = Number.isInteger(Number(t.pid)) && Number(t.pid) > 0 ? Number(t.pid) : 0;
   const exe = typeof t.exe === 'string' ? t.exe.replace(/[\r\n\0]/g, '').replace(/'/g, "''") : '';
+  const any = t.any === true;
   return `
 Add-Type @'
 using System; using System.Runtime.InteropServices; using System.Text;
@@ -225,6 +228,9 @@ public static class W {
   [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; }
   [StructLayout(LayoutKind.Sequential)] public struct MI { public int cb; public R M; public R W; public uint F; }
   [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr h, uint f);
+  [StructLayout(LayoutKind.Sequential)] public struct PT { public int X, Y; }
+  [DllImport("user32.dll")] public static extern IntPtr MonitorFromPoint(PT p, uint f);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r);
   [DllImport("user32.dll")] public static extern bool GetMonitorInfo(IntPtr m, ref MI i);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int w, int hh, uint f);
   // Shown, on a screen and in front: a minimised window is restored; one that is off every screen (e.g. at the
@@ -232,9 +238,13 @@ public static class W {
   // it comes in front of UniversalCollab even when Windows refuses to hand over the focus.
   public static void Bring(IntPtr h) {
     if (IsIconic(h)) ShowWindow(h, 9);
-    if (MonitorFromWindow(h, 0) == IntPtr.Zero) {
+    // Off-screen: the middle of its title bar is on no screen (a window can still overlap a screen by a few pixels
+    // and be impossible to grab), or it is too small to see.
+    R r; GetWindowRect(h, out r);
+    PT p = new PT(); p.X = (r.L + r.Rt) / 2; p.Y = r.T + 12;
+    if (MonitorFromPoint(p, 0) == IntPtr.Zero || r.Rt - r.L < 200 || r.B - r.T < 150) {
       MI i = new MI(); i.cb = Marshal.SizeOf(typeof(MI));
-      GetMonitorInfo(MonitorFromWindow(h, 1), ref i);
+      GetMonitorInfo(MonitorFromPoint(new PT(), 1), ref i);
       int sw = i.W.Rt - i.W.L, sh = i.W.B - i.W.T;
       int w = Math.Min(1280, sw - 80), hh = Math.Min(800, sh - 80);
       SetWindowPos(h, IntPtr.Zero, i.W.L + (sw - w) / 2, i.W.T + (sh - hh) / 2, w, hh, 0x0004);
@@ -249,6 +259,7 @@ public static class W {
 $script:pids = @()
 ${pid ? '$script:pids += ' + pid : ''}
 $exe = '${exe}'
+${any ? 'Get-Process obs64 -ErrorAction SilentlyContinue | ForEach-Object { $script:pids += $_.Id }' : ''}
 if ($exe) { Get-Process obs64 -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } | ForEach-Object { $script:pids += $_.Id } }
 if ($script:pids.Count -eq 0) { Write-Output 'no-obs'; exit 4 }
 function Find {
@@ -285,6 +296,33 @@ if ($wantShown) { [void][W]::ShowWindow($script:main, 9); [W]::Bring($script:mai
 Find
 if ((Visible) -eq $wantShown) { Write-Output 'direct'; exit 0 }
 Write-Output 'failed'; exit 5`;
+}
+
+// Shows any OBS running on this PC (your own OBS), brought onto a screen and in front. Resolves { shown, how }.
+function showAnyOBS({ platform = process.platform } = {}) {
+  if (platform !== 'win32') return Promise.resolve({ shown: false, how: 'not-windows' });
+  return new Promise(resolve =>
+    execFile(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        windowScript({ any: true }, 'show')
+      ],
+      { windowsHide: true, timeout: 20000 },
+      (e, out) => {
+        const how =
+          String(out || '')
+            .trim()
+            .split(/\s+/)
+            .pop() || (e ? 'error' : '');
+        resolve({ shown: !e, how: how + (e?.killed ? ' (timed out)' : '') });
+      }
+    )
+  );
 }
 
 class BundledOBS {
@@ -408,6 +446,18 @@ class BundledOBS {
       )
     );
   }
+  // Reset OBS window position: OBS is closed (it saves its window position when it closes), the saved position is
+  // removed, and OBS opens its window in the middle of the main screen next time it starts.
+  async resetWindow() {
+    await this.stop();
+    if (!this.found) return false;
+    const config = path.join(this.found.root, 'config', 'obs-studio');
+    let removed = false;
+    for (const f of ['user.ini', 'global.ini'])
+      if (repairGeometry(path.join(config, f), [], { force: true })) removed = true;
+    this.closedByUser = false;
+    return removed;
+  }
   // Closes OBS politely (like clicking Exit), then forcefully if it does not close in time.
   async stop(timeout = 8000) {
     const child = this.child;
@@ -431,12 +481,13 @@ class BundledOBS {
 }
 module.exports = {
   BundledOBS,
+  showAnyOBS,
+  repairGeometry,
   locate,
   prepare,
   iniMerge,
   windowScript,
   geometryOnScreen,
-  repairGeometry,
   PORT,
   ARGS
 };

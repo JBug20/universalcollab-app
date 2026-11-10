@@ -130,6 +130,7 @@
       ['Go-live announcements', () => window.openAnnouncements?.()],
       ['Stream reports', () => window.openStreamReports?.()],
       ['Edit OBS scene on screen', () => window.openObsSceneEditor?.()],
+      ['Show OBS window', () => window.showOBSWindow?.()],
       ['OBS Connection', settings('obs')],
       [
         'Recordings folder',
@@ -200,7 +201,7 @@
   );
   info(
     'aboutApp',
-    'UniversalCollab · 1.2.0-preview.23',
+    'UniversalCollab · 1.2.0-preview.24',
     'Self-hosted collaboration and streaming workspace. OBS preview is local, without audio, and does not show the final relay composite.'
   );
   const prop = make('dialog');
