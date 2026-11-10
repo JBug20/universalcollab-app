@@ -75,9 +75,47 @@ const LOG = {
   assert.equal(e.reason, 'starting');
   assert.deepEqual(e.actions, ['show', 'restart']);
   assert.equal(ex(LOG.ok, { failure: 'timeout' }).reason, 'busy');
-  e = D.explain({ ...D.analyseLog(''), bundled: false, windows: [] });
+  e = D.explain({ ...D.analyseLog(''), bundled: true, windows: [] });
   assert.equal(e.reason, 'unknown');
   assert.match(e.text, /choose Run Normally/);
+  // Your own OBS, nothing else known: the steps in OBS, with the port, and a button to the connection settings.
+  e = D.explain({ ...D.analyseLog(''), bundled: false, expectedPort: 4455, windows: [] });
+  assert.equal(e.reason, 'unknown');
+  assert.match(e.text, /cannot reach your OBS on port 4455\. In OBS: Tools → WebSocket Server Settings\./);
+  assert.match(e.text, /check the Server Port is 4455/);
+  assert.deepEqual(e.actions, ['settings']);
+  assert.match(
+    D.explain({ ...D.analyseLog(''), bundled: false, logStale: true, windows: [] }).text,
+    /could not read this OBS's log/
+  );
+  // Set to your own OBS, but the included OBS is the one open.
+  e = D.explain({ ...D.analyseLog(''), bundled: false, includedOpen: true, ownOpen: false, windows: [] });
+  assert.equal(e.reason, 'included-open');
+  assert.match(
+    e.text,
+    /is the one included with UniversalCollab, but UniversalCollab is set to use your own/
+  );
+  assert.deepEqual(e.actions, ['use-included']);
+  assert.notEqual(
+    D.explain({ ...D.analyseLog(''), bundled: false, includedOpen: true, ownOpen: true, windows: [] }).reason,
+    'included-open',
+    'your own OBS is open too'
+  );
+  assert.deepEqual(
+    D.parseProcesses(
+      '1234|C:\\UC\\obs-studio\\bin\\64bit\\obs64.exe|2026-11-10T09:00:00.0000000Z\r\njunk\r\n'
+    ),
+    [
+      {
+        pid: 1234,
+        path: 'C:\\UC\\obs-studio\\bin\\64bit\\obs64.exe',
+        started: Date.parse('2026-11-10T09:00:00Z')
+      }
+    ]
+  );
+  assert.equal(D.inside('/apps/uc/obs-studio/bin/64bit/obs64', '/apps/uc/obs-studio'), true);
+  assert.equal(D.inside('/apps/uc/obs-studio-2/bin/obs64', '/apps/uc/obs-studio'), false);
+  assert.equal(D.inside('/x/obs64', ''), false);
 
   // Reading the newest log and a recent crash report from OBS's folder.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uc-obsdiag-'));
@@ -96,6 +134,41 @@ const LOG = {
     assert.equal(path.basename(f.logFile), '2026-11-01 10-00-00.txt', 'the newest run');
     assert.equal(f.crashedRecently, true);
     assert.deepEqual(f.modulesFailed, ['source-record.dll']);
+    // diagnose(): your own OBS. A log written before the open OBS started is from an earlier run and is not used.
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'uc-obshome-'));
+    const saved = { HOME: process.env.HOME, APPDATA: process.env.APPDATA };
+    try {
+      process.env.HOME = home;
+      process.env.APPDATA = home;
+      const cfg = D.configDir({});
+      fs.mkdirSync(path.join(cfg, 'logs'), { recursive: true });
+      const old = path.join(cfg, 'logs', 'old.txt');
+      fs.writeFileSync(old, LOG.safe);
+      fs.utimesSync(old, new Date(Date.now() - 3600000), new Date(Date.now() - 3600000));
+      const own = '/opt/obs/bin/obs';
+      let r = await D.diagnose({
+        includedRoot: '/apps/uc/obs-studio',
+        expectedPort: 4455,
+        processes: async () => [{ pid: 5, path: own, started: Date.now() - 60000 }]
+      });
+      assert.equal(r.reason, 'unknown', 'the old Safe Mode log is not about this OBS');
+      assert.equal(r.facts.logStale, true);
+      r = await D.diagnose({
+        includedRoot: '/apps/uc/obs-studio',
+        processes: async () => [{ pid: 5, path: own, started: Date.now() - 7200000 }]
+      });
+      assert.equal(r.reason, 'safe-mode', 'a log from this run is used');
+      r = await D.diagnose({
+        includedRoot: '/apps/uc/obs-studio',
+        processes: async () => [{ pid: 6, path: '/apps/uc/obs-studio/bin/64bit/obs64', started: Date.now() }]
+      });
+      assert.equal(r.reason, 'included-open');
+    } finally {
+      for (const [k, v] of Object.entries(saved))
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      fs.rmSync(home, { recursive: true, force: true });
+    }
     assert.equal(
       D.configDir({ bundledRoot: 'C:\\UC\\obs-studio', platform: 'win32' }),
       path.join('C:\\UC\\obs-studio', 'config', 'obs-studio')

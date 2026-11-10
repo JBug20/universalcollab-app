@@ -474,6 +474,7 @@ app.whenReady().then(() => {
           if (!isRunning) return { ok: true, data: { running: false } };
           const data = await require('./obs-diagnose.cjs').diagnose({
             bundledRoot: bundled ? bundledOBS.found?.root || '' : '',
+            includedRoot: bundledOBS?.found?.root || '',
             pid: bundled ? bundledOBS.child?.pid || 0 : 0,
             failure: obs?.lastFailure || '',
             expectedPort: bundled ? bundledOBS.credentials?.port || 0 : read().credentials?.port || 0

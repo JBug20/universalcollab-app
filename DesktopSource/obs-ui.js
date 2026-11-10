@@ -1540,6 +1540,18 @@
           stuckBox.hidden = true;
         })
       );
+    if (d.actions?.includes('use-included'))
+      row.append(
+        btn('Use the included OBS', () => {
+          const select = $('obsSource');
+          if (!select) return;
+          select.value = 'bundled';
+          select.onchange?.();
+          stuckBox.hidden = true;
+        })
+      );
+    if (d.actions?.includes('settings'))
+      row.append(btn('OBS connection settings', () => $('manageOBS')?.click()));
     if (d.facts) {
       const copy = node('button', 'Copy details');
       copy.type = 'button';

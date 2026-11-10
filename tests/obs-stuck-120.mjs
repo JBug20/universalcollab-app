@@ -62,6 +62,26 @@ try {
   );
   await page.locator('#obsStuck button', { hasText: 'Show OBS' }).click();
   await page.waitForFunction(() => window.calls.some(c => c.obs === 'bundled-show'));
+  // Your own OBS, reason unknown: a button to the OBS connection settings.
+  await page.evaluate(() => {
+    window.diagnosis = {
+      running: true,
+      reason: 'unknown',
+      text: 'UniversalCollab cannot reach your OBS on port 4455. In OBS: Tools → WebSocket Server Settings.',
+      actions: ['settings'],
+      facts: {}
+    };
+  });
+  await page.waitForFunction(
+    () => /cannot reach your OBS/.test(document.getElementById('obsStuck').textContent),
+    null,
+    {
+      timeout: 40000
+    }
+  );
+  await page.locator('#obsStuck button', { hasText: 'OBS connection settings' }).click();
+  await page.waitForFunction(() => document.getElementById('obsPairWindow').open);
+  await page.evaluate(() => document.getElementById('obsPairWindow').close());
   // Connected: cleared.
   await page.evaluate(() => (window.obsBlocked = false));
   await page.waitForFunction(() => window.obsConnected === true, null, { timeout: 15000 });

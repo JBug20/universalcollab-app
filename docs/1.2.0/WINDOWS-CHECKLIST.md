@@ -27,6 +27,8 @@ You need:
   - [ ] "Close my OBS when UniversalCollab closes" closes it with the app.
 - [ ] End your own OBS in Task Manager, then open it by hand. It does **not** ask about Safe Mode if UniversalCollab closed it.
 - [ ] Open OBS by hand and choose **Safe Mode** when asked. Within about 20 seconds the notice line says "OBS is open but not accepting connections…". Reopen OBS normally: it reconnects and says "OBS connected."
+- [ ] Settings → OBS set to **My own OBS installation** while only the included OBS is open: the box says the open OBS is the included one, and **Use the included OBS** switches to it and connects.
+- [ ] Your own OBS open with its WebSocket server turned off (Tools → WebSocket Server Settings): the box says what to tick and which port, and **OBS connection settings** opens Connect OBS.
 - [ ] Close UniversalCollab, then open it again straight away while it's still closing OBS. There's no "Object has been destroyed" error, and the app opens once the old one has finished.
 
 - [ ] **OBS window** (Settings → OBS, included OBS): Open OBS window shows it; Hide OBS window puts it back in the tray. Afterwards OBS's own tray icon → Show / Hide and its minimise button still work, in any order. The window always opens on a screen (also after a monitor was unplugged). Right after OBS starts in the tray (window never shown yet), the first Open OBS window shows it and it stays open, in front of UniversalCollab. After restarting UniversalCollab while OBS kept running, Open OBS window still works. If it fails, the message ends with a reason in brackets: note it.

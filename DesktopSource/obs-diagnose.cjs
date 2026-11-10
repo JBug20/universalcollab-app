@@ -96,12 +96,55 @@ $ids = @(Get-Process -Name obs64 -ErrorAction SilentlyContinue | ForEach-Object 
   );
 }
 
+// Every OBS program running (Windows): process id, program file and when it started. Used for your own OBS, to tell
+// whether the OBS that is open is actually the one included with UniversalCollab, and whether the log read is from it.
+function obsProcesses({ platform = process.platform } = {}) {
+  if (platform !== 'win32') return Promise.resolve([]);
+  const script =
+    "Get-Process -Name obs64 -ErrorAction SilentlyContinue | ForEach-Object { '{0}|{1}|{2}' -f $_.Id, $_.Path, $_.StartTime.ToUniversalTime().ToString('o') }";
+  return new Promise(resolve =>
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+      { windowsHide: true, timeout: 10000 },
+      (e, out) => resolve(parseProcesses(out))
+    )
+  );
+}
+function parseProcesses(out) {
+  return String(out || '')
+    .split(/\r?\n/)
+    .map(l => l.trim().split('|'))
+    .filter(p => p.length >= 3 && /^\d+$/.test(p[0]))
+    .map(([pid, file, started]) => ({ pid: Number(pid), path: file, started: Date.parse(started) || 0 }))
+    .slice(0, 10);
+}
+// Is this program file inside that folder (case-insensitive on Windows)?
+function inside(file, dir) {
+  if (!file || !dir) return false;
+  const norm = v =>
+    path
+      .resolve(v)
+      .replace(/[\\/]+$/, '')
+      .toLowerCase();
+  const f = norm(file),
+    d = norm(dir);
+  return f.startsWith(d + path.sep) || f.startsWith(d + '/') || f.startsWith(d + '\\');
+}
+
 // The message and buttons. `d`: { bundled, failure, expectedPort, windows, ...readFacts }.
 function explain(d) {
   const own = !d.bundled;
   const restart = d.bundled ? ['restart'] : [];
   const dialogs = (d.windows || []).filter(t => !/^OBS \d/.test(t));
   const fixOwn = 'In OBS: Tools → WebSocket Server Settings.';
+  // Set to your own OBS, but the OBS that is open is the included one (e.g. left running from before).
+  if (own && d.includedOpen && !d.ownOpen)
+    return {
+      reason: 'included-open',
+      text: 'The OBS that is open is the one included with UniversalCollab, but UniversalCollab is set to use your own OBS installation. Use the included OBS, or close it (tray icon → Exit) and open your own OBS.',
+      actions: ['use-included']
+    };
   if (d.safeMode)
     return {
       reason: 'safe-mode',
@@ -173,7 +216,7 @@ function explain(d) {
         (d.bundled ? 'Show OBS to check it, or restart it.' : 'Check OBS, or close and reopen it.'),
       actions: d.bundled ? ['show', 'restart'] : []
     };
-  if (d.logFile && !d.loaded && !d.shutDown)
+  if (d.logFile && !d.logStale && !d.loaded && !d.shutDown)
     return {
       reason: 'starting',
       text:
@@ -183,6 +226,17 @@ function explain(d) {
         (d.bundled ? 'Show OBS to check it, or restart it.' : 'Check OBS, or close and reopen it.'),
       actions: d.bundled ? ['show', 'restart'] : []
     };
+  if (own)
+    return {
+      reason: 'unknown',
+      text:
+        `UniversalCollab cannot reach your OBS${d.expectedPort ? ' on port ' + d.expectedPort : ''}. ` +
+        fixOwn +
+        ` Tick Enable WebSocket server${d.expectedPort ? ' and check the Server Port is ' + d.expectedPort : ''}, then OK. ` +
+        'If OBS asked about Safe Mode when it opened, close it and open it again, choosing Run Normally.' +
+        (d.logStale ? " (UniversalCollab could not read this OBS's log, so it cannot tell more.)" : ''),
+      actions: ['settings']
+    };
   return {
     reason: 'unknown',
     text: 'OBS is open but not accepting connections. If OBS is asking whether to run in Safe Mode, choose Run Normally (open OBS from the system tray if you cannot see the question). If OBS is already in Safe Mode, close it and open it again normally.',
@@ -190,11 +244,42 @@ function explain(d) {
   };
 }
 
-async function diagnose({ bundledRoot = '', pid = 0, failure = '', expectedPort = 0 } = {}) {
+async function diagnose({
+  bundledRoot = '',
+  includedRoot = '',
+  pid = 0,
+  failure = '',
+  expectedPort = 0,
+  processes = obsProcesses
+} = {}) {
   const dir = configDir({ bundledRoot });
-  const facts = dir ? readFacts(dir) : analyseLog('');
+  let facts = dir ? readFacts(dir) : analyseLog('');
   const windows = await windowTitles({ pid: bundledRoot ? pid : 0 }).catch(() => []);
-  const d = { ...facts, bundled: !!bundledRoot, failure, expectedPort, windows };
+  let more = {};
+  if (!bundledRoot) {
+    // Your own OBS: which OBS programs are open, and is the log read from one of them?
+    const procs = await Promise.resolve(processes()).catch(() => []);
+    const own = procs.filter(p => !inside(p.path, includedRoot));
+    more = {
+      includedOpen: procs.some(p => inside(p.path, includedRoot)),
+      ownOpen: own.length > 0,
+      programs: procs.map(p => p.path).slice(0, 5)
+    };
+    // The newest log was last written before this OBS started: it is from an earlier run (or another OBS), so what
+    // it says (Safe Mode, ports, crashes) is not about the OBS that is open now.
+    const started = Math.max(0, ...own.map(p => p.started || 0));
+    if (started && facts.logFile && facts.logAge !== null && Date.now() - facts.logAge < started - 5000) {
+      facts = {
+        ...analyseLog(''),
+        logFile: facts.logFile,
+        logAge: facts.logAge,
+        crashedRecently: false,
+        crashFile: ''
+      };
+      more.logStale = true;
+    }
+  }
+  const d = { ...facts, ...more, bundled: !!bundledRoot, failure, expectedPort, windows };
   return { ...explain(d), facts: { ...d, logFile: facts.logFile ? path.basename(facts.logFile) : '' } };
 }
-module.exports = { analyseLog, readFacts, configDir, explain, diagnose };
+module.exports = { analyseLog, readFacts, configDir, explain, diagnose, parseProcesses, inside };
