@@ -451,6 +451,15 @@ app.whenReady().then(() => {
         // "With OBS" builds: the included copy of OBS (see bundled-obs.cjs).
         // The screens now, so an off-screen OBS window position is reset before OBS starts (bundled-obs.cjs).
         bundledOBS ||= new (require('./bundled-obs.cjs').BundledOBS)({
+          nearWindow: () => {
+            // UniversalCollab's window handle, so OBS is shown on the screen it is on.
+            const h = win && !win.isDestroyed() ? win.getNativeWindowHandle() : null;
+            return h && h.length >= 8
+              ? Number(h.readBigUInt64LE(0))
+              : h && h.length >= 4
+                ? h.readUInt32LE(0)
+                : 0;
+          },
           displays: () =>
             require('electron')
               .screen.getAllDisplays()
@@ -510,7 +519,10 @@ app.whenReady().then(() => {
         if (op === 'obs-window-show') {
           if (input.bundled && bundledOBS?.running)
             return { ok: true, data: { shown: await bundledOBS.show(), how: bundledOBS.lastWindow || '' } };
-          return { ok: true, data: await require('./bundled-obs.cjs').showAnyOBS() };
+          const h = win && !win.isDestroyed() ? win.getNativeWindowHandle() : null;
+          const near =
+            h && h.length >= 8 ? Number(h.readBigUInt64LE(0)) : h && h.length >= 4 ? h.readUInt32LE(0) : 0;
+          return { ok: true, data: await require('./bundled-obs.cjs').showAnyOBS({ near }) };
         }
         if (op === 'bundled-show')
           return { ok: true, data: { shown: await bundledOBS.show(), how: bundledOBS.lastWindow || '' } };

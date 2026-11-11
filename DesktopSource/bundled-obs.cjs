@@ -210,6 +210,8 @@ function windowScript(target, mode) {
   const pid = Number.isInteger(Number(t.pid)) && Number(t.pid) > 0 ? Number(t.pid) : 0;
   const exe = typeof t.exe === 'string' ? t.exe.replace(/[\r\n\0]/g, '').replace(/'/g, "''") : '';
   const any = t.any === true;
+  // UniversalCollab's own window: OBS is brought to the screen it is on.
+  const near = Number.isSafeInteger(Number(t.near)) && Number(t.near) > 0 ? Number(t.near) : 0;
   return `
 Add-Type @'
 using System; using System.Runtime.InteropServices; using System.Text;
@@ -233,26 +235,43 @@ public static class W {
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r);
   [DllImport("user32.dll")] public static extern bool GetMonitorInfo(IntPtr m, ref MI i);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int w, int hh, uint f);
-  // Shown, on a screen and in front: a minimised window is restored; one that is off every screen (e.g. at the
-  // -32000 Windows uses for minimised windows) is moved to the middle of the main screen. Briefly made topmost so
-  // it comes in front of UniversalCollab even when Windows refuses to hand over the focus.
-  public static void Bring(IntPtr h) {
-    if (IsIconic(h)) ShowWindow(h, 9);
-    // Off-screen: the middle of its title bar is on no screen (a window can still overlap a screen by a few pixels
-    // and be impossible to grab), or it is too small to see.
+  [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool GetCursorPos(out PT p);
+  [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out int v, int size);
+  // On another Windows virtual desktop (Windows + Tab): the window is "cloaked" and cannot be brought here.
+  public static bool Cloaked(IntPtr h) { int v = 0; return DwmGetWindowAttribute(h, 14, out v, 4) == 0 && v != 0; }
+  // Shown in front of you: a minimised window is restored, and the window is moved to the middle of the screen
+  // UniversalCollab is on (or the screen the mouse is on) whenever it is anywhere else. "Anywhere else" includes a
+  // screen Windows still has but you cannot see (a TV or monitor that is off, a dummy plug, a virtual display), so it
+  // never depends on guessing whether a screen is real. Briefly made topmost so it comes in front even when Windows
+  // refuses to hand over the focus. Returns what it found and did, for the message and the log.
+  public static string Bring(IntPtr h, IntPtr near) {
+    bool wasMin = IsIconic(h);
+    if (wasMin) ShowWindow(h, 9);
     R r; GetWindowRect(h, out r);
+    IntPtr target;
+    if (near != IntPtr.Zero) target = MonitorFromWindow(near, 2);
+    else { PT c; GetCursorPos(out c); target = MonitorFromPoint(c, 2); }
+    MI i = new MI(); i.cb = Marshal.SizeOf(typeof(MI));
+    GetMonitorInfo(target, ref i);
     PT p = new PT(); p.X = (r.L + r.Rt) / 2; p.Y = r.T + 12;
-    if (MonitorFromPoint(p, 0) == IntPtr.Zero || r.Rt - r.L < 200 || r.B - r.T < 150) {
-      MI i = new MI(); i.cb = Marshal.SizeOf(typeof(MI));
-      GetMonitorInfo(MonitorFromPoint(new PT(), 1), ref i);
+    bool moved = false;
+    if (MonitorFromPoint(p, 0) != target || r.Rt - r.L < 200 || r.B - r.T < 150) {
+      if (IsZoomed(h)) ShowWindow(h, 9);
       int sw = i.W.Rt - i.W.L, sh = i.W.B - i.W.T;
       int w = Math.Min(1280, sw - 80), hh = Math.Min(800, sh - 80);
-      SetWindowPos(h, IntPtr.Zero, i.W.L + (sw - w) / 2, i.W.T + (sh - hh) / 2, w, hh, 0x0004);
+      SetWindowPos(h, IntPtr.Zero, i.W.L + (sw - w) / 2, i.W.T + (sh - hh) / 2, w, hh, 0x0044);
+      moved = true;
     }
     SetWindowPos(h, new IntPtr(-1), 0, 0, 0, 0, 0x0043);
     SetWindowPos(h, new IntPtr(-2), 0, 0, 0, 0, 0x0043);
     BringWindowToTop(h);
     SetForegroundWindow(h);
+    R n; GetWindowRect(h, out n);
+    return "was=" + r.L + "," + r.T + "," + (r.Rt - r.L) + "x" + (r.B - r.T) + (wasMin ? ",min" : "") +
+      " now=" + n.L + "," + n.T + "," + (n.Rt - n.L) + "x" + (n.B - n.T) + (moved ? ",moved" : "") +
+      " screen=" + i.W.L + "," + i.W.T + "," + (i.W.Rt - i.W.L) + "x" + (i.W.B - i.W.T) +
+      (Cloaked(h) ? " cloaked" : "") + (IsWindowVisible(h) ? "" : " hidden");
   }
 }
 '@
@@ -269,7 +288,7 @@ function Find {
       $c = New-Object System.Text.StringBuilder 256; [void][W]::GetClassName($h, $c, 256)
       $t = New-Object System.Text.StringBuilder 256; [void][W]::GetWindowText($h, $t, 256)
       if ($c.ToString() -like 'QTrayIconMessageWindowClass*') { $script:tray = $h }
-      elseif ($t.ToString() -like 'OBS *' -and ($script:main -eq [IntPtr]::Zero -or [W]::IsWindowVisible($h))) { $script:main = $h } }
+      elseif ($t.ToString() -like 'OBS *' -and ($script:main -eq [IntPtr]::Zero -or [W]::IsWindowVisible($h))) { $script:main = $h; $script:title = $t.ToString() } }
     return $true }, [IntPtr]::Zero) | Out-Null
 }
 function Visible { $script:main -ne [IntPtr]::Zero -and [W]::IsWindowVisible($script:main) }
@@ -278,28 +297,41 @@ function WaitFor($want) {
   return $false
 }
 function TrayClick { [void][W]::PostMessage($script:tray, 0x8065, [IntPtr]::Zero, [IntPtr]0x400) }
+$script:info = ''
 $wantShown = $${show ? 'true' : 'false'}
 Find
 if ((Visible) -eq $wantShown) {
-  if ($wantShown) { [W]::Bring($script:main) }
-  Write-Output 'already'; exit 0
+  if ($wantShown) { $script:info = [W]::Bring($script:main, [IntPtr][long]${near}) }
+  Write-Output "already $script:info"; exit 0
 }
 if ($script:tray -ne [IntPtr]::Zero) {
   TrayClick
   $ok = WaitFor $wantShown
   # OBS may have thought the opposite (an earlier forced show): its window exists but is still the wrong way round.
   if (-not $ok -and $script:main -ne [IntPtr]::Zero) { TrayClick; $ok = WaitFor $wantShown }
-  if ($ok) { if ($wantShown) { [W]::Bring($script:main) }; Write-Output 'tray'; exit 0 }
+  if ($ok) { if ($wantShown) { $script:info = [W]::Bring($script:main, [IntPtr][long]${near}) }; Write-Output "tray $script:info"; exit 0 }
 }
-if ($script:main -eq [IntPtr]::Zero) { Write-Output 'no-window'; exit 3 }
-if ($wantShown) { [void][W]::ShowWindow($script:main, 9); [W]::Bring($script:main) } else { [void][W]::ShowWindow($script:main, 0) }
+if ($script:main -eq [IntPtr]::Zero) { Write-Output "no-window tray=$($script:tray -ne [IntPtr]::Zero)"; exit 3 }
+# Hiding is only ever done by OBS itself: hiding its window behind its back leaves OBS sure it is showing (the tray
+# then says Hide while nothing is on screen, and Show does nothing).
+if (-not $wantShown) { Write-Output 'failed-hide'; exit 5 }
+[void][W]::ShowWindow($script:main, 9); $script:info = [W]::Bring($script:main, [IntPtr][long]${near})
 Find
-if ((Visible) -eq $wantShown) { Write-Output 'direct'; exit 0 }
-Write-Output 'failed'; exit 5`;
+if ((Visible) -eq $wantShown) { Write-Output "direct $script:info"; exit 0 }
+Write-Output "failed $script:info title=$script:title"; exit 5`;
 }
 
-// Shows any OBS running on this PC (your own OBS), brought onto a screen and in front. Resolves { shown, how }.
-function showAnyOBS({ platform = process.platform } = {}) {
+// What the window script reports: its last line, e.g. "tray was=3840,0,1280x800 now=320,140,1280x800,moved ...".
+const windowReport = out =>
+  String(out || '')
+    .trim()
+    .split(/\r?\n/)
+    .pop()
+    .trim()
+    .slice(0, 300);
+// Shows any OBS running on this PC (your own OBS), brought onto UniversalCollab's screen and in front.
+// near: UniversalCollab's window handle. Resolves { shown, how }.
+function showAnyOBS({ platform = process.platform, near = 0 } = {}) {
   if (platform !== 'win32') return Promise.resolve({ shown: false, how: 'not-windows' });
   return new Promise(resolve =>
     execFile(
@@ -310,16 +342,12 @@ function showAnyOBS({ platform = process.platform } = {}) {
         '-ExecutionPolicy',
         'Bypass',
         '-Command',
-        windowScript({ any: true }, 'show')
+        windowScript({ any: true, near }, 'show')
       ],
       { windowsHide: true, timeout: 20000 },
       (e, out) => {
-        const how =
-          String(out || '')
-            .trim()
-            .split(/\s+/)
-            .pop() || (e ? 'error' : '');
-        resolve({ shown: !e, how: how + (e?.killed ? ' (timed out)' : '') });
+        const how = windowReport(out) || (e ? 'error' : '');
+        resolve({ shown: !e && !/cloaked|hidden/.test(how), how: how + (e?.killed ? ' (timed out)' : '') });
       }
     )
   );
@@ -420,7 +448,11 @@ class BundledOBS {
     // An OBS left running from an earlier session (start() reuses it) has no child here: found by its program file.
     if (!this.running && !this.found) return Promise.reject(Error('The included OBS is not running.'));
     if (process.platform !== 'win32') return Promise.resolve(false);
-    const target = { pid: this.running ? this.child.pid : 0, exe: this.found?.exe || '' };
+    let near = 0;
+    try {
+      near = this.options.nearWindow?.() || 0;
+    } catch {}
+    const target = { pid: this.running ? this.child.pid : 0, exe: this.found?.exe || '', near };
     if (!target.pid && !target.exe) return Promise.reject(Error('The included OBS is not running.'));
     return new Promise(resolve =>
       execFile(
@@ -435,12 +467,9 @@ class BundledOBS {
         ],
         { windowsHide: true, timeout: 20000 },
         (e, out) => {
-          this.lastWindow =
-            (String(out || '')
-              .trim()
-              .split(/\s+/)
-              .pop() || (e ? 'error' : '')) + (e?.killed ? ' (timed out)' : '');
-          if (/no-obs/.test(this.lastWindow)) return resolve(false);
+          this.lastWindow = (windowReport(out) || (e ? 'error' : '')) + (e?.killed ? ' (timed out)' : '');
+          if (/no-obs|cloaked/.test(this.lastWindow) || (mode !== 'hide' && / hidden$/.test(this.lastWindow)))
+            return resolve(false);
           resolve(!e);
         }
       )

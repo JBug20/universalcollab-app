@@ -137,12 +137,29 @@ assert.doesNotMatch(
   /ForEach-Object \{ \$script:pids \+= \$_\.Id \}\n/,
   'the included OBS only: not every OBS'
 );
-// Off-screen is judged by the middle of the title bar (a window overlapping a screen by a few pixels cannot be
-// grabbed) and by size; it is then moved to the main screen.
-assert.match(show, /MonitorFromPoint\(p, 0\) == IntPtr\.Zero \|\| r\.Rt - r\.L < 200/);
-assert.match(show, /GetMonitorInfo\(MonitorFromPoint\(new PT\(\), 1\), ref i\)/);
+// Shown in front of you: the window goes to UniversalCollab's screen (or the mouse's) whenever its title bar is
+// anywhere else, including a screen Windows has but you cannot see; maximised windows are restored first. A window
+// on another virtual desktop is reported (cloaked), and what was found and done comes back for the message.
+assert.match(show, /MonitorFromPoint\(p, 0\) != target \|\| r\.Rt - r\.L < 200/);
+assert.match(show, /if \(near != IntPtr\.Zero\) target = MonitorFromWindow\(near, 2\);/);
+assert.match(show, /GetCursorPos\(out c\); target = MonitorFromPoint\(c, 2\);/);
+assert.match(show, /if \(IsZoomed\(h\)\) ShowWindow\(h, 9\);/);
+assert.match(show, /DwmGetWindowAttribute\(h, 14, out v, 4\)/);
+assert.match(
+  windowScript({ pid: 7, near: 132456 }, 'show'),
+  /\[W\]::Bring\(\$script:main, \[IntPtr\]\[long\]132456\)/
+);
+assert.match(
+  windowScript({ pid: 7, near: '1; Remove-Item' }, 'show'),
+  /\[IntPtr\]\[long\]0\)/,
+  'the handle is a number'
+);
+assert.match(show, /Write-Output "tray \$script:info"/);
 // Shown already (OBS thinks so) but off-screen: brought on screen without toggling.
-assert.match(show, /if \(\(Visible\) -eq \$wantShown\) \{\n  if \(\$wantShown\) \{ \[W\]::Bring/);
+assert.match(
+  show,
+  /if \(\(Visible\) -eq \$wantShown\) \{\n  if \(\$wantShown\) \{ \$script:info = \[W\]::Bring/
+);
 // Your own OBS's saved window position is reset before UniversalCollab starts it.
 {
   const { repairOwnGeometry } = require('../DesktopSource/own-obs.cjs');
@@ -205,6 +222,9 @@ assert.match(show, /if \(\(Visible\) -eq \$wantShown\) \{\n  if \(\$wantShown\) 
   }
 }
 function rest() {
+  // Hiding is never forced from outside OBS (that left OBS sure its window was open while nothing was on screen).
+  assert.doesNotMatch(hide, /ShowWindow\(\$script:main, 0\)/);
+  assert.match(hide, /if \(-not \$wantShown\) \{ Write-Output 'failed-hide'; exit 5 \}/);
   // Not running: a clear error.
   const b = new BundledOBS({ root: '/nonexistent' });
   assert

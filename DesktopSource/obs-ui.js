@@ -1371,8 +1371,7 @@
       say(
         r.shown
           ? 'OBS window opened. When finished, choose Hide OBS window (or OBS tray icon → Hide); closing the OBS window closes OBS.'
-          : 'Open OBS from its icon in the system tray (near the clock): right-click → Show.' +
-              (r.how ? ' (' + r.how + ')' : '')
+          : showResult({ ...r, shown: false })
       );
     });
     show.id = 'bundledOBSShow';
@@ -1535,17 +1534,31 @@
   // also when OBS thinks it is already showing but its window is off every screen.
   window.showOBSWindow = async () => {
     const r = await call('obs-window-show', { bundled: useBundled() }).catch(e => ({ error: e.message }));
-    if (r?.shown) say('OBS window shown. If you still cannot see it, press Alt+Tab.');
-    else
-      say(
-        r?.how === 'no-obs'
-          ? 'OBS is not running.'
-          : 'Could not show OBS (' +
-              (r?.how || r?.error || 'unknown') +
-              '). Click OBS on the taskbar, then press Windows+Shift+Left arrow to move it to your screen.'
-      );
+    say(showResult(r));
     return r;
   };
+  // What Show OBS did, in words, with the window script's report at the end (where the window was, where it is
+  // now, the screen used) so a window that still cannot be seen can be explained from the details.
+  function showResult(r) {
+    const how = r?.how || r?.error || 'no answer';
+    if (/^no-obs/.test(how)) return 'OBS is not running.';
+    if (/cloaked/.test(how))
+      return (
+        'OBS is open on another Windows desktop. Press Windows+Tab, then drag OBS onto this desktop. (' +
+        how +
+        ')'
+      );
+    if (r?.shown)
+      return 'OBS window shown on this screen. If you still cannot see it, press Alt+Tab. (' + how + ')';
+    if (/^no-window/.test(how))
+      return (
+        'OBS is running but has no main window yet. Use Settings → OBS → Reset OBS window position. (' +
+        how +
+        ')'
+      );
+    return 'Could not show OBS. Use Settings → OBS → Reset OBS window position. (' + how + ')';
+  }
+  window.obsShowResult = showResult;
   async function explainStuck() {
     stuckAt = Date.now();
     let d = await call('obs-diagnose', { bundled: useBundled() }).catch(() => null);

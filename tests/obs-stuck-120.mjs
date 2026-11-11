@@ -82,6 +82,27 @@ try {
   await page.locator('#obsStuck button', { hasText: 'OBS connection settings' }).click();
   await page.waitForFunction(() => document.getElementById('obsPairWindow').open);
   await page.evaluate(() => document.getElementById('obsPairWindow').close());
+  // What Show OBS says: the report is included, and each case has its own advice.
+  const says = how => page.evaluate(r => window.obsShowResult(r), how);
+  assert.match(
+    await says({
+      shown: true,
+      how: 'tray was=3840,0,1280x800 now=320,140,1280x800,moved screen=0,0,1920x1040'
+    }),
+    /^OBS window shown on this screen\..*\(tray was=3840,0,1280x800 now=320,140/
+  );
+  assert.match(
+    await says({
+      shown: false,
+      how: 'already was=0,0,1280x800 now=0,0,1280x800 screen=0,0,1920x1040 cloaked'
+    }),
+    /another Windows desktop/
+  );
+  assert.match(
+    await says({ shown: false, how: 'no-window tray=True' }),
+    /no main window yet\. Use Settings → OBS → Reset OBS window position/
+  );
+  assert.equal(await says({ how: 'no-obs' }), 'OBS is not running.');
   // Connected: cleared.
   await page.evaluate(() => (window.obsBlocked = false));
   await page.waitForFunction(() => window.obsConnected === true, null, { timeout: 15000 });
