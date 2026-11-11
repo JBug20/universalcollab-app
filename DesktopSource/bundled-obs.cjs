@@ -197,7 +197,8 @@ const listening = (port, ms = 400) =>
 // PowerShell that shows or hides OBS's main window like a click on OBS's tray icon. OBS keeps track of whether its
 // window is shown; forcing the window open from outside (as 1.2.0 previews before 17 did) left OBS thinking it was
 // still hidden, so its own tray Show / Hide and minimise stopped working. A click on the tray icon reaches OBS as a
-// message to Qt's hidden tray window (class QTrayIconMessageWindowClass): WM_APP + 101 with NIN_SELECT (0x400) for
+// message to Qt's hidden tray window (class <prefix>QTrayIconMessageWindowClass; Qt puts its version in front, e.g.
+// Qt683QTrayIconMessageWindowClass): WM_APP + 101 with NIN_SELECT (0x400) for
 // icon 0, which makes OBS toggle its window itself.
 // OBS started in the tray has no main window until it is first shown, so the windows are looked up again after each
 // click and the result is waited for (up to 3 seconds) before deciding anything; a second click is only sent when
@@ -287,7 +288,7 @@ function Find {
     if ($script:pids -contains [int]$p) {
       $c = New-Object System.Text.StringBuilder 256; [void][W]::GetClassName($h, $c, 256)
       $t = New-Object System.Text.StringBuilder 256; [void][W]::GetWindowText($h, $t, 256)
-      if ($c.ToString() -like 'QTrayIconMessageWindowClass*') { $script:tray = $h }
+      if ($c.ToString() -like '*TrayIconMessageWindowClass*' -or $t.ToString() -eq 'QTrayIconMessageWindow') { $script:tray = $h }
       elseif ($t.ToString() -like 'OBS *' -and ($script:main -eq [IntPtr]::Zero -or [W]::IsWindowVisible($h))) { $script:main = $h; $script:title = $t.ToString() } }
     return $true }, [IntPtr]::Zero) | Out-Null
 }
@@ -314,7 +315,9 @@ if ($script:tray -ne [IntPtr]::Zero) {
 if ($script:main -eq [IntPtr]::Zero) { Write-Output "no-window tray=$($script:tray -ne [IntPtr]::Zero)"; exit 3 }
 # Hiding is only ever done by OBS itself: hiding its window behind its back leaves OBS sure it is showing (the tray
 # then says Hide while nothing is on screen, and Show does nothing).
-if (-not $wantShown) { Write-Output 'failed-hide'; exit 5 }
+# No tray window, or OBS did not react: minimise it instead (OBS keeps track of that, and with "Minimize to system
+# tray when minimized" on in OBS it goes to the tray).
+if (-not $wantShown) { [void][W]::ShowWindow($script:main, 6); Start-Sleep -Milliseconds 300; if ([W]::IsIconic($script:main) -or -not (Visible)) { Write-Output "minimized tray=$($script:tray -ne [IntPtr]::Zero)"; exit 0 }; Write-Output 'failed-hide'; exit 5 }
 [void][W]::ShowWindow($script:main, 9); $script:info = [W]::Bring($script:main, [IntPtr][long]${near})
 Find
 if ((Visible) -eq $wantShown) { Write-Output "direct $script:info"; exit 0 }

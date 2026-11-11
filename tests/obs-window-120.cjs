@@ -92,7 +92,8 @@ const show = windowScript(4321, 'show'),
   hide = windowScript(4321, 'hide');
 for (const s of [show, hide]) {
   assert.match(s, /\$script:pids \+= 4321/, 'only this OBS');
-  assert.match(s, /QTrayIconMessageWindowClass/, "OBS's tray window");
+  // Qt puts its version in front of the class name (Qt683QTrayIconMessageWindowClass).
+  assert.match(s, /-like '\*TrayIconMessageWindowClass\*' -or \$t\.ToString\(\) -eq 'QTrayIconMessageWindow'/, "OBS's tray window, with Qt's prefix");
   assert.match(
     s,
     /PostMessage\(\$script:tray, 0x8065, \[IntPtr\]::Zero, \[IntPtr\]0x400\)/,
@@ -224,7 +225,11 @@ assert.match(
 function rest() {
   // Hiding is never forced from outside OBS (that left OBS sure its window was open while nothing was on screen).
   assert.doesNotMatch(hide, /ShowWindow\(\$script:main, 0\)/);
-  assert.match(hide, /if \(-not \$wantShown\) \{ Write-Output 'failed-hide'; exit 5 \}/);
+  assert.match(
+    hide,
+    /if \(-not \$wantShown\) \{ \[void\]\[W\]::ShowWindow\(\$script:main, 6\)/,
+    'minimised instead'
+  );
   // Not running: a clear error.
   const b = new BundledOBS({ root: '/nonexistent' });
   assert

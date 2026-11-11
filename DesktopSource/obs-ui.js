@@ -1378,9 +1378,11 @@
     const hide = btn('Hide OBS window', async () => {
       const r = await call('bundled-hide');
       say(
-        r.hidden
-          ? 'OBS window hidden; OBS keeps running in the system tray.'
-          : 'Hide OBS from its tray icon: right-click → Hide.' + (r.how ? ' (' + r.how + ')' : '')
+        r.hidden && /^minimized/.test(r.how || '')
+          ? 'OBS window minimised. To have it go to the tray instead, in OBS: Settings → General → System Tray → tick "Minimize to system tray when minimized".'
+          : r.hidden
+            ? 'OBS window hidden; OBS keeps running in the system tray.'
+            : 'Hide OBS from its tray icon: right-click → Hide.' + (r.how ? ' (' + r.how + ')' : '')
       );
     });
     hide.id = 'bundledOBSHide';
