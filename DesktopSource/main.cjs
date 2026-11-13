@@ -617,7 +617,10 @@ app.whenReady().then(() => {
         if (op === 'readiness') {
           const data = await obsControls.handle('readiness', input);
           const dir = (await obsControls.handle('settings').catch(() => null))?.record?.recordDirectory;
-          return { ok: true, data: { ...data, recordFolder: require('./record-folder.cjs').status(dir) } };
+          return {
+            ok: true,
+            data: { ...data, recordFolder: await require('./record-folder.cjs').status(dir) }
+          };
         }
         // Settings → OBS → Recording scene → Get Source Record: the plugin's page on obsproject.com.
         if (op === 'source-record-page') {

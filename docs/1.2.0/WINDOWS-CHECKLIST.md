@@ -77,6 +77,7 @@ You need:
 ## 4. Recording, clips and storage
 
 - [ ] Start Recording, then stop: the file is in OBS's recordings folder.
+- [ ] **Recordings drive not answering:** with the recordings folder on a USB drive, unplug it (or let it sleep) and press Record, open Settings → OBS and Check stream readiness: UniversalCollab stays responsive, says the drive is not answering within a few seconds, and closes normally.
 - [ ] **Clip** saves the last 60 seconds; Show file opens it.
 - [ ] **Recordings folder** (Tools → Recordings folder, or Settings → OBS):
   - [ ] Choose folder… picks a folder on another drive. The next recording and the next clip are saved there.

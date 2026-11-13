@@ -37,21 +37,46 @@ function check(dir) {
   return folder;
 }
 
-// Read-only version for the readiness check: nothing is created or written.
-function status(dir) {
+// Read-only version for the readiness check: nothing is created or written. Asynchronous and limited to a few
+// seconds, so a recordings drive that is not answering (asleep, failing, disconnected network drive) is reported
+// instead of freezing UniversalCollab.
+async function status(dir, { timeout = 4000 } = {}) {
   const folder = typeof dir === 'string' ? dir.trim() : '';
   if (!folder) return { ok: false, error: 'OBS has no recordings folder set.' };
+  let timer;
+  const slow = new Promise(resolve => {
+    timer = setTimeout(
+      () =>
+        resolve({
+          ok: false,
+          folder,
+          error:
+            'The drive for ' +
+            folder +
+            ' is not answering. If it is a USB or network drive, check it is connected.'
+        }),
+      timeout
+    );
+  });
+  const look = (async () => {
+    try {
+      if (!(await fs.promises.stat(folder)).isDirectory())
+        return { ok: false, folder, error: folder + ' is not a folder.' };
+    } catch {
+      return { ok: false, folder, error: folder + ' does not exist (is the drive connected?).' };
+    }
+    try {
+      await fs.promises.access(folder, fs.constants.W_OK);
+    } catch {
+      return { ok: false, folder, error: 'No permission to save recordings in ' + folder + '.' };
+    }
+    return { ok: true, folder };
+  })();
   try {
-    if (!fs.statSync(folder).isDirectory()) return { ok: false, folder, error: folder + ' is not a folder.' };
-  } catch {
-    return { ok: false, folder, error: folder + ' does not exist (is the drive connected?).' };
+    return await Promise.race([look, slow]);
+  } finally {
+    clearTimeout(timer);
   }
-  try {
-    fs.accessSync(folder, fs.constants.W_OK);
-  } catch {
-    return { ok: false, folder, error: 'No permission to save recordings in ' + folder + '.' };
-  }
-  return { ok: true, folder };
 }
 
 exports.check = check;
